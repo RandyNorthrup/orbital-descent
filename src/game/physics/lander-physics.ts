@@ -1,5 +1,7 @@
 import { DEGREES_PER_HALF_TURN } from '../constants';
 
+const TAU = Math.PI * 2;
+
 /** Immutable 2D vector. Framework-agnostic — no Phaser import in this module,
  * so it can be unit-tested in plain Node and reused if the renderer ever changes. */
 export interface Vector2 {
@@ -49,32 +51,17 @@ export function consumeFuel(currentFuel: number, burnRate: number, dtSeconds: nu
   return Math.max(0, currentFuel - burnRate * dtSeconds);
 }
 
-export interface WorldBounds {
-  readonly width: number;
-  readonly height: number;
-  readonly floorMargin: number;
+/** Arcade-style horizontal screen wrap. Vertical movement is unbounded here —
+ * ground contact is a terrain-collision concern (see src/game/terrain/),
+ * not a flight-physics one. */
+export function wrapHorizontal(x: number, worldWidth: number): number {
+  return ((x % worldWidth) + worldWidth) % worldWidth;
 }
 
-/**
- * Wraps the lander horizontally (arcade-style screen wrap) and stops it at a
- * temporary floor vertically, zeroing vertical velocity on contact. This is a
- * placeholder world boundary for Milestone 1's flight-only demo; Milestone 2
- * replaces the floor with real terrain/landing-pad collision.
- */
-export function applyWorldBounds(
-  position: Vector2,
-  velocity: Vector2,
-  bounds: WorldBounds,
-): { position: Vector2; velocity: Vector2 } {
-  const wrappedX = ((position.x % bounds.width) + bounds.width) % bounds.width;
-  const floorY = bounds.height - bounds.floorMargin;
-
-  if (position.y >= floorY) {
-    return {
-      position: { x: wrappedX, y: floorY },
-      velocity: { x: velocity.x, y: Math.min(velocity.y, 0) },
-    };
-  }
-
-  return { position: { x: wrappedX, y: position.y }, velocity };
+/** Wraps radians into (-PI, PI], so accumulated rotation from many spins can
+ * still be compared meaningfully against a small "how upright is this"
+ * tolerance for landing safety. */
+export function normalizeAngle(radians: number): number {
+  const wrapped = ((radians + Math.PI) % TAU) - Math.PI;
+  return wrapped <= -Math.PI ? wrapped + TAU : wrapped;
 }

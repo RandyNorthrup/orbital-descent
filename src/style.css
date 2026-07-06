@@ -31,9 +31,11 @@ body {
   justify-content: center;
 }
 
+/* Hard-edged offset shadow (no blur) — paper-cutout style, not a soft glow.
+   See PLAN.md §4 "Paper-cutout art style". */
 #app canvas {
   display: block;
-  box-shadow: 0 0 40px rgba(224, 224, 224, 0.08);
+  box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.5);
 }
 
 /* Removed by BootScene once Phaser boots — see index.html for why it exists. */

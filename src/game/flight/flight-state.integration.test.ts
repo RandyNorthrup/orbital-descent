@@ -3,9 +3,11 @@ import { FlightState, type FlightSnapshot } from './flight-state';
 
 /**
  * These tests exercise FlightState as a whole — physics + fuel + rotation +
- * world bounds composed together over many simulated frames — rather than
- * any single pure function in isolation. That composition is what "unit"
- * tests in lander-physics.test.ts deliberately don't cover.
+ * horizontal world-wrap composed together over many simulated frames —
+ * rather than any single pure function in isolation. That composition is
+ * what "unit" tests in lander-physics.test.ts deliberately don't cover.
+ * Ground contact is NOT FlightState's concern (see PLAN.md §4) — that's
+ * covered by src/game/terrain/landing.test.ts against real terrain.
  */
 
 const STARTING_SNAPSHOT: FlightSnapshot = {
@@ -18,7 +20,7 @@ const STARTING_SNAPSHOT: FlightSnapshot = {
 function makeFlightState(overrides: Partial<FlightSnapshot> = {}): FlightState {
   return new FlightState({
     initial: { ...STARTING_SNAPSHOT, ...overrides },
-    bounds: { width: 200, height: 200, floorMargin: 10 },
+    worldWidth: 200,
     gravityAccel: 20,
     thrustAccel: 50,
     rotationSpeedRadPerSec: Math.PI,
@@ -79,11 +81,10 @@ describe('FlightState', () => {
     expect(after.velocity.x).toBeGreaterThan(0);
   });
 
-  it('comes to rest on the temporary floor instead of falling through it', () => {
+  it('falls straight through where a fixed floor used to be — ground contact is not its job', () => {
     const state = makeFlightState({ position: { x: 100, y: 185 }, velocity: { x: 0, y: 40 } });
     const after = tickMany(state, 60, 1 / 60, { thrust: false, rotate: 0 });
-    expect(after.position.y).toBe(190);
-    expect(after.velocity.y).toBeLessThanOrEqual(0);
+    expect(after.position.y).toBeGreaterThan(190);
   });
 
   it('wraps around the side of the world during sustained horizontal drift', () => {

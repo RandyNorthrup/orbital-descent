@@ -28,11 +28,12 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       // Scoped to the Phaser-free pure-logic layers (physics, flight
-      // orchestration) that unit + integration tests actually exercise.
-      // Scene glue (src/game/scenes/**, src/main.ts) wires that logic into
-      // Phaser/the DOM and is verified by the Playwright e2e smoke test
-      // instead — it has no meaningful behavior to unit-test in isolation.
-      include: ['src/game/physics/**/*.ts', 'src/game/flight/**/*.ts'],
+      // orchestration, terrain generation, landing rules) that unit +
+      // integration tests actually exercise. Scene glue and rendering
+      // (src/game/scenes/**, src/game/rendering/**, src/main.ts) wire that
+      // logic into Phaser/the DOM and are verified by the Playwright e2e
+      // smoke test instead — no meaningful behavior to unit-test in isolation.
+      include: ['src/game/physics/**/*.ts', 'src/game/flight/**/*.ts', 'src/game/terrain/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/**/*.integration.test.ts'],
       thresholds: {
         statements: 90,

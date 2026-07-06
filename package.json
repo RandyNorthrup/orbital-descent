@@ -1,8 +1,8 @@
 {
-  "name": "lunar-lander",
+  "name": "orbital-descent",
   "version": "0.1.0",
   "private": true,
-  "description": "A modern 2D lunar lander game built with Phaser 4 and TypeScript.",
+  "description": "A modern 2D landing-and-exploration game across fictional worlds, built with Phaser 4 and TypeScript.",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || ^22.13.0 || >=24.0.0"

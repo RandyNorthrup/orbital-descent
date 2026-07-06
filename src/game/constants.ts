@@ -32,20 +32,76 @@ export const LANDER_START_X = GAME_WIDTH / 2;
 export const LANDER_START_Y = 80;
 
 /** Half-height of the triangular lander body, in px, used to build its shape
- * and to keep it clear of the world-bounds floor. */
+ * and to size its collision check against terrain height. */
 export const LANDER_RADIUS = 14;
-
-/** World-bounds floor margin in px until real terrain/landing arrives
- * (see PLAN.md Milestone 2) — keeps the M1 demo flyable instead of letting
- * the lander fall through the bottom of the canvas forever. */
-export const WORLD_FLOOR_MARGIN = 24;
 
 /** Degrees in a half turn — used only for the degrees<->radians conversion
  * in lander-physics.ts, named so it isn't a bare "180" in that formula. */
 export const DEGREES_PER_HALF_TURN = 180;
 
+/** Uniform spacing, in px, between HUD text elements and the viewport edge. */
+export const HUD_MARGIN = 16;
+
+/* ---------------------------------------------------------------------- */
+/* Terrain generation (src/game/terrain/terrain-generator.ts)             */
+/* ---------------------------------------------------------------------- */
+
+/** Number of terrain segments spanning GAME_WIDTH — more segments = finer
+ * detail, fewer = blockier. 40 gives a visibly jagged but readable profile
+ * at 960px wide (24px average segment width). */
+export const TERRAIN_SEGMENTS = 40;
+
+/** Terrain height band, as a fraction of GAME_HEIGHT measured from the top —
+ * keeps the ground in the lower third-to-half of the screen, leaving room
+ * to fly, and never right at the bottom edge. */
+export const TERRAIN_MIN_HEIGHT_FRACTION = 0.55;
+export const TERRAIN_MAX_HEIGHT_FRACTION = 0.9;
+
+/** Max height change between adjacent terrain points, as a fraction of
+ * GAME_HEIGHT. Generation is a bounded random walk (each point stays within
+ * this step of the last) rather than fully independent random heights, so
+ * the terrain reads as connected ground, not disconnected spikes. */
+export const TERRAIN_MAX_STEP_FRACTION = 0.05;
+
+/** How many consecutive terrain segments are flattened into the landing pad. */
+export const LANDING_PAD_SEGMENT_COUNT = 3;
+
+/* ---------------------------------------------------------------------- */
+/* Landing safety thresholds (src/game/terrain/landing.ts)                */
+/* ---------------------------------------------------------------------- */
+
+/** Touchdown is only safe at or below this speed, in px/s (vector magnitude). */
+export const LANDING_MAX_SAFE_SPEED = 60;
+
+/** Touchdown is only safe within this many degrees of upright. */
+export const LANDING_MAX_SAFE_ANGLE_DEG = 15;
+
+/* ---------------------------------------------------------------------- */
+/* Paper-cutout palette and rendering (src/game/rendering/*)              */
+/* See PLAN.md §4 "Paper-cutout art style" for the rules this implements. */
+/* ---------------------------------------------------------------------- */
+
 /** Lander body fill color — light silver, reads clearly against BACKGROUND_COLOR. */
 export const LANDER_FILL_COLOR = 0xe0e0e0;
 
-/** Uniform spacing, in px, between HUD text elements and the viewport edge. */
-export const HUD_MARGIN = 16;
+export const TERRAIN_FILL_COLOR = 0x8a7a66;
+export const LANDING_PAD_FILL_COLOR = 0x5fd45f;
+export const LANDED_COLOR = 0x5fd45f;
+export const CRASHED_COLOR = 0xd45f5f;
+
+/** Shared near-black outline/shadow color for every cutout shape. */
+export const OUTLINE_COLOR = 0x1a1410;
+export const OUTLINE_WIDTH = 3;
+
+/** Offset, in px, of the hard drop-shadow copy behind each shape. */
+export const SHADOW_OFFSET = 6;
+
+/** Side length, in px, of the procedurally generated paper-grain texture
+ * tile (small and repeated via TileSprite, not one giant texture). */
+export const PAPER_GRAIN_TEXTURE_SIZE = 64;
+
+/** Number of random speckles drawn onto the grain texture — enough to read
+ * as paper fiber at this tile size without looking like solid noise. */
+export const PAPER_GRAIN_SPECKLE_COUNT = 220;
+export const PAPER_GRAIN_SPECKLE_MAX_ALPHA = 0.18;
+export const PAPER_GRAIN_SPECKLE_MAX_RADIUS = 1.5;

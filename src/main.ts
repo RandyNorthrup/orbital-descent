@@ -17,5 +17,5 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 
-// See global.d.ts for the Window.__LUNAR_LANDER_GAME__ ambient declaration.
-window.__LUNAR_LANDER_GAME__ = game;
+// See global.d.ts for the Window.__ORBITAL_DESCENT_GAME__ ambient declaration.
+window.__ORBITAL_DESCENT_GAME__ = game;

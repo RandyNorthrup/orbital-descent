@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   addVectors,
-  applyWorldBounds,
   consumeFuel,
   degreesToRadians,
   integrate,
   integrateRotation,
+  normalizeAngle,
   thrustVector,
+  wrapHorizontal,
   ZERO_VECTOR,
 } from './lander-physics';
 
@@ -86,32 +87,42 @@ describe('consumeFuel', () => {
   });
 });
 
-describe('applyWorldBounds', () => {
-  const bounds = { width: 100, height: 100, floorMargin: 10 };
-
-  it('leaves position and velocity untouched mid-flight', () => {
-    const result = applyWorldBounds({ x: 50, y: 50 }, { x: 1, y: 2 }, bounds);
-    expect(result).toEqual({ position: { x: 50, y: 50 }, velocity: { x: 1, y: 2 } });
+describe('wrapHorizontal', () => {
+  it('leaves an in-bounds x untouched', () => {
+    expect(wrapHorizontal(50, 100)).toBe(50);
   });
 
-  it('wraps horizontally past the right edge', () => {
-    const result = applyWorldBounds({ x: 110, y: 50 }, { x: 1, y: 0 }, bounds);
-    expect(result.position.x).toBeCloseTo(10);
+  it('wraps past the right edge back around to near zero', () => {
+    expect(wrapHorizontal(110, 100)).toBeCloseTo(10);
   });
 
-  it('wraps horizontally past the left edge', () => {
-    const result = applyWorldBounds({ x: -10, y: 50 }, { x: -1, y: 0 }, bounds);
-    expect(result.position.x).toBeCloseTo(90);
+  it('wraps past the left edge back around to near the width', () => {
+    expect(wrapHorizontal(-10, 100)).toBeCloseTo(90);
   });
 
-  it('stops descent at the floor and zeroes downward velocity', () => {
-    const result = applyWorldBounds({ x: 50, y: 95 }, { x: 0, y: 20 }, bounds);
-    expect(result.position.y).toBe(90);
-    expect(result.velocity.y).toBe(0);
+  it('treats exactly the width as wrapping to zero', () => {
+    expect(wrapHorizontal(100, 100)).toBe(0);
+  });
+});
+
+describe('normalizeAngle', () => {
+  it('leaves angles already within (-PI, PI] untouched', () => {
+    expect(normalizeAngle(0)).toBeCloseTo(0);
+    expect(normalizeAngle(Math.PI / 2)).toBeCloseTo(Math.PI / 2);
+    expect(normalizeAngle(-Math.PI / 2)).toBeCloseTo(-Math.PI / 2);
   });
 
-  it('does not clamp upward velocity at the floor', () => {
-    const result = applyWorldBounds({ x: 50, y: 95 }, { x: 0, y: -5 }, bounds);
-    expect(result.velocity.y).toBe(-5);
+  it('maps -PI to PI (the boundary is inclusive on the positive side)', () => {
+    expect(normalizeAngle(-Math.PI)).toBeCloseTo(Math.PI);
+  });
+
+  it('wraps more than a full turn back to the equivalent angle', () => {
+    expect(normalizeAngle(Math.PI * 3)).toBeCloseTo(Math.PI);
+    expect(normalizeAngle(-Math.PI * 3)).toBeCloseTo(Math.PI);
+  });
+
+  it('wraps one and a half turns to the equivalent quarter-turn angle', () => {
+    expect(normalizeAngle(Math.PI * 1.5)).toBeCloseTo(-Math.PI / 2);
+    expect(normalizeAngle(-Math.PI * 1.5)).toBeCloseTo(Math.PI / 2);
   });
 });

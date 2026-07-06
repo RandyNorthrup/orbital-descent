@@ -1,16 +1,19 @@
-# Lunar Lander
+# Orbital Descent
 
-A modern 2D lunar lander game: rotate and thrust to fight gravity and land
-safely. Built with [Phaser 4](https://phaser.io) and TypeScript.
+A 2D landing-and-exploration game across fictional worlds: rotate and
+thrust to fight gravity, terrain, and hazards to touch down safely. Built
+with [Phaser 4](https://phaser.io) and TypeScript.
 
 Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 1 (Project Foundation + Flight Core) —
-gravity, thrust, fuel, and rotation are implemented and flyable in a real
-booted Phaser scene. There is no terrain, landing pad, scoring, or menu flow
-yet — see `PLAN.md` §6 for what's next.
+**Current status**: Milestone 2 (Terrain & Landing) certified — gravity,
+thrust, fuel, rotation, procedurally generated terrain, and a real
+landed-vs-crashed outcome are all implemented and playable in a real booted
+Phaser scene, in the paper-cutout art style. Single ship, single world so
+far — see `PLAN.md` §6 for the full roadmap (multiple fictional worlds,
+ships, upgrades, weapons, obstacles/hostiles, and more).
 
 ## Stack
 
@@ -138,7 +141,7 @@ documented here and in `.env.example` when it happens.
 ## Deployment
 
 None — by design. The code is published to
-[github.com/RandyNorthrup/lunar-lander](https://github.com/RandyNorthrup/lunar-lander)
+[github.com/RandyNorthrup/orbital-descent](https://github.com/RandyNorthrup/orbital-descent)
 (Decision D5 in `PLAN.md`) as source only — no live-hosted build, and no
 CI/CD (Decision D9): GitHub stores the code, nothing more. Quality gates
 (`pnpm quality:full`, `pnpm lighthouse`) are run locally before each push.

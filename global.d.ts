@@ -11,6 +11,6 @@ declare global {
      * Shared here (rather than inline in main.ts) so both the app
      * (tsconfig.app.json) and e2e (tsconfig.node.json) TS programs see it.
      */
-    __LUNAR_LANDER_GAME__?: Phaser.Game;
+    __ORBITAL_DESCENT_GAME__?: Phaser.Game;
   }
 }

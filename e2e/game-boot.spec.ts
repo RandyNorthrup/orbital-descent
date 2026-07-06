@@ -21,7 +21,7 @@ test('boots Phaser, renders the canvas at the configured size, and reaches GameS
 
   await page.goto('/');
 
-  await page.waitForFunction(() => window.__LUNAR_LANDER_GAME__?.isBooted === true, {
+  await page.waitForFunction(() => window.__ORBITAL_DESCENT_GAME__?.isBooted === true, {
     timeout: BOOT_TIMEOUT_MS,
   });
 
@@ -31,7 +31,7 @@ test('boots Phaser, renders the canvas at the configured size, and reaches GameS
   await expect(canvas).toHaveAttribute('height', String(GAME_HEIGHT));
 
   const activeSceneKey = await page.evaluate(() => {
-    const game = window.__LUNAR_LANDER_GAME__;
+    const game = window.__ORBITAL_DESCENT_GAME__;
     return game?.scene.getScenes(true).at(0)?.scene.key ?? null;
   });
   expect(activeSceneKey).toBe('Game');

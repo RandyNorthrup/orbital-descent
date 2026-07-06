@@ -6,6 +6,43 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ## [Unreleased]
 
+### Changed
+
+- Project renamed "Lunar Lander" → "Orbital Descent" (Decision D10) —
+  scope grew to multiple fictional worlds, ships, and combat, which
+  "Lunar Lander" no longer described. Renamed everywhere in one pass:
+  GitHub repo, `package.json`, `index.html`, all docs, and the
+  `window.__ORBITAL_DESCENT_GAME__` e2e test hook. Verified nothing broke:
+  full quality gate re-run (format/lint/typecheck/tests/build/e2e/
+  deadcode/secrets) all green after the rename.
+
+### Added
+
+- Milestone 2 — Terrain & Landing: `src/game/terrain/terrain-generator.ts`
+  (seeded, deterministic heightmap with a flat landing pad) and
+  `src/game/terrain/landing.ts` (safe-landing speed/angle check). Real
+  ground collision replaces Milestone 1's temporary fixed floor.
+- Paper-cutout rendering system (`src/game/rendering/paper-texture.ts`,
+  `paper-shape.ts`): a procedurally generated grain texture, masked to
+  each shape's silhouette and tinted per-element, plus a crisp outline and
+  a hard offset drop-shadow — used for the lander, terrain, and landing
+  pad. No external image assets.
+- `e2e/landing.spec.ts`: lets gravity alone carry the ship into the
+  randomly generated terrain and asserts a real `landed`/`crashed` outcome,
+  across all three browsers.
+
+### Changed
+
+- `src/game/physics/lander-physics.ts`: removed `applyWorldBounds`/
+  `WorldBounds` (the Milestone 1 temporary floor) in favor of
+  `wrapHorizontal` (horizontal wrap only) and `normalizeAngle` (for the
+  landing-safety angle check). `FlightState` no longer takes a `bounds`
+  option, just `worldWidth` — ground contact is `GameScene`'s job now, not
+  `FlightState`'s. See `PLAN.md` §4.
+- `GameScene`: generates and renders real terrain each session, detects
+  ground contact, and shows a landed/crashed outcome with a restart key,
+  instead of resting on a flat placeholder floor forever.
+
 ### Removed
 
 - GitHub Actions CI (`.github/workflows/ci.yml`) — removed by explicit

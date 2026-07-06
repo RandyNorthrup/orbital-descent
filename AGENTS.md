@@ -1,4 +1,4 @@
-# Agent Instructions — Lunar Lander
+# Agent Instructions — Orbital Descent
 
 This file is the canonical source of project standards for any AI coding
 agent working in this repository (Claude Code, GitHub Copilot, Cursor, or

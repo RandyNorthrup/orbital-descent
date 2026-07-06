@@ -1,13 +1,12 @@
 import {
   addVectors,
-  applyWorldBounds,
   consumeFuel,
   integrate,
   integrateRotation,
   thrustVector,
+  wrapHorizontal,
   ZERO_VECTOR,
   type Vector2,
-  type WorldBounds,
 } from '../physics/lander-physics';
 
 export interface FlightInput {
@@ -24,7 +23,7 @@ export interface FlightSnapshot {
 
 export interface FlightStateOptions {
   readonly initial: FlightSnapshot;
-  readonly bounds: WorldBounds;
+  readonly worldWidth: number;
   readonly gravityAccel: number;
   readonly thrustAccel: number;
   readonly rotationSpeedRadPerSec: number;
@@ -40,7 +39,7 @@ export interface FlightStateOptions {
  */
 export class FlightState {
   private currentSnapshot: FlightSnapshot;
-  private readonly bounds: WorldBounds;
+  private readonly worldWidth: number;
   private readonly gravityAccel: number;
   private readonly thrustAccel: number;
   private readonly rotationSpeedRadPerSec: number;
@@ -48,7 +47,7 @@ export class FlightState {
 
   constructor(options: FlightStateOptions) {
     this.currentSnapshot = options.initial;
-    this.bounds = options.bounds;
+    this.worldWidth = options.worldWidth;
     this.gravityAccel = options.gravityAccel;
     this.thrustAccel = options.thrustAccel;
     this.rotationSpeedRadPerSec = options.rotationSpeedRadPerSec;
@@ -70,7 +69,7 @@ export class FlightState {
     const acceleration = addVectors(gravity, thrust);
 
     const velocity = integrate(current.velocity, acceleration, dtSeconds);
-    const positionBeforeBounds = integrate(current.position, velocity, dtSeconds);
+    const rawPosition = integrate(current.position, velocity, dtSeconds);
     const rotationRadians = integrateRotation(
       current.rotationRadians,
       input.rotate,
@@ -81,11 +80,9 @@ export class FlightState {
       ? consumeFuel(current.fuel, this.fuelBurnRate, dtSeconds)
       : current.fuel;
 
-    const bounded = applyWorldBounds(positionBeforeBounds, velocity, this.bounds);
-
     this.currentSnapshot = {
-      position: bounded.position,
-      velocity: bounded.velocity,
+      position: { x: wrapHorizontal(rawPosition.x, this.worldWidth), y: rawPosition.y },
+      velocity,
       rotationRadians,
       fuel,
     };
