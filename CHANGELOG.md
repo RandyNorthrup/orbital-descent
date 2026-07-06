@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Only real,
 already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
+## [Unreleased]
+
+### Removed
+
+- GitHub Actions CI (`.github/workflows/ci.yml`) — removed by explicit
+  instruction: GitHub is code storage only for this project, not a CI/CD
+  platform (Decision D9 in `PLAN.md`). It existed for two pushes and did
+  real, useful work in that time (caught and confirmed the fix for the
+  Lighthouse Performance bug below) before being removed. Quality gates
+  (`pnpm quality`, the renamed `pnpm quality:full`, `pnpm lighthouse`) are
+  now run locally before each push instead of automatically.
+- `package.json` script `quality:ci` renamed to `quality:full` — the old
+  name implied a CI system that no longer exists.
+
 ## [0.1.0] — 2026-07-06
 
 ### Added

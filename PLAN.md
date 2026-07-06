@@ -27,10 +27,11 @@ milestones depend on understanding _why_, not just _what_.
 | D2  | Language              | **TypeScript 6.0.3**                       | Required for the strict typecheck gate. Pinned `6.0.3` (not `^6.0.3`) because `typescript-eslint@8.62.1` requires `typescript >=4.8.4 <6.1.0` — a caret range risked a silent break the moment TS 6.1 ships.                                                                                                                                                                                                                                                   |
 | D3  | Build tooling         | **Vite 8.1.3 + vanilla TS** (no React)     | No app-wide UI state beyond the game itself; Phaser scenes own the canvas and game loop directly. Smallest dependency surface.                                                                                                                                                                                                                                                                                                                                 |
 | D4  | Package manager       | **pnpm 11.10.0**                           | Strict dependency resolution (no phantom deps), fast, disk-efficient. Installed globally via `npm install -g pnpm@11.10.0` since Node 26 no longer bundles Corepack — documented as a required one-time global install in README Prerequisites.                                                                                                                                                                                                                |
-| D5  | Hosting/deploy target | **None — source published to GitHub only** | `github.com/RandyNorthrup/lunar-lander` (public). No live deployment (no Pages/Vercel/Netlify) — the repository itself is the deliverable. CI runs quality gates on push/PR; no `deploy` job needed.                                                                                                                                                                                                                                                           |
+| D5  | Hosting/deploy target | **None — source published to GitHub only** | `github.com/RandyNorthrup/lunar-lander` (public). No live deployment (no Pages/Vercel/Netlify) — the repository itself is the deliverable. No CI/CD either (Decision D9) — GitHub stores the code only; quality gates are run locally before each push.                                                                                                                                                                                                        |
 | D6  | Platform/input        | **Desktop keyboard only (v1)**             | Arrow keys / WASD, classic lunar-lander controls. Touch controls are a possible future milestone, not committed.                                                                                                                                                                                                                                                                                                                                               |
 | D7  | Testing depth         | **Unit + integration + e2e**               | Vitest for pure-function and multi-module-orchestration logic; Playwright for real-browser verification. See Architecture Notes for why this split exists and what each tier actually covers.                                                                                                                                                                                                                                                                  |
 | D8  | Score persistence     | **`localStorage`, schema-validated**       | No backend. Deferred to Milestone 4 — not yet implemented.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| D9  | CI/CD                 | **None — GitHub is code storage only**     | `.github/workflows/ci.yml` existed briefly (two real pushes, both verified green — see §5's Lighthouse investigation, which happened precisely because that CI run existed) and was removed by explicit instruction after Milestone 1/6. Quality gates (`pnpm quality`, `pnpm quality:full`, `pnpm lighthouse`) are run locally, by whoever makes a change, before pushing — not automated.                                                                    |
 
 ## 3. Open Questions
 
@@ -138,8 +139,9 @@ January 2026; the current date is well past that).
   this local sandbox) produced `performance: null` with every metric
   erroring `NO_FCP`/`NO_LCP`. Initially misdiagnosed as a GPU-constrained
   local sandbox limitation. That diagnosis was **wrong**: the identical
-  failure reproduced on GitHub Actions' own `ubuntu-latest` runner (see the
-  first CI run, job `85445055566`), which ruled out "local environment
+  failure reproduced identically on a completely independent machine
+  (GitHub Actions' `ubuntu-latest` runner, back when this project briefly
+  had a CI workflow — see Decision D9), which ruled out "local environment
   quirk" entirely. Inspecting the actual report JSON's `auditRefs` showed
   every Performance audit erroring `NO_LCP` — the real cause: `index.html`'s
   entire visible content was a `<canvas>`, and **canvas/WebGL painting is
@@ -355,16 +357,22 @@ fresh Lighthouse accessibility run.
 deliverable is the source repository itself, published publicly on GitHub.
 
 **Scope**: `git init`, initial commit, `gh repo create`, push to
-`github.com/RandyNorthrup/lunar-lander` (public). No `deploy` CI job — none
-is needed since there's nothing to deploy to.
+`github.com/RandyNorthrup/lunar-lander` (public). No deploy step — there's
+nothing to deploy to. No CI either, per Decision D9: GitHub is code storage
+only.
 
 **Acceptance criteria**: repository is public and reachable at
-`github.com/RandyNorthrup/lunar-lander`; CI runs on push to `main`.
+`github.com/RandyNorthrup/lunar-lander`.
 
-**Certification checklist**: repo created and pushed; CI workflow present
-and will run automatically on the push (see Actions tab for the live
-result — not independently re-verified from this session beyond confirming
-the push succeeded).
+**Certification checklist**: repo created and pushed. A GitHub Actions
+workflow existed briefly between the first and second pushes and confirmed
+green for real (`gh run watch`, run `28814773214`) — Quality gates,
+End-to-end tests, and Lighthouse all passed, not just assumed from the
+local run. That workflow caught a real Lighthouse Performance bug on its
+first run (`28812884097`, see §5) that a local-only check on this one
+machine couldn't have ruled out as environment-specific — genuinely useful
+before it was removed per D9. It has since been deleted; quality gates are
+now run locally before each push instead.
 
 ## 7. Definition of Done (per milestone)
 
@@ -373,10 +381,11 @@ A milestone is certified only when **all** of the following are true:
 1. Every acceptance criterion in that milestone's section is met.
 2. `pnpm quality` passes locally (format, lint, typecheck, unit+integration
    coverage, build, dead-code, secret scan).
-3. `pnpm quality:ci` passes in GitHub Actions (adds dependency audit + e2e
-   across all three browsers).
-4. Lighthouse Performance/Accessibility/Best-Practices all score ≥0.90 in
-   CI (SEO is intentionally not gated).
+3. `pnpm quality:full` passes locally (adds dependency audit + e2e across
+   all three browsers). There is no CI (Decision D9) — this is run by
+   whoever is making the change, on their own machine, before pushing.
+4. `pnpm lighthouse` scores Performance/Accessibility/Best-Practices all
+   ≥0.90 (SEO is intentionally not gated).
 5. This file is updated: milestone status flipped to CERTIFIED, next
    milestone's "not started" replaced with real progress, any newly
    discovered open questions added to §3.
@@ -387,5 +396,5 @@ No milestone is marked complete with a known-failing or unverified gate
 silently dropped, and no failing gate gets explained away without actually
 fixing it — §5's Lighthouse Performance entry is the concrete example: the
 first read of the failure ("sandbox can't measure this") was wrong, and was
-corrected by reproducing it in CI, finding the real root cause, and fixing
-the product/config rather than the documentation.
+corrected by reproducing it on a second machine, finding the real root
+cause, and fixing the product/config rather than the documentation.

@@ -12,8 +12,9 @@ The short version, if you read nothing else:
 - Physics/game logic (`src/game/physics/**`, `src/game/flight/**`) never
   imports `phaser`. Scenes render state, they don't compute it. See
   AGENTS.md "Architecture rules" and `PLAN.md` §4.
-- Before marking anything done, run `pnpm quality` (or `pnpm quality:ci` for
-  the full set including e2e). Don't claim a gate passed without running it.
+- No CI (Decision D9) — GitHub is code storage only. Before marking
+  anything done, run `pnpm quality` (or `pnpm quality:full` for the full
+  set including e2e) yourself. Don't claim a gate passed without running it.
 - Update `PLAN.md` and `CHANGELOG.md` in the same session as the change that
   prompted them — not after the fact.
 - Status/progress updates to the user: full structured prose (changed

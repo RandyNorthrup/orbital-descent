@@ -27,11 +27,12 @@ yet — see `PLAN.md` §6 for what's next.
 - **Secret scanning**: secretlint `13.0.2`
 - **Bundle analysis**: vite-bundle-visualizer `1.2.1`
 - **Performance/accessibility/best-practices audits**: Lighthouse CI
-  (`@lhci/cli` `0.15.1`)
-- **CI**: GitHub Actions (`.github/workflows/ci.yml`)
+  (`@lhci/cli` `0.15.1`, run manually — see below)
 
-No backend, no database, no authentication — this is a fully static,
-client-only game.
+No backend, no database, no authentication, no CI/CD — this is a fully
+static, client-only game, and GitHub hosts the source only (no automated
+pipeline runs on push). All quality gates are run locally, by whoever is
+making the change, before pushing.
 
 ## Requirements
 
@@ -93,11 +94,13 @@ pnpm bundle:analyze    # opens a treemap of the production JS bundle
 pnpm lighthouse        # lhci autorun against the production build
 
 pnpm quality           # format:check + lint + typecheck + test:coverage + build + deadcode + security:secrets
-pnpm quality:ci        # quality + security:audit + test:e2e
+pnpm quality:full      # quality + security:audit + test:e2e
 ```
 
-`pnpm quality:ci` is what CI runs (plus a separate Lighthouse job). Any
-failure blocks the gate — nothing here is advisory.
+There is no CI — GitHub hosts source only (see Deployment below). Run
+`pnpm quality:full` (and `pnpm lighthouse` separately, since it needs a
+production build already in `dist/`) yourself before pushing. Nothing here
+is advisory; a failure means don't push yet.
 
 ## Environment variables
 
@@ -127,7 +130,7 @@ documented here and in `.env.example` when it happens.
 ├── playwright.config.ts          # e2e config (builds + previews, then runs specs)
 ├── eslint.config.js              # flat config, type-checked rules
 ├── knip.json / .secretlintrc.json / lighthouserc.json
-├── .github/workflows/ci.yml
+├── .github/copilot-instructions.md
 ├── PLAN.md                       # full plan, decisions, architecture notes, milestones
 └── CHANGELOG.md
 ```
@@ -136,8 +139,9 @@ documented here and in `.env.example` when it happens.
 
 None — by design. The code is published to
 [github.com/RandyNorthrup/lunar-lander](https://github.com/RandyNorthrup/lunar-lander)
-(Decision D5 in `PLAN.md`), but there is no live-hosted build. CI runs all
-quality gates on every push/PR to `main`; there is no deploy step.
+(Decision D5 in `PLAN.md`) as source only — no live-hosted build, and no
+CI/CD (Decision D9): GitHub stores the code, nothing more. Quality gates
+(`pnpm quality:full`, `pnpm lighthouse`) are run locally before each push.
 
 ## Security notes
 
@@ -155,11 +159,12 @@ quality gates on every push/PR to `main`; there is no deploy step.
 - **`pnpm: command not found`**: install it — see Requirements above.
 - **Lighthouse Chrome launch issues (`NO_FCP`, can't find Chrome, etc.)**:
   `lighthouserc.json` runs with `--headless=new --no-sandbox --disable-gpu
---disable-dev-shm-usage`, needed in most container/CI/sandboxed shells.
+--disable-dev-shm-usage`, needed in most sandboxed/containerized shells.
   If Performance specifically shows `NaN` with every metric erroring
   `NO_LCP`, that means the app's only paintable DOM content got removed —
-  see `PLAN.md` §5 for what that bug actually was and how it was fixed
-  (it's not an environment quirk; it reproduced identically on GitHub's own
-  `ubuntu-latest` runner and had a real root cause).
+  see `PLAN.md` §5 for what that bug actually was and how it was fixed (it
+  was a real root cause, not an environment quirk — confirmed by
+  reproducing it on a second, independent machine before this project
+  dropped CI).
 - **`pnpm test:e2e` fails with a missing browser**: run
   `pnpm exec playwright install chromium firefox webkit` once.

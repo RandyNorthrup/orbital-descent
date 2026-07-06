@@ -63,18 +63,24 @@ versus what's planned.
 
 ## Quality gates
 
-Every one of these must pass before a change is considered done — see
-README "Quality gates" for the exact commands:
+There is no CI (Decision D9 in `PLAN.md`) — GitHub hosts source only.
+Every one of these must be run and pass locally before a change is
+considered done, and before pushing — see README "Quality gates" for the
+exact commands:
 
 ```
-pnpm quality      # format:check, lint, typecheck, test:coverage, build, deadcode, security:secrets
-pnpm quality:ci   # quality + security:audit + test:e2e
+pnpm quality        # format:check, lint, typecheck, test:coverage, build, deadcode, security:secrets
+pnpm quality:full    # quality + security:audit + test:e2e
+pnpm lighthouse      # Performance/Accessibility/Best-Practices, against a production build
 ```
 
-Don't mark a task complete with a failing or skipped gate. If a gate can't
-be verified in the current environment (e.g. this sandbox's headless Chrome
-can't produce a Lighthouse performance trace — see `PLAN.md` §3), say so
-explicitly rather than assuming it passes, and note it as an open item.
+Don't mark a task complete with a failing or skipped gate. If a gate
+genuinely can't be verified in the current environment, say so explicitly
+rather than assuming it passes, and note it as an open item in `PLAN.md`
+§3 — but verify that claim before trusting it: `PLAN.md` §5 documents a
+case where "this environment can't measure it" was the wrong diagnosis for
+a Lighthouse Performance failure that turned out to be a real, fixable bug
+(reproduced on a second machine before it was found).
 
 ## Documentation discipline
 

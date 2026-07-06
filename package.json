@@ -30,7 +30,7 @@
     "bundle:analyze": "vite-bundle-visualizer",
     "lighthouse": "lhci autorun",
     "quality": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm deadcode && pnpm security:secrets",
-    "quality:ci": "pnpm quality && pnpm security:audit && pnpm test:e2e"
+    "quality:full": "pnpm quality && pnpm security:audit && pnpm test:e2e"
   },
   "dependencies": {
     "phaser": "4.2.0"
