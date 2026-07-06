@@ -555,24 +555,50 @@ unlocking one and confirming it can.
 
 ### Milestone 7 — Ship Roster (not started)
 
-**Goal**: 5 selectable starter ships (Decision D13), each with distinct
-mass/thrust/fuel-capacity/handling, plus additional ships unlockable
-through progression (exact trigger finalized alongside M6/M12).
+**Goal**: 5 starter ships available from the start (Decision D13), each
+belonging to a distinct **ship class** (an archetype) with
+correspondingly different mass/thrust/fuel-capacity/handling **and
+equipment slot capacity** — e.g. a small/light class carries fewer
+equipment slots but handles better and burns less fuel per distance; a
+large/heavy class carries more equipment slots (more weapons/utility
+items at once) but has less range (lower fuel efficiency or capacity
+relative to its mass). Slot _count_ is therefore a ship-class stat
+(Milestone 7), while each individual item's mass-vs-benefit tradeoff
+(Milestone 9) is separate — a heavy ship with many slots can still
+over-equip itself into poor handling if the player fills every slot
+regardless of the target base's demands. Additional ships beyond the 5
+starters are acquired two ways, per-ship: **some are purchased** with
+M8's currency once that milestone exists, **some are unlocked** through
+progression (an achievement, M6 world/base completion, etc.) —
+acquisition method is a property of the ship, not a single global rule.
+This same purchase-or-unlock model applies to equipment items in M9 too
+(noted there as well, so the two milestones don't drift into
+inconsistent acquisition rules).
 
-**Scope**: `src/game/ships/ship.ts` (a `ShipClass` config: id, name, mass
-or thrust multiplier, fuel capacity, rotation speed, unlock condition),
-`src/game/ships/ships.ts` (registry: 5 unlocked-from-start + at least 2
-locked), a ship-select screen (extends M3/M6's menu system),
-`FlightState`/`GameScene` taking the selected ship's stats instead of the
-current hardcoded `THRUST_ACCEL`/`MAX_FUEL`/etc.
+**Scope**: `src/game/ships/ship.ts` (a `ShipClass` config: id, name,
+class/archetype, mass or thrust multiplier, fuel capacity, rotation
+speed, **equipment slot count** (consumed by M9), and an `acquisition`
+field — `{ type: 'starter' }` \| `{ type: 'purchase'; price: number }` \|
+`{ type: 'unlock'; condition: ... }`),
+`src/game/ships/ships.ts` (registry: 5 `starter` ships + at least 2 more
+split across `purchase` and `unlock`), a ship-select screen (extends
+M3/M6's menu system, showing locked ships with _why_ they're locked —
+price or unlock condition), `FlightState`/`GameScene` taking the selected
+ship's stats instead of the current hardcoded
+`THRUST_ACCEL`/`MAX_FUEL`/etc. The actual purchase transaction is M8's
+job (a generic mechanism that sells anything with a price tag, ships
+here and equipment in M9) — this milestone only needs the ship data
+model and read-only "is it available" logic; wiring a real purchase
+button is acceptance criteria for M8, not this milestone.
 
-**Acceptance criteria**: selecting different ships produces measurably
-different flight feel (integration-tested, same pattern as M5's
-body-variation test); locked ships are visible but not selectable until
-unlocked.
+**Acceptance criteria**: selecting different ships/classes produces
+measurably different flight feel (integration-tested, same pattern as
+M5's body-variation test); locked ships are visible with their
+acquisition method shown, but not selectable until purchased or unlocked.
 
-**Required tests**: unit tests for the ship registry; integration test
-comparing two ships' handling under identical input.
+**Required tests**: unit tests for the ship registry (valid/distinct
+configs, every `acquisition` variant represented); integration test
+comparing two ship classes' handling under identical input.
 
 **Required quality gates**: full gate list, must stay green.
 
@@ -617,8 +643,12 @@ store (Decision D14):
 2. **Equipment loadout** — weapons and non-combat "boost" utility items
    (e.g. an emergency thrust burst, a temporary shield charge, a repair
    kit — exact roster finalized at implementation time), each equipped
-   into a limited number of slots before a mission, and each **carrying a
-   mass value that adds to the ship's total mass**. Heavier loadouts mean
+   into a limited number of slots (the slot _count_ comes from the
+   selected ship's class, M7) before a mission, and each **carrying a
+   mass value that adds to the ship's total mass**. Like ships (M7), each
+   equipment item is acquired either by purchase (M8) or by unlock
+   (progression) — same dual model, same reasoning: not everything
+   should be a flat currency purchase. Heavier loadouts mean
    worse thrust-to-weight (same mass-affects-handling relationship M5/M7
    already establish for ship class and world gravity) — so clearing a
    hostile-heavy base by loading up on weapons costs you handling, and the
