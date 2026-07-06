@@ -16,7 +16,30 @@ body {
   font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
 }
 
+/*
+ * Fixed to GAME_WIDTH/GAME_HEIGHT (src/game/constants.ts) so the box is the
+ * right size from first paint — the loading label and Phaser's canvas both
+ * fit it exactly, so swapping one for the other causes zero layout shift.
+ * Without this, a measured Lighthouse run showed CLS 0.425 (poor) from the
+ * box growing when the canvas replaced the smaller text-only content.
+ */
+#app {
+  width: 960px;
+  height: 640px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 #app canvas {
   display: block;
   box-shadow: 0 0 40px rgba(224, 224, 224, 0.08);
+}
+
+/* Removed by BootScene once Phaser boots — see index.html for why it exists. */
+#loading-label {
+  margin: 0;
+  color: #e0e0e0;
+  font-size: 28px;
+  letter-spacing: 0.1em;
 }

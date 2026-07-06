@@ -14,7 +14,17 @@
       id="app"
       role="img"
       aria-label="Lunar Lander game canvas. Controls: W or Up Arrow to thrust, A/D or Left/Right Arrow to rotate."
-    ></div>
+    >
+      <!--
+        Real, immediately-painted DOM text so the browser has an LCP
+        candidate before Phaser boots — canvas/WebGL content is invisible to
+        Largest Contentful Paint detection, so without this the Performance
+        category is unscorable (confirmed: every metric errored NO_LCP in a
+        real Lighthouse run). Removed by BootScene once Phaser's own canvas
+        takes over. See PLAN.md §5.
+      -->
+      <p id="loading-label">LUNAR LANDER</p>
+    </div>
     <noscript>Lunar Lander requires JavaScript to run.</noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>

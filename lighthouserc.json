@@ -4,6 +4,7 @@
       "staticDistDir": "./dist",
       "numberOfRuns": 3,
       "settings": {
+        "preset": "desktop",
         "chromeFlags": "--headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage"
       }
     },

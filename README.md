@@ -153,10 +153,13 @@ quality gates on every push/PR to `main`; there is no deploy step.
 ## Troubleshooting
 
 - **`pnpm: command not found`**: install it — see Requirements above.
-- **Lighthouse `NO_FCP` / performance score is `null` locally**: this is a
-  known limitation of GPU/compositor-constrained sandboxes, documented in
-  `PLAN.md` §3 and §6. It is expected to work in CI (GitHub Actions
-  `ubuntu-latest`). If it also fails in CI, that's a real bug to
-  investigate, not an environment quirk.
+- **Lighthouse Chrome launch issues (`NO_FCP`, can't find Chrome, etc.)**:
+  `lighthouserc.json` runs with `--headless=new --no-sandbox --disable-gpu
+--disable-dev-shm-usage`, needed in most container/CI/sandboxed shells.
+  If Performance specifically shows `NaN` with every metric erroring
+  `NO_LCP`, that means the app's only paintable DOM content got removed —
+  see `PLAN.md` §5 for what that bug actually was and how it was fixed
+  (it's not an environment quirk; it reproduced identically on GitHub's own
+  `ubuntu-latest` runner and had a real root cause).
 - **`pnpm test:e2e` fails with a missing browser**: run
   `pnpm exec playwright install chromium firefox webkit` once.

@@ -34,21 +34,10 @@ milestones depend on understanding _why_, not just _what_.
 
 ## 3. Open Questions
 
-- **Lighthouse performance score, unverified locally**: see §6 Certification
-  Gates — Chrome in this development sandbox cannot produce a performance
-  trace (GPU/compositor-constrained headless environment), confirmed by
-  direct investigation, not assumed. Accessibility (1.00) and Best Practices
-  (0.96) scored fine in the same run, so this is specifically a performance
-  _trace capture_ limitation of the local sandbox, not a broader Lighthouse
-  or app failure. **Action**: verify on first CI run (GitHub Actions
-  `ubuntu-latest` reliably supports full Lighthouse traces — this is the
-  same setup Google's own `lhci` GitHub Action documents). If the real score
-  comes in under the 0.9 gate, the likely cause is Phaser's bundle size
-  (~360 KB gzipped JS, flagged by Vite's build output as a >500 KB chunk) —
-  options at that point: code-split so game init isn't on the critical
-  rendering path, or accept and document a lower justified threshold.
 - **Mobile/touch controls**: deferred (D6). Revisit if the game is played on
-  touch devices in practice.
+  touch devices in practice. Note this also means Lighthouse is deliberately
+  run with the `desktop` preset (§5) — testing this app under Lighthouse's
+  default mobile emulation would be testing a platform it doesn't target.
 
 ## 4. Architecture Notes
 
@@ -144,6 +133,41 @@ January 2026; the current date is well past that).
 - **Lighthouse categories**: SEO gate intentionally omitted from
   `lighthouserc.json` assertions per this project's explicit instructions
   (Performance/Accessibility/Best-Practices only).
+- **Lighthouse Performance was genuinely broken, not a sandbox artifact —
+  root-caused and fixed, not just documented around.** First attempt (in
+  this local sandbox) produced `performance: null` with every metric
+  erroring `NO_FCP`/`NO_LCP`. Initially misdiagnosed as a GPU-constrained
+  local sandbox limitation. That diagnosis was **wrong**: the identical
+  failure reproduced on GitHub Actions' own `ubuntu-latest` runner (see the
+  first CI run, job `85445055566`), which ruled out "local environment
+  quirk" entirely. Inspecting the actual report JSON's `auditRefs` showed
+  every Performance audit erroring `NO_LCP` — the real cause: `index.html`'s
+  entire visible content was a `<canvas>`, and **canvas/WebGL painting is
+  invisible to Largest Contentful Paint detection** (LCP only recognizes
+  text nodes, `<img>`, video posters, or CSS `background-image` — never
+  canvas). With zero other paintable DOM content, Chrome had no LCP
+  candidate at all, and TBT/Interactive cascade-failed from that. **Fix**:
+  `index.html` now ships a real static `<p id="loading-label">` text node
+  inside `#app`, giving Lighthouse (and real users) a paint target before
+  Phaser boots; `BootScene.create()` removes it once Phaser's canvas takes
+  over (see `src/game/scenes/boot-scene.ts`). That alone raised the score
+  from `NaN` to a real `0.7` — and surfaced a second, equally real issue:
+  Cumulative Layout Shift of `0.425` (poor), because `#app` had no explicit
+  size, so it grew from a small text box to the full 960×640 canvas box
+  between frames. Giving `#app` a fixed `960px`×`640px` box from first paint
+  (`src/style.css`) didn't fix it — CLS got slightly _worse_ (`0.539`) — and
+  the `layout-shifts` audit's `boundingRect` (`left: -274`) revealed why:
+  Lighthouse defaults to **mobile emulation** (~412px viewport), so a
+  960px-wide desktop layout overflowed the emulated mobile viewport
+  entirely, on a throttled mobile CPU/network profile. This game is
+  desktop-only by Decision D6 — mobile emulation was testing a platform it
+  was never built for. Setting `"preset": "desktop"` in `lighthouserc.json`
+  (matching D6) fixed it for real: Performance `1.00`, Accessibility `1.00`,
+  Best Practices `0.96`, all three runs, no assertion failures. Lesson
+  encoded here so it isn't relearned: **when a measurement tool's default
+  profile doesn't match the product's actual target platform, fix the
+  tool's config to match the product — don't chase phantom performance
+  problems the product doesn't actually have.**
 - **`@secretlint/secretlint-rule-preset-recommend`**: referenced only by
   _id_ string inside `.secretlintrc.json`, not a JS import — `knip` can't see
   that usage statically, so it's listed in `knip.json`'s
@@ -154,7 +178,7 @@ January 2026; the current date is well past that).
 
 ### Milestone 1 — Project Foundation + Flight Core
 
-**Status: CERTIFIED**, with one caveat noted below (Lighthouse performance).
+**Status: CERTIFIED** — no open caveats.
 
 **Goal**: Establish the full production-grade toolchain and ship a real,
 flyable (if terrain-less) lander: gravity, thrust, fuel, rotation, keyboard
@@ -182,20 +206,20 @@ All passing (see Certification Gates below).
 **Certification gates** (all run for real, not assumed — commands and actual
 output in this session):
 
-| Gate                                     | Command                 | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Format                                   | `pnpm format:check`     | ✅ pass                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Lint                                     | `pnpm lint`             | ✅ pass (0 problems)                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Typecheck                                | `pnpm typecheck`        | ✅ pass                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Unit + integration + coverage            | `pnpm test:coverage`    | ✅ 26/26 tests, 100% stmts/branches/funcs/lines on the pure-logic scope (thresholds: 90/85/90/90)                                                                                                                                                                                                                                                                                                                                                       |
-| Production build                         | `pnpm build`            | ✅ succeeds. Output: 359.50 KB gzip JS (Phaser itself) — flagged by Vite as a >500 KB chunk; tracked as a performance-budget risk, see §3 Open Questions                                                                                                                                                                                                                                                                                                |
-| Dead code / unused exports / unused deps | `pnpm deadcode`         | ✅ pass (0 issues after fixing `knip.json`)                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Secret scan                              | `pnpm security:secrets` | ✅ pass                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Dependency audit                         | `pnpm security:audit`   | ✅ "No known vulnerabilities found"                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| E2E (Chromium, Firefox, WebKit)          | `pnpm test:e2e`         | ✅ 3/3 passed, real browsers, real canvas, real boot                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Lighthouse — Accessibility               | `pnpm lighthouse`       | ✅ **1.00** (≥0.90 required)                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Lighthouse — Best Practices              | `pnpm lighthouse`       | ✅ **0.96** (≥0.90 required)                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Lighthouse — Performance                 | `pnpm lighthouse`       | ⚠️ **unverified** — this sandbox's headless Chrome cannot produce a paint trace even with `--headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage` (`NO_FCP` without `--disable-gpu`; performance category itself returns `null` with it, while a11y/best-practices/SEO score normally in the same run — isolates the failure to trace capture, not the app). **Must be verified on first CI run before this gate can be marked certified.** |
+| Gate                                     | Command                 | Result                                                                                                                                                                             |
+| ---------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Format                                   | `pnpm format:check`     | ✅ pass                                                                                                                                                                            |
+| Lint                                     | `pnpm lint`             | ✅ pass (0 problems)                                                                                                                                                               |
+| Typecheck                                | `pnpm typecheck`        | ✅ pass                                                                                                                                                                            |
+| Unit + integration + coverage            | `pnpm test:coverage`    | ✅ 26/26 tests, 100% stmts/branches/funcs/lines on the pure-logic scope (thresholds: 90/85/90/90)                                                                                  |
+| Production build                         | `pnpm build`            | ✅ succeeds. Output: 359.50 KB gzip JS (Phaser itself) — flagged by Vite as a >500 KB chunk; tracked as a performance-budget risk, see §3 Open Questions                           |
+| Dead code / unused exports / unused deps | `pnpm deadcode`         | ✅ pass (0 issues after fixing `knip.json`)                                                                                                                                        |
+| Secret scan                              | `pnpm security:secrets` | ✅ pass                                                                                                                                                                            |
+| Dependency audit                         | `pnpm security:audit`   | ✅ "No known vulnerabilities found"                                                                                                                                                |
+| E2E (Chromium, Firefox, WebKit)          | `pnpm test:e2e`         | ✅ 3/3 passed, real browsers, real canvas, real boot                                                                                                                               |
+| Lighthouse — Accessibility               | `pnpm lighthouse`       | ✅ **1.00** (≥0.90 required)                                                                                                                                                       |
+| Lighthouse — Best Practices              | `pnpm lighthouse`       | ✅ **0.96** (≥0.90 required)                                                                                                                                                       |
+| Lighthouse — Performance                 | `pnpm lighthouse`       | ✅ **1.00** (≥0.90 required) — see §5 for the real root cause (`NO_LCP` from canvas-only content, then a mobile-vs-desktop preset mismatch) and the fix, not just a passing number |
 
 **Documentation updates**: this file, `README.md`, `CHANGELOG.md`,
 `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md` — all written
@@ -205,7 +229,9 @@ this milestone.
 vulnerabilities (audited), no backend/auth attack surface (none exists yet).
 
 **Performance checks**: build succeeds; bundle-size warning noted and
-tracked; Lighthouse performance pending CI (above).
+tracked (Phaser itself, ~360 KB gzip — not a blocker at the current
+Lighthouse score, but worth revisiting if the budget tightens); Lighthouse
+Performance verified at 1.00 under the desktop preset (above, §5).
 
 ---
 
@@ -358,5 +384,8 @@ A milestone is certified only when **all** of the following are true:
    stale commands, no claimed-but-missing features.
 
 No milestone is marked complete with a known-failing or unverified gate
-silently dropped. Milestone 1 above documents its one open item
-(Lighthouse performance) explicitly rather than hiding it.
+silently dropped, and no failing gate gets explained away without actually
+fixing it — §5's Lighthouse Performance entry is the concrete example: the
+first read of the failure ("sandbox can't measure this") was wrong, and was
+corrected by reproducing it in CI, finding the real root cause, and fixing
+the product/config rather than the documentation.

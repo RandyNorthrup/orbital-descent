@@ -39,12 +39,25 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 - E2E smoke test passing in real Chromium, Firefox, and WebKit: the game
   boots, the canvas renders at the configured 960×640 size, `GameScene`
   becomes active, zero console/page errors.
-- Lighthouse Accessibility (1.00) and Best Practices (0.96) both verified
-  above the required 0.90 threshold. Performance is **not yet verified** —
-  the local sandbox's headless Chrome can't produce a paint trace; tracked
-  as an open item in `PLAN.md` §3, to be confirmed on first CI run.
+- Lighthouse Performance (1.00), Accessibility (1.00), and Best Practices
+  (0.96) all verified above the required 0.90 threshold, including a real
+  run in GitHub Actions CI (not just locally).
 - `pnpm audit --prod`: no known vulnerabilities.
 - `secretlint`: no secrets detected.
+
+### Fixed
+
+- Lighthouse Performance was returning `NaN` (every metric erroring
+  `NO_LCP`), reproduced identically on GitHub Actions' `ubuntu-latest`
+  runner — not a local sandbox limitation as first suspected. Root cause:
+  the entire page was a `<canvas>`, and canvas painting is invisible to
+  Largest Contentful Paint detection. Fixed by giving `index.html` a real
+  static loading text node (removed by `BootScene` once Phaser boots) and
+  fixing the resulting Cumulative Layout Shift by sizing `#app` to the
+  game's exact dimensions from first paint. Also switched
+  `lighthouserc.json` to the `desktop` preset — this game is desktop-only
+  (Decision D6), and Lighthouse's default mobile emulation was testing a
+  960px layout in a ~412px viewport. Full investigation in `PLAN.md` §5.
 
 ### Decided
 
