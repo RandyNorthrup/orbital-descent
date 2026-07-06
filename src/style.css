@@ -1,0 +1,22 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+}
+
+#app canvas {
+  display: block;
+  box-shadow: 0 0 40px rgba(224, 224, 224, 0.08);
+}
