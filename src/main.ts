@@ -1,7 +1,10 @@
 import Phaser from 'phaser';
 import { BACKGROUND_COLOR, GAME_HEIGHT, GAME_WIDTH } from './game/constants';
 import { BootScene } from './game/scenes/boot-scene';
+import { MenuScene } from './game/scenes/menu-scene';
 import { GameScene } from './game/scenes/game-scene';
+import { ResultScene } from './game/scenes/result-scene';
+import { SettingsScene } from './game/scenes/settings-scene';
 import './style.css';
 
 const APP_PARENT_ELEMENT_ID = 'app';
@@ -12,7 +15,7 @@ const config: Phaser.Types.Core.GameConfig = {
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
   backgroundColor: BACKGROUND_COLOR,
-  scene: [BootScene, GameScene],
+  scene: [BootScene, MenuScene, GameScene, ResultScene, SettingsScene],
 };
 
 const game = new Phaser.Game(config);

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENE_KEY_BOOT, SCENE_KEY_GAME } from './scene-keys';
+import { SCENE_KEY_BOOT, SCENE_KEY_MENU } from './scene-keys';
 
 /** Must match the static loading element's id in index.html. */
 const LOADING_LABEL_ELEMENT_ID = 'loading-label';
@@ -23,6 +23,6 @@ export class BootScene extends Phaser.Scene {
     // Once Phaser's own canvas is up, the static node has served its
     // purpose and is removed.
     document.getElementById(LOADING_LABEL_ELEMENT_ID)?.remove();
-    this.scene.start(SCENE_KEY_GAME);
+    this.scene.start(SCENE_KEY_MENU);
   }
 }

@@ -8,6 +8,63 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 3 — Start Screen & Game Flow, certified**: replaced the
+  old boot-straight-into-`GameScene` / "press R to try again" flow with
+  a real game loop shell. New `MenuScene` (title, START/SETTINGS
+  buttons, Enter as a shortcut for START) is now the boot target. New
+  `SettingsScene` is a reusable stub overlay (no real options yet — see
+  Milestone 13 for audio) launched via Phaser's `run()` + `pause()`
+  pattern from both the menu and, mid-flight, from a new Escape-to-pause
+  binding in `GameScene`; closing it resumes exactly whichever scene
+  opened it via a `returnTo` key carried in scene data. New `ResultScene`
+  replaces the old freeze-and-wait-for-R text with a proper color-coded
+  landed/crashed screen (RESTART/MAIN MENU buttons plus matching R/Escape
+  shortcuts), reusing new `outcomeLabel`/`outcomeColor` helpers as the
+  single source of truth for the outcome-to-text/color mapping. New
+  shared `scene-utils.ts` (`requireKeyboard`, `ArmedKeyGuard`) and
+  `rendering/ui-button.ts` (`createUiButton`) remove what would otherwise
+  have been duplicated across four scenes.
+  **`ArmedKeyGuard` added**, found necessary by this milestone's own
+  adversarial review, not planned at the start: holding a shortcut key
+  (e.g. Escape) past the OS's ordinary keyboard auto-repeat delay
+  re-fires native `keydown` events for as long as it's held, and a
+  freshly-started or freshly-reset `Key` object (Phaser resets all keys
+  on scene pause — confirmed directly in `KeyboardPlugin.js`) would treat
+  the very next repeat as a brand-new `JustDown()`, instantly
+  re-triggering the opposite action — the pause overlay flickering open
+  and closed instead of staying open. `ArmedKeyGuard` requires a key to
+  be observed not-down at least once before its first `JustDown()` can
+  register, and is now applied to every scene-transition shortcut.
+  New: `e2e/test-helpers.ts` (`tapKey`, `waitForActiveScene`,
+  `clickButton`/`findButtonPosition`), `e2e/game-flow.spec.ts` (two full
+  menu→fly→result→restart-or-menu cycles, keyboard-driven),
+  `e2e/pause-resume.spec.ts` (`FlightState` snapshot proves pause freezes
+  and resume continues physics exactly), `e2e/button-clicks.spec.ts`
+  (the same button set driven by real mouse clicks instead of keyboard
+  shortcuts). `e2e/game-boot.spec.ts`/`landing.spec.ts`/
+  `world-scrolling.spec.ts` updated for the new Menu-first boot target.
+- **Verified this release**: format/lint/typecheck all clean;
+  unit+integration 68 tests (unchanged — no new pure logic this
+  milestone, matching Milestone 2.5's own note); coverage 98.9%/87.87%/
+  100%/98.82% (thresholds 90/85/90/90, all met, unchanged from Milestone
+  2.5 since coverage only applies to the Phaser-free physics/flight
+  layers); `pnpm build`/`deadcode`/`security:audit`/`security:secrets`
+  all clean; `pnpm test:e2e` 27/27 across Chromium/Firefox/WebKit,
+  confirmed stable across 3 consecutive full runs. An adversarial code
+  review (dimension-specific finder agents, each finding independently
+  re-verified by an agent defaulting to refuting it unless confirmed)
+  caught the `ArmedKeyGuard` gap above plus DRY duplication (the
+  `UI_BUTTON_ROW_HEIGHT_PX` spacing formula, `requireKeyboard`,
+  `outcomeLabel`/`outcomeColor`) and two test-coverage gaps (a real
+  mouse-click path for every button, the pause/resume physics-freeze
+  check) — all closed above. Writing the new mouse-click e2e test itself
+  then surfaced a second, independent bug: Playwright's default device-
+  preset viewports (1280x720) are larger than the game's 960x640 canvas,
+  which `style.css` centers via flexbox, so raw page-coordinate clicks
+  missed every button in all 3 browsers 100% of the time; fixed by
+  clicking relative to the `#app canvas` element's own bounding box
+  instead, before this test was ever committed.
+
 - **Milestone 2.5 — World Scrolling & Parallax Depth (Decision D19),
   certified**: replaced the single-screen world model (world width ==
   viewport width) with a real scrolling world — a Phaser camera follows

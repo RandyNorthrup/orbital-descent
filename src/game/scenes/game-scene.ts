@@ -25,6 +25,7 @@ import {
   LANDING_PAD_FILL_COLOR_BOTTOM,
   LANDING_PAD_FILL_COLOR_TOP,
   MAX_FUEL,
+  RESULT_TRANSITION_DELAY_MS,
   ROTATION_SPEED_DEG,
   TERRAIN_ETCH_LINE_COUNT,
   TERRAIN_FILL_COLOR_BOTTOM,
@@ -36,27 +37,39 @@ import {
   TERRAIN_SHADOW_LAYER_DEPTH,
   LANDING_PAD_SEGMENT_COUNT,
   THRUST_ACCEL,
+  UI_BODY_FONT_SIZE_PX,
+  UI_MUTED_TEXT_COLOR,
+  UI_TEXT_COLOR,
+  UI_TITLE_FONT_SIZE_PX,
   WORLD_WIDTH,
 } from '../constants';
 import { FlightState } from '../flight/flight-state';
 import { degreesToRadians } from '../physics/lander-physics';
 import { isOnLandingPad, isSafeLanding } from '../terrain/landing';
 import { generateTerrain, getTerrainHeightAt, type Terrain } from '../terrain/terrain-generator';
+import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createPaperShape, type PaperShape } from '../rendering/paper-shape';
 import { createRadialGlowImage } from '../rendering/radial-glow';
 import { buildBackground } from '../rendering/background';
-import { SCENE_KEY_GAME } from './scene-keys';
+import { SCENE_KEY_GAME, SCENE_KEY_RESULT, SCENE_KEY_SETTINGS } from './scene-keys';
+import {
+  outcomeColor,
+  outcomeLabel,
+  type FlightOutcome,
+  type ResultSceneData,
+} from './result-scene';
+import type { SettingsSceneData } from './settings-scene';
+import { ArmedKeyGuard, requireKeyboard } from './scene-utils';
 
 const MILLISECONDS_PER_SECOND = 1000;
 const FUEL_PERCENT_MULTIPLIER = 100;
 const ORIGIN_CENTER = 0.5;
-const SUBTITLE_Y_FRACTION = 0.06;
 const LANDER_TEXTURE_KEY = 'paper-fill-lander';
 const TERRAIN_TEXTURE_KEY = 'paper-fill-terrain';
 const LANDING_PAD_TEXTURE_KEY = 'paper-fill-landing-pad';
 const ENGINE_GLOW_TEXTURE_KEY = 'lander-engine-glow';
 
-type GameOutcome = 'flying' | 'landed' | 'crashed';
+type GameOutcome = 'flying' | FlightOutcome;
 
 export class GameScene extends Phaser.Scene {
   private flightState!: FlightState;
@@ -69,23 +82,22 @@ export class GameScene extends Phaser.Scene {
   private keyA!: Phaser.Input.Keyboard.Key;
   private keyD!: Phaser.Input.Keyboard.Key;
   private keyW!: Phaser.Input.Keyboard.Key;
-  private keyR!: Phaser.Input.Keyboard.Key;
+  private keyEscape!: Phaser.Input.Keyboard.Key;
+  private pauseGuard!: ArmedKeyGuard;
 
   constructor() {
     super(SCENE_KEY_GAME);
   }
 
   create(): void {
-    const keyboard = this.input.keyboard;
-    if (!keyboard) {
-      throw new Error('Keyboard input plugin is not available.');
-    }
+    const keyboard = requireKeyboard(this);
 
     this.cursors = keyboard.createCursorKeys();
     this.keyA = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
     this.keyD = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
     this.keyW = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
-    this.keyR = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.keyEscape = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.pauseGuard = new ArmedKeyGuard(this.keyEscape);
 
     this.outcome = 'flying';
     this.data.set('outcome', this.outcome);
@@ -160,46 +172,34 @@ export class GameScene extends Phaser.Scene {
     // HUD text needs setScrollFactor(0) now that the camera moves — every
     // other GameObject in the scene moves with the world (the default),
     // but HUD must stay fixed on screen regardless of camera position.
-    this.add
-      .text(GAME_WIDTH / 2, HUD_MARGIN, 'ORBITAL DESCENT', {
-        fontFamily: 'monospace',
-        fontSize: '28px',
-        color: '#e0e0e0',
-      })
-      .setOrigin(ORIGIN_CENTER, 0)
-      .setDepth(HUD_LAYER_DEPTH)
-      .setScrollFactor(0);
-
-    this.add
-      .text(
-        GAME_WIDTH / 2,
-        HUD_MARGIN + GAME_HEIGHT * SUBTITLE_Y_FRACTION,
-        'W / UP: thrust  —  A D / ← →: rotate',
-        {
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          color: '#8899aa',
-        },
-      )
-      .setOrigin(ORIGIN_CENTER, 0)
-      .setDepth(HUD_LAYER_DEPTH)
-      .setScrollFactor(0);
-
+    // The title/instructions block lives on MenuScene now (Milestone 3) —
+    // in-flight HUD stays minimal: fuel, and a pause hint for the one
+    // control this milestone actually adds.
     this.fuelText = this.add
       .text(HUD_MARGIN, HUD_MARGIN, '', {
         fontFamily: 'monospace',
-        fontSize: '16px',
-        color: '#e0e0e0',
+        fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
+        color: hexToCss(UI_TEXT_COLOR),
       })
       .setDepth(HUD_LAYER_DEPTH)
       .setScrollFactor(0);
     this.updateFuelText(MAX_FUEL);
 
+    this.add
+      .text(GAME_WIDTH - HUD_MARGIN, HUD_MARGIN, 'ESC: pause', {
+        fontFamily: 'monospace',
+        fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
+        color: hexToCss(UI_MUTED_TEXT_COLOR),
+      })
+      .setOrigin(1, 0)
+      .setDepth(HUD_LAYER_DEPTH)
+      .setScrollFactor(0);
+
     this.outcomeText = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '', {
         fontFamily: 'monospace',
-        fontSize: '32px',
-        color: '#e0e0e0',
+        fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
+        color: hexToCss(UI_TEXT_COLOR),
       })
       .setOrigin(ORIGIN_CENTER, ORIGIN_CENTER)
       .setDepth(HUD_LAYER_DEPTH)
@@ -208,9 +208,13 @@ export class GameScene extends Phaser.Scene {
 
   override update(_time: number, deltaMs: number): void {
     if (this.outcome !== 'flying') {
-      if (Phaser.Input.Keyboard.JustDown(this.keyR)) {
-        this.scene.restart();
-      }
+      return;
+    }
+
+    if (this.pauseGuard.consumeJustPressed()) {
+      const data: SettingsSceneData = { returnTo: SCENE_KEY_GAME };
+      this.scene.run(SCENE_KEY_SETTINGS, data);
+      this.scene.pause();
       return;
     }
 
@@ -248,7 +252,14 @@ export class GameScene extends Phaser.Scene {
       safe ? LANDED_COLOR_TOP : CRASHED_COLOR_TOP,
       safe ? LANDED_COLOR_BOTTOM : CRASHED_COLOR_BOTTOM,
     );
-    this.outcomeText.setText(`${safe ? 'LANDED SAFELY' : 'CRASHED'}\npress R to try again`);
+    this.outcomeText.setText(outcomeLabel(this.outcome));
+    this.outcomeText.setColor(hexToCss(outcomeColor(this.outcome)));
+
+    const outcome = this.outcome;
+    this.time.delayedCall(RESULT_TRANSITION_DELAY_MS, () => {
+      const data: ResultSceneData = { outcome };
+      this.scene.start(SCENE_KEY_RESULT, data);
+    });
   }
 
   private buildTerrainVisual(): void {

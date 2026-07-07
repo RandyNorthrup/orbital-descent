@@ -4,7 +4,7 @@ const GAME_WIDTH = 960;
 const GAME_HEIGHT = 640;
 const BOOT_TIMEOUT_MS = 5000;
 
-test('boots Phaser, renders the canvas at the configured size, and reaches GameScene with no console errors', async ({
+test('boots Phaser, renders the canvas at the configured size, and reaches MenuScene with no console errors', async ({
   page,
 }) => {
   const consoleErrors: string[] = [];
@@ -34,7 +34,7 @@ test('boots Phaser, renders the canvas at the configured size, and reaches GameS
     const game = window.__ORBITAL_DESCENT_GAME__;
     return game?.scene.getScenes(true).at(0)?.scene.key ?? null;
   });
-  expect(activeSceneKey).toBe('Game');
+  expect(activeSceneKey).toBe('Menu');
 
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);

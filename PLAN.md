@@ -1484,35 +1484,116 @@ so a future reader can see exactly what a skeptical pass caught.
 
 ---
 
-### Milestone 3 — Start Screen & Game Flow (not started)
+### Milestone 3 — Start Screen & Game Flow
+
+**Status: CERTIFIED** (2026-07-06).
 
 **Goal**: Real game loop shell — main menu, start button, settings stub,
 in-game HUD (fuel readout already exists from M1/M2 and carries forward),
 pause, and a proper landed/crashed result screen with restart — replacing
 M2's placeholder "press R to try again" text-only flow.
 
-**Scope**: new scenes (`MenuScene`, a unified result scene), HUD overlay
-refinements, scene transition wiring. Settings is a stub for now (no real
-options until a concrete need exists — e.g. audio volume once M13 adds
-sound).
+**Scope delivered**:
 
-**Acceptance criteria**: a full play session is reachable end-to-end from
-the browser: menu → start → fly → land or crash → result screen →
-restart-or-menu, with no dead ends. Pausing mid-flight freezes the
-simulation and shows the settings stub; resuming continues exactly where
-play left off.
+- `src/game/scenes/menu-scene.ts` (new) — title + START/SETTINGS buttons;
+  Enter starts a flight, matching the START button.
+- `src/game/scenes/settings-scene.ts` (new) — a stub overlay (translucent
+  backdrop, "no options yet" text, a BACK button) reused as a modal both
+  from the menu and as the pause screen — launched via Phaser's `run()`
+  (not `launch()`/`start()`, per Phaser's own documented pattern for
+  reusable modal scenes) with a `returnTo` scene key, closed via
+  `stop()` + `resume(returnTo)`.
+- `src/game/scenes/result-scene.ts` (new) — the one unified result screen
+  for both outcomes; a color-coded heading (green/red, D18 palette) plus
+  RESTART/MAIN MENU buttons and matching R/Escape shortcuts. Exports
+  `outcomeLabel`/`outcomeColor` as the single source of truth for the
+  outcome→text/color mapping, shared with `GameScene`'s brief freeze-frame.
+- `src/game/scenes/scene-utils.ts` (new) — `requireKeyboard(scene)` (the
+  keyboard-plugin-missing guard, shared instead of copy-pasted across four
+  scenes) and `ArmedKeyGuard` (below).
+- `src/game/rendering/ui-button.ts` (new) — `createUiButton`, one shared
+  button look/hover/click behavior for every menu/result/settings scene.
+- `src/game/scenes/game-scene.ts` — removed the old `keyR`/"press R"
+  restart logic entirely; Escape now pauses (`this.scene.run('Settings',
+{returnTo:'Game'})` then `this.scene.pause()` — pausing the scene is
+  what freezes the physics simulation, since Phaser stops calling a
+  paused scene's `update()` at all, no manual flag needed) while flying;
+  on landed/crashed, after the existing `this.data.set('outcome', ...)`
+  contract (preserved exactly — existing e2e tests depend on it), a
+  `RESULT_TRANSITION_DELAY_MS` (1.2s) delayed call transitions to
+  `ResultScene` instead of freezing forever waiting for a keypress. The
+  big in-flight title/subtitle HUD text was removed (the title now lives
+  on `MenuScene` only); in-flight HUD is just the fuel readout plus a
+  small "ESC: pause" hint, both `scrollFactor(0)`.
+- `src/game/scenes/boot-scene.ts` / `src/main.ts` — boot now starts
+  `MenuScene` (not `GameScene` directly); scene list is `[BootScene,
+MenuScene, GameScene, ResultScene, SettingsScene]`.
+- `src/game/constants.ts` — `UI_TEXT_COLOR`/`UI_MUTED_TEXT_COLOR`/
+  `UI_TITLE_FONT_SIZE_PX`/`UI_BODY_FONT_SIZE_PX`/`UI_BUTTON_*`/
+  `UI_BUTTON_ROW_HEIGHT_PX` (the stacked-button spacing formula, computed
+  once so `MenuScene`/`ResultScene` can't silently drift apart)/
+  `RESULT_TRANSITION_DELAY_MS`/`SETTINGS_OVERLAY_COLOR`/
+  `SETTINGS_OVERLAY_ALPHA`.
+- **`ArmedKeyGuard`** (`scene-utils.ts`) — found necessary by adversarial
+  review, not planned at milestone start: holding Escape (or any
+  shortcut key) past the OS's keyboard auto-repeat delay (commonly
+  250-660ms, an entirely ordinary press-and-hold duration) re-fires
+  native `keydown` events for as long as the key is held. A freshly
+  `run()`-started `SettingsScene` (fresh Key object, `isDown` defaulting
+  false) or a `GameScene` whose keys were just reset by Phaser's own
+  pause-triggered `resetKeys()` (confirmed directly in
+  `node_modules/phaser/src/input/keyboard/KeyboardPlugin.js`) would see
+  the very next repeat event as a fresh `JustDown()`, instantly
+  re-triggering the opposite action — the pause overlay flickering
+  open-and-closed instead of staying open until the player deliberately
+  presses again. `ArmedKeyGuard` requires a key to be observed _not_ down
+  at least once before its first `JustDown()` can register, eliminating
+  the false retrigger regardless of how long the key is held. Applied to
+  every scene-transition shortcut (`GameScene`'s Escape, `SettingsScene`'s
+  Escape, `ResultScene`'s R and Escape, `MenuScene`'s Enter).
 
-**Required tests**: e2e test covering the full flow (menu → play →
-result → restart); a pause/resume e2e test (pause freezes physics —
-lander position/velocity unchanged across the pause interval — and the
-settings stub renders; resume continues the same flight); unit tests for
-any new pure logic.
+**Acceptance criteria**: met — a full play session is reachable end-to-end:
+menu → start → fly → land or crash → result screen → restart-or-menu,
+with no dead ends (e2e-verified two full cycles, both via keyboard
+shortcuts and via real mouse clicks on every button). Pausing mid-flight
+freezes the simulation (e2e-verified: a `FlightState` snapshot taken
+while paused, after a real wait, is byte-identical to the snapshot taken
+the instant pause began) and shows the settings stub; resuming continues
+exactly where play left off (e2e-verified: the snapshot after resuming
+differs from the paused one).
 
-**Required quality gates**: full gate list, must stay green.
+**Required tests**: `e2e/game-flow.spec.ts` (menu → start → fly → result
+→ restart → fly → result → main menu, keyboard-driven, two full cycles);
+`e2e/button-clicks.spec.ts` (the same button set — START, SETTINGS, BACK
+from both the menu and the pause contexts, RESTART, MAIN MENU — driven by
+real mouse clicks instead, since a regression could break click handling
+specifically while every keyboard shortcut kept working); `e2e/pause-
+resume.spec.ts` (the frozen/resumed `FlightState.snapshot` check above).
+`e2e/test-helpers.ts` centralizes `tapKey` (explicit `keyboard.down` + a
+real wait + `keyboard.up`, not Playwright's `keyboard.press()` — Phaser's
+`Key#onUp` clears its internal `_justDown` flag, so a down+up pair
+landing within the same animation-frame gap, which `press()` can
+produce, loses the rising edge entirely; confirmed directly via dozens of
+repeated isolated trials, ~90% failure with `press()` vs. single-digit
+failures with this fix), `waitForActiveScene`, and `clickButton`/
+`findButtonPosition` (the latter click relative to the `#app canvas`
+element specifically, not raw page coordinates — the canvas is centered
+inside a larger viewport under every Playwright device preset this
+project uses, so page-coordinate clicks landed nowhere near the actual
+buttons; found and fixed the same session it was introduced, before ever
+reaching a committed state). No new pure logic beyond the label/color
+mapping already covered by `outcomeLabel`/`outcomeColor`'s own usage —
+this milestone is Phaser scene/input wiring, matching the "none expected"
+note carried over from Milestone 2.5's own equivalent scope.
 
-**Required documentation updates**: this file, `CHANGELOG.md`, README.
+**Required quality gates**: full gate list — green (68 unit/integration
+tests, unchanged from Milestone 2.5 — no new pure logic; e2e 27/27 across
+Chromium/Firefox/WebKit, confirmed stable across 3 consecutive full runs
+after both the `ArmedKeyGuard` fix and the canvas-relative click fix).
 
-**Certification checklist**: not started.
+**Required documentation updates**: this file, `CHANGELOG.md`, `README.md`.
+
+**Certification checklist**: certified. Depends on Milestone 2.5.
 
 ---
 

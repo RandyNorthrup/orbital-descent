@@ -8,12 +8,14 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 2 (Terrain & Landing) certified — gravity,
-thrust, fuel, rotation, procedurally generated terrain, and a real
-landed-vs-crashed outcome are all implemented and playable in a real booted
-Phaser scene, in the paper-cutout art style. Single ship, single world so
-far — see `PLAN.md` §6 for the full roadmap (multiple fictional worlds,
-ships, upgrades, weapons, obstacles/hostiles, and more).
+**Current status**: Milestone 3 (Start Screen & Game Flow) certified — a
+full play session is reachable end-to-end (menu → start → fly → land or
+crash → result screen → restart-or-menu, with a pause/settings overlay
+mid-flight), on top of Milestone 2's gravity, thrust, fuel, rotation,
+procedurally generated terrain, and a scrolling parallax world (Milestone
+2.5) in the paper-cutout art style. Single ship, single world so far — see
+`PLAN.md` §6 for the full roadmap (multiple fictional worlds, ships,
+upgrades, weapons, obstacles/hostiles, and more).
 
 ## Stack
 
@@ -57,8 +59,13 @@ pnpm install
 pnpm dev
 ```
 
-Opens the Vite dev server (default `http://localhost:5173`). Controls:
-**W** or **↑** to thrust, **A**/**D** or **←**/**→** to rotate.
+Opens the Vite dev server (default `http://localhost:5173`). From the
+main menu, **Enter** or the START button begins a flight. In flight:
+**W** or **↑** to thrust, **A**/**D** or **←**/**→** to rotate, **Escape**
+to pause (opens a settings overlay; Escape or BACK resumes exactly where
+play left off). On landing or crashing, a result screen offers **R** or
+RESTART for a fresh flight, and **Escape** or MAIN MENU to return to the
+menu.
 
 ## Build
 
@@ -122,7 +129,8 @@ documented here and in `.env.example` when it happens.
 │   │   ├── physics/              # pure vector/physics functions (unit-tested)
 │   │   ├── flight/               # FlightState — orchestrates physics into a
 │   │   │                         # frame-by-frame simulation (integration-tested)
-│   │   └── scenes/               # Phaser Scene classes (BootScene, GameScene)
+│   │   ├── rendering/             # background/terrain rendering, UI button helper
+│   │   └── scenes/               # Phaser Scene classes (Boot, Menu, Game, Result, Settings)
 │   ├── main.ts                   # Phaser.Game bootstrap
 │   ├── style.css
 │   └── vite-env.d.ts

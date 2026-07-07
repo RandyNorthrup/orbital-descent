@@ -243,3 +243,45 @@ export const MID_RIDGE_LAYER_DEPTH = -1;
 export const TERRAIN_SHADOW_LAYER_DEPTH = 0;
 export const LANDER_LAYER_DEPTH = 1;
 export const HUD_LAYER_DEPTH = 2;
+
+/* ---------------------------------------------------------------------- */
+/* UI: menu / result / settings (Milestone 3)                             */
+/* src/game/rendering/ui-button.ts, scenes/menu-scene.ts,                  */
+/* scenes/result-scene.ts, scenes/settings-scene.ts                       */
+/* ---------------------------------------------------------------------- */
+
+export const UI_TEXT_COLOR = 0xe0e0e0;
+export const UI_MUTED_TEXT_COLOR = 0x8899aa;
+export const UI_TITLE_FONT_SIZE_PX = 40;
+export const UI_BODY_FONT_SIZE_PX = 16;
+
+/** Shared button look across every menu/result/settings scene. Hover colors
+ * lean on the same cool cyan used for the lander's engine glow (D18), so
+ * interactive UI reads as part of the same palette, not a bolted-on system. */
+export const UI_BUTTON_FONT_SIZE_PX = 22;
+export const UI_BUTTON_TEXT_COLOR = 0xe0e0e0;
+export const UI_BUTTON_HOVER_TEXT_COLOR = 0x8fd8ff;
+export const UI_BUTTON_BG_COLOR = 0x2a2a45;
+export const UI_BUTTON_BG_HOVER_COLOR = 0x3a3a5a;
+export const UI_BUTTON_PADDING_X = 18;
+export const UI_BUTTON_PADDING_Y = 10;
+/** Not exported — only consumed below to compute UI_BUTTON_ROW_HEIGHT_PX;
+ * nothing else needs the raw spacing value on its own. */
+const UI_BUTTON_SPACING_PX = 20;
+/** Center-to-center gap between vertically stacked buttons: one button's
+ * full height (font size + top/bottom padding) plus the spacing above —
+ * computed once here so menu-scene.ts and result-scene.ts (both stack two
+ * buttons) can't silently drift apart by each recomputing it locally. */
+export const UI_BUTTON_ROW_HEIGHT_PX =
+  UI_BUTTON_FONT_SIZE_PX + UI_BUTTON_PADDING_Y * 2 + UI_BUTTON_SPACING_PX;
+
+/** Brief pause on the crashed/landed frame before cutting to the result
+ * screen — long enough to read as "the flight actually ended here," not
+ * long enough to feel like a stall. */
+export const RESULT_TRANSITION_DELAY_MS = 1200;
+
+/** Settings is a translucent modal over whichever scene launched it (menu
+ * or a paused flight), not a full scene swap — the paused scene stays
+ * visible underneath as a visual reminder of what "resume" returns to. */
+export const SETTINGS_OVERLAY_COLOR = 0x000000;
+export const SETTINGS_OVERLAY_ALPHA = 0.6;

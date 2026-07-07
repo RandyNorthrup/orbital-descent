@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
+import { tapKey, waitForActiveScene } from './test-helpers';
 
-const BOOT_TIMEOUT_MS = 5000;
+// Generous: covers both real page/module-load time and the post-Enter
+// scene-transition wait, which depends on a synthetic keypress landing
+// correctly under whatever parallel test-worker contention is happening —
+// observed flaky at 5000ms under this suite's full 24-test parallel run.
+const BOOT_TIMEOUT_MS = 10000;
 
 // Mirrors src/game/constants.ts's GAME_WIDTH/WORLD_WIDTH (960, and
 // GAME_WIDTH * a 3x multiplier) and its scene z-order depth / parallax
@@ -23,6 +28,9 @@ async function bootGame(page: Page): Promise<void> {
   await page.waitForFunction(() => window.__ORBITAL_DESCENT_GAME__?.isBooted === true, {
     timeout: BOOT_TIMEOUT_MS,
   });
+  // Boots into MenuScene now (Milestone 3) — Enter starts a fresh flight.
+  await tapKey(page, 'Enter');
+  await waitForActiveScene(page, 'Game', BOOT_TIMEOUT_MS);
 }
 
 /** Phaser's generic GameObject type doesn't declare `depth`/scrollFactorX/Y
