@@ -6,7 +6,78 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ## [Unreleased]
 
+### Changed
+
+- Art direction (Decision D18): reworked the Milestone 1/2 paper-cutout
+  rendering from flat-tinted fills to gradient-shaded fills, and added a
+  new layered background (sky gradient, glowing moon, seeded crisp
+  starfield, blurred/desaturated far parallax ridge) behind the gameplay
+  terrain. Chosen after two rejected art-direction rounds against
+  user-supplied reference art, via three independently-prototyped
+  candidate techniques ("Deep Parallax Bands," "Warm Jewel Diorama,"
+  "Ship-Forward / Atmospheric Depth" — the last one picked, for the
+  clearest ally/hostile ship silhouette read once real ship variety
+  exists). New files: `src/game/rendering/background.ts`,
+  `radial-glow.ts`, `canvas-texture-utils.ts`, `starfield.ts` (pure,
+  unit-tested), `ridgeline.ts` (pure, unit-tested); reworked
+  `paper-shape.ts` (per-shape baked gradient + optional etched-line
+  texture, replacing `TileSprite` + tint + geometry mask).
+  `src/game/random/seeded-random.ts` and `bounded-random-walk.ts`
+  extracted from `terrain-generator.ts` so the new seeded generators
+  share one PRNG/random-walk implementation instead of duplicating it.
+  All Milestone 1/2 gameplay behavior (collision, landed/crashed
+  determination, restart) is unchanged — only the rendering of the
+  already-certified shapes changed.
+- **Verified this release**: format/lint/typecheck all clean; unit +
+  integration suite green (67 tests, up from 49 — 18 new tests for the
+  extracted/added pure modules); coverage 98.92% stmts / 87.87% branches /
+  100% funcs / 98.85% lines (thresholds 90/85/90/90, all met); `pnpm
+deadcode` clean; `pnpm security:audit`/`security:secrets` clean; `pnpm
+build` succeeds; `pnpm test:e2e` 6/6 passing across Chromium/Firefox/
+  WebKit (including the zero-console-errors assertion, exercising the new
+  Canvas2D gradient/pattern/blur code in all three engines); real
+  Playwright screenshots of the actual running build (not mockups)
+  reviewed and approved. **Not yet verified**: Lighthouse was not
+  re-run this pass (no DOM/asset changes expected to affect it, but this
+  is an assumption, not a measurement — re-run before the next milestone
+  that touches boot/HTML).
+- **Adversarial code review** (3 independent dimensions — standards
+  compliance, Phaser API correctness, test coverage — each finding
+  independently re-verified before acceptance) caught one real functional
+  bug before it shipped: the sky's background gradient used
+  `Graphics#fillGradientStyle`, which Phaser 4.2.0 implements as WebGL-only
+  — its Canvas-renderer fallback path silently no-ops the command
+  (confirmed against `GraphicsCanvasRenderer.js`), which would have
+  rendered as an undefined flat fill on any device/browser that falls back
+  to Canvas2D. Fixed by baking the sky gradient the same way every other
+  gradient in this change is built (a `CanvasTexture` via
+  `bakeCanvasTexture`), which is renderer-independent. Also fixed: two
+  stale comments (one describing a removed `TileSprite` mechanism, one
+  citing wrong post-insertion container indices), consolidated five scene
+  z-order depth constants that lived as disjoint locals in two files into
+  one shared, named ordering in `constants.ts`, and added two tests that
+  were missing real regression coverage (a golden-vector pin on the
+  Mulberry32 PRNG's exact output, and a check that the bounded random walk
+  actually moves in both directions, not just up to a clamp).
+
 ### Planning (PLAN.md only — no code changes)
+
+- Decision D18 (art direction, above) and Decision D19 (world
+  scrolling — planned, not yet implemented: a camera-follow model with
+  parallax `scrollFactor` on the new background layers, replacing the
+  current single-screen `wrapHorizontal`-at-viewport-edge model) recorded
+  in `PLAN.md`, with a Milestone 2 amendment documenting both. Milestone
+  5's scope gained an explicit requirement: per-world terrain surface
+  _material_ (rock/sand/water/foliage), not just a palette swap — flagged
+  so the generic etched-line texture added by D18 doesn't calcify into
+  the only terrain look before real per-world variation is designed.
+- Decision D20: raised Milestone 5's starter-world minimum from 4 to
+  **12** unique fictional worlds/moons, each with 1-3 landing bases, and
+  made explicit that progression is gated by _both_ mission completions
+  (M9.5's `unlocks` graph) _and_ ship/equipment upgrade tier (§6b.2's
+  `evaluateBaseFit`) — not either alone. Flagged that 12 worlds implies an
+  actual narrative throughline still to be authored during M5/M6, not
+  invented speculatively in this planning pass.
 
 - Two large design specifications produced by an adversarially-verified
   multi-agent workflow process (four independent angles → synthesis →

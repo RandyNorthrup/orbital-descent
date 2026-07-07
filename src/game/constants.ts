@@ -7,8 +7,11 @@
 export const GAME_WIDTH = 960;
 export const GAME_HEIGHT = 640;
 
-/** Deep-space navy; kept out of scene code so palette changes stay in one place. */
-export const BACKGROUND_COLOR = 0x000814;
+/** Deep-space navy; kept out of scene code so palette changes stay in one
+ * place. Matches SKY_TOP_COLOR below — Phaser's own clear color, briefly
+ * visible before BootScene/GameScene paint the real sky, so it shouldn't
+ * flash a different hue. */
+export const BACKGROUND_COLOR = 0x141428;
 
 /** Downward acceleration applied every tick, in px/s². Not calibrated to real
  * lunar gravity (1.62 m/s²) — pixel-space units are arbitrary and tuned for
@@ -81,13 +84,25 @@ export const LANDING_MAX_SAFE_ANGLE_DEG = 15;
 /* See PLAN.md §4 "Paper-cutout art style" for the rules this implements. */
 /* ---------------------------------------------------------------------- */
 
-/** Lander body fill color — light silver, reads clearly against BACKGROUND_COLOR. */
-export const LANDER_FILL_COLOR = 0xe0e0e0;
+/** Lander body fill — a top-to-bottom gradient (not a flat color) per the
+ * approved "Ship-Forward / Atmospheric Depth" art direction (PLAN.md §4):
+ * every physical shape is gradient-shaded paper, lightest at the top,
+ * consistent with the sky's single implied light source. Cool blue-silver-
+ * teal, reading as the ally craft against the terrain's muted palette. */
+export const LANDER_FILL_COLOR_TOP = 0xf0f6fa;
+export const LANDER_FILL_COLOR_BOTTOM = 0x7fa8b8;
+export const LANDED_COLOR_TOP = 0x8ff0a8;
+export const LANDED_COLOR_BOTTOM = 0x3fb868;
+export const CRASHED_COLOR_TOP = 0xf08f8f;
+export const CRASHED_COLOR_BOTTOM = 0xb83f3f;
 
-export const TERRAIN_FILL_COLOR = 0x8a7a66;
-export const LANDING_PAD_FILL_COLOR = 0x5fd45f;
-export const LANDED_COLOR = 0x5fd45f;
-export const CRASHED_COLOR = 0xd45f5f;
+/** Foreground terrain fill gradient. Muted slate-violet ("Ashgeld Reach"
+ * flavor from the approved art review) — deliberately restrained next to
+ * the lander/pad so the ship keeps the strongest color contrast in frame. */
+export const TERRAIN_FILL_COLOR_TOP = 0x8f8aa8;
+export const TERRAIN_FILL_COLOR_BOTTOM = 0x4a4560;
+export const LANDING_PAD_FILL_COLOR_TOP = 0x7fe89a;
+export const LANDING_PAD_FILL_COLOR_BOTTOM = 0x3aa859;
 
 /** Shared near-black outline/shadow color for every cutout shape. */
 export const OUTLINE_COLOR = 0x1a1410;
@@ -96,8 +111,75 @@ export const OUTLINE_WIDTH = 3;
 /** Offset, in px, of the hard drop-shadow copy behind each shape. */
 export const SHADOW_OFFSET = 6;
 
+/** Fine etched surface-texture strokes (rock striations / hull panel lines)
+ * baked into a shape's gradient fill — generic line-scribble texture for
+ * now. PLAN.md §4/M5 flags this as the hook where distinct per-world
+ * terrain materials (foliage, water, sand, ice) will plug in later; it
+ * intentionally isn't a single hard-coded "look". */
+export const TERRAIN_ETCH_LINE_COUNT = 14;
+export const LANDER_ETCH_LINE_COUNT = 4;
+export const ETCH_LINE_MAX_ALPHA = 0.3;
+export const ETCH_LINE_MAX_LENGTH_FRACTION = 0.16;
+export const ETCH_LINE_WIDTH_PX = 1;
+
+/** Small glowing radial-gradient accent at the lander's engine base — a
+ * static part of the ship's own artwork (like the approved concept's
+ * "glowing engine trail"), not a thrust-reactive particle effect; dynamic
+ * thrust "juice" is Milestone 13's scope, not this art-direction pass. */
+export const ENGINE_GLOW_COLOR = 0x8fd8ff;
+export const ENGINE_GLOW_RADIUS = 20;
+export const ENGINE_GLOW_MAX_ALPHA = 0.75;
+
+/* ---------------------------------------------------------------------- */
+/* Background: sky, moon, stars, far parallax ridge (rendering/background) */
+/* See PLAN.md §4 "Ship-Forward / Atmospheric Depth" for the approved      */
+/* art direction this implements.                                         */
+/* ---------------------------------------------------------------------- */
+
+export const SKY_TOP_COLOR = 0x141428;
+export const SKY_BOTTOM_COLOR = 0x3a3a5a;
+
+export const MOON_COLOR = 0xf3dfa0;
+/** Slightly darker edge tone for the moon disc's own gradient shading. */
+export const MOON_SHADE_COLOR = 0xd8b878;
+export const MOON_GLOW_COLOR = 0xf3dfa0;
+export const MOON_GLOW_MAX_ALPHA = 0.55;
+export const MOON_RADIUS = 46;
+export const MOON_GLOW_RADIUS = 150;
+export const MOON_CENTER_X_FRACTION = 0.72;
+export const MOON_CENTER_Y_FRACTION = 0.18;
+
+/** Crisp small dots, not soft/blurred bokeh — the star treatment explicitly
+ * preferred over softer alternatives when the art direction was approved. */
+export const STAR_COLOR = 0xffffff;
+export const STAR_COUNT = 90;
+export const STAR_MAX_RADIUS = 1.4;
+export const STAR_MAX_ALPHA = 0.9;
+/** Fixed (not per-restart) seed — the starfield reads as a stable distant
+ * sky, unlike the gameplay terrain, which reseeds every attempt. */
+export const STARFIELD_SEED = 20260706;
+
+/** Distant parallax ridge: lower-contrast, desaturated, and blurred vs. the
+ * crisp gameplay terrain in front of it — the atmospheric-perspective depth
+ * cue the approved direction is named for. */
+/** Deliberately lighter than the sky gradient at the ridge's own height band
+ * (not just "a dark color at partial alpha") — a low-contrast ridge nearly
+ * disappears into the sky instead of reading as a silhouette. */
+export const FAR_RIDGE_COLOR = 0x5c5678;
+export const FAR_RIDGE_ALPHA = 0.75;
+export const FAR_RIDGE_MIN_HEIGHT_FRACTION = 0.28;
+export const FAR_RIDGE_MAX_HEIGHT_FRACTION = 0.4;
+export const FAR_RIDGE_MAX_STEP_FRACTION = 0.03;
+export const FAR_RIDGE_SEGMENTS = 12;
+/** Fixed seed, distinct from the gameplay terrain's and the starfield's —
+ * a stable distant ridge, not reshuffled each restart. */
+export const FAR_RIDGE_SEED = 71;
+export const FAR_RIDGE_BLUR_PX = 5;
+
 /** Side length, in px, of the procedurally generated paper-grain texture
- * tile (small and repeated via TileSprite, not one giant texture). */
+ * tile (small and repeated as a Canvas2D pattern — `ctx.createPattern`,
+ * composited with `globalCompositeOperation: 'multiply'` in paper-shape.ts
+ * — not one giant texture). */
 export const PAPER_GRAIN_TEXTURE_SIZE = 64;
 
 /** Number of random speckles drawn onto the grain texture — enough to read
@@ -105,3 +187,15 @@ export const PAPER_GRAIN_TEXTURE_SIZE = 64;
 export const PAPER_GRAIN_SPECKLE_COUNT = 220;
 export const PAPER_GRAIN_SPECKLE_MAX_ALPHA = 0.18;
 export const PAPER_GRAIN_SPECKLE_MAX_RADIUS = 1.5;
+
+/* ---------------------------------------------------------------------- */
+/* Scene z-order (rendering/background.ts + scenes/game-scene.ts)         */
+/* One shared ordering, back-to-front, so a future layer added in either  */
+/* file can't silently collide with or invert an existing one — depth is  */
+/* a cross-file contract, not a value scoped to a single file.            */
+/* ---------------------------------------------------------------------- */
+export const SKY_LAYER_DEPTH = -2;
+export const FAR_RIDGE_LAYER_DEPTH = -1;
+export const TERRAIN_SHADOW_LAYER_DEPTH = 0;
+export const LANDER_LAYER_DEPTH = 1;
+export const HUD_LAYER_DEPTH = 2;

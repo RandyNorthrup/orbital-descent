@@ -1,26 +1,39 @@
 import Phaser from 'phaser';
 import {
-  CRASHED_COLOR,
+  CRASHED_COLOR_BOTTOM,
+  CRASHED_COLOR_TOP,
+  ENGINE_GLOW_COLOR,
+  ENGINE_GLOW_MAX_ALPHA,
+  ENGINE_GLOW_RADIUS,
   FUEL_BURN_RATE,
   GAME_HEIGHT,
   GAME_WIDTH,
   GRAVITY_ACCEL,
+  HUD_LAYER_DEPTH,
   HUD_MARGIN,
-  LANDED_COLOR,
-  LANDER_FILL_COLOR,
+  LANDED_COLOR_BOTTOM,
+  LANDED_COLOR_TOP,
+  LANDER_ETCH_LINE_COUNT,
+  LANDER_FILL_COLOR_BOTTOM,
+  LANDER_FILL_COLOR_TOP,
+  LANDER_LAYER_DEPTH,
   LANDER_RADIUS,
   LANDER_START_X,
   LANDER_START_Y,
   LANDING_MAX_SAFE_ANGLE_DEG,
   LANDING_MAX_SAFE_SPEED,
-  LANDING_PAD_FILL_COLOR,
+  LANDING_PAD_FILL_COLOR_BOTTOM,
+  LANDING_PAD_FILL_COLOR_TOP,
   MAX_FUEL,
   ROTATION_SPEED_DEG,
-  TERRAIN_FILL_COLOR,
+  TERRAIN_ETCH_LINE_COUNT,
+  TERRAIN_FILL_COLOR_BOTTOM,
+  TERRAIN_FILL_COLOR_TOP,
   TERRAIN_MAX_HEIGHT_FRACTION,
   TERRAIN_MIN_HEIGHT_FRACTION,
   TERRAIN_MAX_STEP_FRACTION,
   TERRAIN_SEGMENTS,
+  TERRAIN_SHADOW_LAYER_DEPTH,
   LANDING_PAD_SEGMENT_COUNT,
   THRUST_ACCEL,
 } from '../constants';
@@ -29,15 +42,18 @@ import { degreesToRadians } from '../physics/lander-physics';
 import { isOnLandingPad, isSafeLanding } from '../terrain/landing';
 import { generateTerrain, getTerrainHeightAt, type Terrain } from '../terrain/terrain-generator';
 import { createPaperShape, type PaperShape } from '../rendering/paper-shape';
+import { createRadialGlowImage } from '../rendering/radial-glow';
+import { buildBackground } from '../rendering/background';
 import { SCENE_KEY_GAME } from './scene-keys';
 
 const MILLISECONDS_PER_SECOND = 1000;
 const FUEL_PERCENT_MULTIPLIER = 100;
 const ORIGIN_CENTER = 0.5;
 const SUBTITLE_Y_FRACTION = 0.06;
-const TERRAIN_SHADOW_LAYER_DEPTH = 0;
-const LANDER_LAYER_DEPTH = 1;
-const HUD_LAYER_DEPTH = 2;
+const LANDER_TEXTURE_KEY = 'paper-fill-lander';
+const TERRAIN_TEXTURE_KEY = 'paper-fill-terrain';
+const LANDING_PAD_TEXTURE_KEY = 'paper-fill-landing-pad';
+const ENGINE_GLOW_TEXTURE_KEY = 'lander-engine-glow';
 
 type GameOutcome = 'flying' | 'landed' | 'crashed';
 
@@ -73,6 +89,8 @@ export class GameScene extends Phaser.Scene {
     this.outcome = 'flying';
     this.data.set('outcome', this.outcome);
 
+    buildBackground(this);
+
     this.terrain = generateTerrain({
       seed: Date.now(),
       width: GAME_WIDTH,
@@ -105,10 +123,31 @@ export class GameScene extends Phaser.Scene {
         { x: -LANDER_RADIUS, y: LANDER_RADIUS },
         { x: LANDER_RADIUS, y: LANDER_RADIUS },
       ],
-      fillColor: LANDER_FILL_COLOR,
+      textureKey: LANDER_TEXTURE_KEY,
+      fillTopColor: LANDER_FILL_COLOR_TOP,
+      fillBottomColor: LANDER_FILL_COLOR_BOTTOM,
+      etchLineCount: LANDER_ETCH_LINE_COUNT,
     });
     this.lander.container.setPosition(LANDER_START_X, LANDER_START_Y);
     this.lander.container.setDepth(LANDER_LAYER_DEPTH);
+
+    // A static glow accent at the engine base — part of the ship's own
+    // artwork per the approved art direction, not a thrust-reactive
+    // particle effect (that "juice" is Milestone 13's scope).
+    // createPaperShape builds the container as [shadow, fill, outline];
+    // addAt(engineGlow, 1) below inserts it directly above the opaque hard
+    // shadow but below the hull fill/outline, so the halo reads around the
+    // hull instead of being crushed underneath the shadow silhouette.
+    const engineGlow = createRadialGlowImage(
+      this,
+      ENGINE_GLOW_TEXTURE_KEY,
+      0,
+      LANDER_RADIUS,
+      ENGINE_GLOW_RADIUS,
+      ENGINE_GLOW_COLOR,
+      ENGINE_GLOW_MAX_ALPHA,
+    );
+    this.lander.container.addAt(engineGlow, 1);
 
     this.add
       .text(GAME_WIDTH / 2, HUD_MARGIN, 'ORBITAL DESCENT', {
@@ -190,7 +229,10 @@ export class GameScene extends Phaser.Scene {
     // canvas-rendered text, which isn't visible to DOM-based locators.
     this.data.set('outcome', this.outcome);
     this.lander.container.setPosition(snapshot.position.x, groundY - LANDER_RADIUS);
-    this.lander.setFillColor(safe ? LANDED_COLOR : CRASHED_COLOR);
+    this.lander.setFillColors(
+      safe ? LANDED_COLOR_TOP : CRASHED_COLOR_TOP,
+      safe ? LANDED_COLOR_BOTTOM : CRASHED_COLOR_BOTTOM,
+    );
     this.outcomeText.setText(`${safe ? 'LANDED SAFELY' : 'CRASHED'}\npress R to try again`);
   }
 
@@ -200,7 +242,13 @@ export class GameScene extends Phaser.Scene {
       { x: GAME_WIDTH, y: GAME_HEIGHT },
       { x: 0, y: GAME_HEIGHT },
     ];
-    const ground = createPaperShape(this, { points: groundPoints, fillColor: TERRAIN_FILL_COLOR });
+    const ground = createPaperShape(this, {
+      points: groundPoints,
+      textureKey: TERRAIN_TEXTURE_KEY,
+      fillTopColor: TERRAIN_FILL_COLOR_TOP,
+      fillBottomColor: TERRAIN_FILL_COLOR_BOTTOM,
+      etchLineCount: TERRAIN_ETCH_LINE_COUNT,
+    });
     ground.container.setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
 
     const { landingPad } = this.terrain;
@@ -210,7 +258,12 @@ export class GameScene extends Phaser.Scene {
       { x: landingPad.xEnd, y: GAME_HEIGHT },
       { x: landingPad.xStart, y: GAME_HEIGHT },
     ];
-    const pad = createPaperShape(this, { points: padPoints, fillColor: LANDING_PAD_FILL_COLOR });
+    const pad = createPaperShape(this, {
+      points: padPoints,
+      textureKey: LANDING_PAD_TEXTURE_KEY,
+      fillTopColor: LANDING_PAD_FILL_COLOR_TOP,
+      fillBottomColor: LANDING_PAD_FILL_COLOR_BOTTOM,
+    });
     pad.container.setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
   }
 

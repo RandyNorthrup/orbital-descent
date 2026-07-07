@@ -28,12 +28,23 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       // Scoped to the Phaser-free pure-logic layers (physics, flight
-      // orchestration, terrain generation, landing rules) that unit +
-      // integration tests actually exercise. Scene glue and rendering
-      // (src/game/scenes/**, src/game/rendering/**, src/main.ts) wire that
-      // logic into Phaser/the DOM and are verified by the Playwright e2e
-      // smoke test instead — no meaningful behavior to unit-test in isolation.
-      include: ['src/game/physics/**/*.ts', 'src/game/flight/**/*.ts', 'src/game/terrain/**/*.ts'],
+      // orchestration, terrain generation, landing rules, seeded procedural
+      // layout) that unit + integration tests actually exercise. Scene glue
+      // and Phaser-dependent rendering (src/game/scenes/**, most of
+      // src/game/rendering/**, src/main.ts) wire that logic into Phaser/the
+      // DOM and are verified by the Playwright e2e smoke test instead — no
+      // meaningful behavior to unit-test in isolation. starfield.ts and
+      // ridgeline.ts are the exception within rendering/: pure, seeded
+      // layout generators (same shape as terrain-generator.ts), so they're
+      // included here rather than under the untested rendering blanket.
+      include: [
+        'src/game/physics/**/*.ts',
+        'src/game/flight/**/*.ts',
+        'src/game/terrain/**/*.ts',
+        'src/game/random/**/*.ts',
+        'src/game/rendering/starfield.ts',
+        'src/game/rendering/ridgeline.ts',
+      ],
       exclude: ['src/**/*.test.ts', 'src/**/*.integration.test.ts'],
       thresholds: {
         statements: 90,

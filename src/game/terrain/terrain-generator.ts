@@ -1,3 +1,6 @@
+import { boundedRandomWalk } from '../random/bounded-random-walk';
+import { createSeededRandom } from '../random/seeded-random';
+
 /** A point on the terrain profile, in world px. y grows downward (Phaser convention). */
 export interface TerrainPoint {
   readonly x: number;
@@ -26,29 +29,6 @@ export interface GenerateTerrainOptions {
   readonly padSegmentCount: number;
 }
 
-/**
- * Mulberry32 PRNG — deterministic given a seed, returns floats in [0, 1).
- * The bit-twiddling constants are the algorithm itself, not tunable
- * parameters; naming them individually would obscure the well-known
- * reference implementation rather than clarify it. See PLAN.md §5.
- */
-/* eslint-disable @typescript-eslint/no-magic-numbers */
-function createSeededRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return (): number => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-/* eslint-enable @typescript-eslint/no-magic-numbers */
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
 const MIN_PAD_MARGIN_SEGMENTS = 1;
 
 /**
@@ -64,11 +44,7 @@ export function generateTerrain(options: GenerateTerrainOptions): Terrain {
   const maxStep = options.height * options.maxStepFraction;
   const segmentWidth = options.width / options.segments;
 
-  const heights: number[] = [minHeight + random() * (maxHeight - minHeight)];
-  for (let i = 1; i <= options.segments; i += 1) {
-    const delta = (random() * 2 - 1) * maxStep;
-    heights.push(clamp((heights[i - 1] ?? minHeight) + delta, minHeight, maxHeight));
-  }
+  const heights = boundedRandomWalk(random, options.segments, minHeight, maxHeight, maxStep);
 
   const lastValidPadStart = options.segments - options.padSegmentCount - MIN_PAD_MARGIN_SEGMENTS;
   const padStartIndex =
