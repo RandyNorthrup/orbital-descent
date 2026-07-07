@@ -6,6 +6,43 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ## [Unreleased]
 
+### Planning (PLAN.md only — no code changes)
+
+- Two large design specifications produced by an adversarially-verified
+  multi-agent workflow process (four independent angles → synthesis →
+  a skeptical review pass against the real code and PLAN.md → a revision
+  pass fixing every issue the review found → a final read-through
+  reconciling both against each other and against two clarifying
+  instructions) and merged into `PLAN.md`:
+  - **`## 6b. Base Design & Puzzle System`** — a `Base` data model shared
+    by Milestones 6/9/10/11, a puzzle-archetype taxonomy across
+    mechanical/spatial/combat axes, a soft-lock-avoidance guarantee with a
+    worked numeric proof, and six fully-costed example bases. Amends M6
+    (schema/registry), M9 (the `fit-check.ts` evaluator), M10 (obstacle
+    geometry), and M11 (encounter/combatant types) rather than becoming a
+    new milestone — the schema needs to exist somewhere all four
+    milestones can share, and M6 already owns "what a base is."
+  - **`### Milestone 9.5 — Mission & Cargo Delivery System`** — missions
+    become real objects (troops/supplies cargo sharing M9's mass budget
+    with equipment, three mission structures, two narrative flavors tied
+    to base-establishment progression). Corrected after its first draft,
+    per an explicit clarification that every trip/leg always returns to
+    the world-map/mission screen rather than relaunching in place —
+    this simplified the originally-flagged `GameScene` restructuring cost
+    substantially (see PLAN.md §9.5.3 and §9.5.8 item 9 for the full
+    before/after).
+  - Both specs' adversarial review passes found and fixed real issues
+    before insertion — arithmetic errors in worked examples, an incorrect
+    dependency-graph claim, a self-contradicting worked example, and an
+    unreconciled data-model claim — documented in PLAN.md §6b.8 and
+    §9.5.8 rather than silently corrected.
+  - Small amendments threaded through the not-yet-built M5/M7 sections
+    (an explicit `distance`-field reconciliation, an explicit
+    `engineForce`/thrust-to-weight model, new `ShipClass` fields) so
+    later milestones don't need a second retrofit pass.
+  - Decisions D11-D17 (already recorded) now have concrete mechanical
+    specifications behind them instead of one-line summaries.
+
 ### Changed
 
 - Project renamed "Lunar Lander" → "Orbital Descent" (Decision D10) —

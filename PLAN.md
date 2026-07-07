@@ -387,19 +387,20 @@ dependency. **Nothing below is implemented yet** — each milestone stays
 recommendation, not a mandate — re-sequence it (and tell me) once M3 ships
 and the game is actually playable end-to-end, if priorities differ.
 
-| #   | Milestone                         | Depends on       | One-line goal                                                                                                                                        |
-| --- | --------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M3  | Start Screen & Game Flow          | M2               | Menu, start button, settings stub, pause, landed/crashed result screen, restart — replaces M2's placeholder restart-on-R.                            |
-| M4  | Scoring & High Scores             | M3               | Score formula + `localStorage` high scores (Decision D8).                                                                                            |
-| M5  | Fictional Celestial Bodies        | M2               | Generalize gravity/terrain into a per-world config; first multi-world variation (Decision D11: gravity, atmosphere drag, one hazard type per world). |
-| M6  | Planetary Browser (World Map)     | M5, M3           | Discovered vs. locked worlds, per-world multiple landing bases, progression unlocks farther worlds/bases (Decision D17).                             |
-| M7  | Ship Roster                       | M3               | 5 starter ships + unlockable ships (Decision D13), each with distinct mass/thrust/fuel-capacity/handling.                                            |
-| M8  | Economy & Store                   | M4, M7           | Fictional currency earned per completed mission; store UI to spend it (Decision D15).                                                                |
-| M9  | Ship Upgrades & Equipment Loadout | M8               | Permanent stat upgrades + slotted/cycled/triggered weapons and utility items, each adding mass (Decision D14).                                       |
-| M10 | Obstacles & Hazardous Conditions  | M5               | Static obstacles and per-world environmental conditions beyond atmosphere.                                                                           |
-| M11 | Weapons & Combat                  | M9, M10          | Firing weapons to clear obstacles and fight local hostile inhabitants/enemy ships (Decision D12 — landing + active combat, not open-ended).          |
-| M12 | Achievements & Notifications      | M4               | Achievement definitions + toast notifications (Decision D16).                                                                                        |
-| M13 | Audio, Juice & Accessibility Pass | all of the above | Sound, particles, screen shake, full accessibility pass — deliberately last, since it polishes systems that need to exist first.                     |
+| #    | Milestone                         | Depends on       | One-line goal                                                                                                                                                                                                                                                                          |
+| ---- | --------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M3   | Start Screen & Game Flow          | M2               | Menu, start button, settings stub, pause, landed/crashed result screen, restart — replaces M2's placeholder restart-on-R.                                                                                                                                                              |
+| M4   | Scoring & High Scores             | M3               | Score formula + `localStorage` high scores (Decision D8).                                                                                                                                                                                                                              |
+| M5   | Fictional Celestial Bodies        | M2               | Generalize gravity/terrain into a per-world config; first multi-world variation (Decision D11: gravity, atmosphere drag, one hazard type per world).                                                                                                                                   |
+| M6   | Planetary Browser (World Map)     | M5, M3           | Discovered vs. locked worlds, per-world multiple landing bases, progression unlocks farther worlds/bases (Decision D17).                                                                                                                                                               |
+| M7   | Ship Roster                       | M3               | 5 starter ships + unlockable ships (Decision D13), each with distinct mass/thrust/fuel-capacity/handling.                                                                                                                                                                              |
+| M8   | Economy & Store                   | M4, M7           | Fictional currency earned per completed mission; store UI to spend it (Decision D15).                                                                                                                                                                                                  |
+| M9   | Ship Upgrades & Equipment Loadout | M8               | Permanent stat upgrades + slotted/cycled/triggered weapons and utility items, each adding mass (Decision D14).                                                                                                                                                                         |
+| M9.5 | Mission & Cargo Delivery System   | M6, M8, M9       | Missions become real objects (not "land safely" alone): cargo (troops/supplies) sharing M9's mass budget, three mission structures (single-trip, timed multi-trip, relay), two narrative flavors (establish presence / resupply) tied to M6's base progression and M12's achievements. |
+| M10  | Obstacles & Hazardous Conditions  | M5               | Static obstacles and per-world environmental conditions beyond atmosphere.                                                                                                                                                                                                             |
+| M11  | Weapons & Combat                  | M9, M10          | Firing weapons to clear obstacles and fight local hostile inhabitants/enemy ships (Decision D12 — landing + active combat, not open-ended).                                                                                                                                            |
+| M12  | Achievements & Notifications      | M4               | Achievement definitions + toast notifications (Decision D16).                                                                                                                                                                                                                          |
+| M13  | Audio, Juice & Accessibility Pass | all of the above | Sound, particles, screen shake, full accessibility pass — deliberately last, since it polishes systems that need to exist first.                                                                                                                                                       |
 
 **Core gameplay loop, once M9-M11 land**: the pilot juggles three
 concurrent systems every mission — flight control (thrust/rotation/fuel,
@@ -411,6 +412,815 @@ environmental conditions (M10), then executing flight + combat together,
 not managing them as separate phases. This is the design goal that
 threads M9 through M11 together — restated here because it's the point
 of the whole equipment system, not just a mechanical detail.
+
+---
+
+## 6b. Base Design & Puzzle System
+
+This section is the single specification for "base as puzzle" referenced informally
+in the M3+ roadmap's Core Gameplay Loop note. It defines one data model — the
+`Base` record — that Milestones 6, 9, 10, and 11 all read from and extend,
+instead of each milestone inventing its own parallel notion of "what a landing
+site demands of the player." It does not introduce a new milestone (see §6b.3
+for the justification); it amends the scope of M6, and is extended in turn by
+M9/M10/M11 as those milestones' own systems come online.
+
+All illustrative numbers in this section use the game's **real, already-
+certified units** — px and px/s² matching `src/game/constants.ts`'s
+`GRAVITY_ACCEL = 18`, `THRUST_ACCEL = 46`, `ROTATION_SPEED_DEG = 150`,
+`MAX_FUEL = 100`, `FUEL_BURN_RATE = 18`, `LANDER_RADIUS = 14` (28px diameter),
+`TERRAIN_SEGMENTS = 40` (24px/segment at `GAME_WIDTH = 960`),
+`LANDING_PAD_SEGMENT_COUNT = 3`, `LANDING_MAX_SAFE_SPEED = 60`,
+`LANDING_MAX_SAFE_ANGLE_DEG = 15` — not an abstract "units/s²" scale
+disconnected from what M1/M2 actually shipped. See §6b.6, item 1, for why this
+matters and what it corrects.
+
+---
+
+### 6b.1 Puzzle archetype taxonomy + pacing model
+
+Every base places the player in front of a small set of _binding constraints_.
+The taxonomy below groups these by which of the three axes (mechanical,
+spatial, combat) is the bottleneck, plus a fourth "composite" family that only
+emerges once a base combines axes — which is precisely how pacing works: early
+bases are single-axis, later bases recombine axes the player has already
+individually learned.
+
+#### Mechanical axis (gravity / drag / hazard — fed by M5, extended by M10's non-atmosphere conditions)
+
+| Archetype                                                                                                 | Binding stat interaction                                                                                                  | Countermeasure                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fuel-margin puzzle**                                                                                    | High `gravityAccel` × descent distance vs. low fuel capacity / high burn rate                                             | Fuel-efficient ship class, `Fuel Tank` item, `Extended Fuel Cells` permanent upgrade                                                                    |
+| **Thrust-to-weight squeeze**                                                                              | High `gravityAccel` vs. heavy ship + loadout mass                                                                         | Lighter ship class, `Lighter Hull Alloy` upgrade, a leaner loadout                                                                                      |
+| **Corrosive drain puzzle**                                                                                | `hazard.type === 'corrosive'`: continuous `fuelDrainRate` accrues over wall-clock mission time regardless of thrust state | `Corrosion Coating` item (negates drain) **or** a fast, skillful completion (drain is time-based, not thrust-based — a genuine gear/skill substitution) |
+| **Cold penalty puzzle**                                                                                   | `hazard.type === 'cold'`: multiplicative `thrustEfficiency < 1` on all thrust, compounding with the TWR-squeeze archetype | `Thermal Lining` item (restores 1.0×) and/or `Stronger Engines` upgrade to absorb the multiplier                                                        |
+| **Environmental-condition puzzle** (M10's "beyond atmosphere" conditions — wind push, reduced visibility) | Perturbs the flight-model math itself (an added lateral force term, a reduced effective reaction time)                    | Handling/thrust headroom, same countermeasures as the squeeze archetype                                                                                 |
+
+Classification rule (resolves a real ambiguity across the source proposals,
+see §6b.6 item 4): a per-world condition is **mechanical** if it changes a
+term in the flight-model equations (gravity, drag, thrust efficiency, fuel
+drain, wind force), and **spatial** if it changes the geometry the ship must
+navigate (pad width, obstacle placement, terrain shape). M10's own scope text
+groups "wind gusts" under the same bullet as "static obstacles," but they are
+mechanically two different axes and must be tagged as such on every `Base`
+record — wind is mechanical, spires are spatial.
+
+#### Spatial axis (terrain/obstacle geometry — fed by M2, extended by M10)
+
+| Archetype                                                 | Binding geometry                                                                                                | Note                                                                        |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Precision-margin** (narrow pad / plateau-cliff)         | `padWidthPx` vs. lander diameter (28px); a plateau pad has no forgiving slope on overshoot, unlike a valley pad | Pure geometry — no ship stat changes the pad-width-to-diameter ratio        |
+| **Approach-vector gate** (flanking spires / ceiling gate) | The narrowest obstacle-free horizontal or vertical gap on the route to the pad, independent of pad width itself | Forces an early commitment to a lateral position, not a late correction     |
+| **Blind-corridor / route-choice**                         | Asymmetric obstacle layout offering exactly one clean lane                                                      | Tests recognition of the _correct_ side, not raw precision                  |
+| **Sequential gates / slalom**                             | Multiple gates/obstacles at different x/altitude offsets along one corridor                                     | Tests sustained control across a whole descent, not one save-or-fail moment |
+| **Decoy field**                                           | More than one terrain run is flattened pad-like; only one is `landingPad`                                       | Pure recognition puzzle, independent of piloting skill                      |
+
+Obstacles (M10) sit on top of the existing single-valued heightmap as an
+**independent geometric layer** — an axis-aligned box with its own x/y range —
+because a heightmap spike can only raise the local floor, it cannot represent
+"fly past below/beside." See §6b.2 for the merged `Obstacle` type.
+
+#### Combat axis (hostiles/enemy ships — fed by M11)
+
+| Archetype                        | Binding stat                                                                                                                                     | Losing trait                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| **Swarm (throughput)**           | Kills-per-second vs. total incoming hostile count within the clear window                                                                        | High damage/slot but low fire rate — overkill per kill, not enough shots land in time     |
+| **Bruiser (penetration)**        | `damagePerHit − armorRating`; a weapon whose damage doesn't clear the armor floor deals **zero** effective damage, a hard fail, not a slow grind | Fast, weak weapons are mechanically incapable, not merely inefficient                     |
+| **Ace (survivability)**          | Ship's effective HP (hull + shield) vs. the hostile's alpha-strike damage; weapon choice is nearly irrelevant                                    | Zero shield + thin hull = certain death in one hit regardless of weapon                   |
+| **Mandatory-clear obstacle**     | Minimum damage/splash to clear at all, not DPS or timing                                                                                         | Overkill weapons waste mass for zero extra benefit — obstacles don't fight back           |
+| **Zero-combat trap**             | No hostiles, no mandatory-clear obstacle                                                                                                         | _Any_ equipped weapon/shield is pure dead mass — strictly worse handling for zero benefit |
+| **Positional / kinematic-match** | Projectile speed/range vs. a fast erratic mover's exposure window                                                                                | A high-damage, slow-projectile weapon simply can't lead the target                        |
+
+#### Composite archetypes (only emerge once two+ axes combine)
+
+- **Slot-budget / opportunity-cost** — a base demands more simultaneous
+  countermeasures than the ship's equipment-slot count (M7) can carry at once;
+  raw stat quality is inversely correlated with slot count across the roster,
+  so _every_ ship class can attempt the base, but at a different opportunity
+  cost.
+- **Compound/stacked hazard** — two-plus single-axis archetypes overlap on one
+  base; no single fix clears every constraint, forcing a genuine
+  multi-attribute loadout (a permanent upgrade **and** an item **and** a ship
+  choice, together).
+- **Over-equipping / restraint** — a base needs _less_ than the player
+  habitually brings; the correct move is subtractive (un-equip), not
+  additive.
+- **Capstone-balanced** — a deliberate, explicitly-flagged all-three-axes
+  spike, reserved for world capstones (see §6b.4's anti-spike rule and its one
+  named exception).
+
+#### Pacing model (how archetypes sequence across the unlock order)
+
+1. **One new axis at a time on the critical path.** A base introduces at most
+   one archetype the player hasn't seen before; recombination happens only
+   after each ingredient has been individually cleared elsewhere.
+2. **Severity per axis rises by at most one step between consecutive
+   critical-path bases**, matched against a reward/price schedule that grows
+   at least as fast (§6b.4).
+3. **The one deliberate exception is the world capstone** — an explicitly
+   `capstone-balanced`-tagged base allowed to spike all three axes at once,
+   flagged distinctly in the UI (see §6b.4) precisely because it is the
+   exception, not a routine step.
+
+---
+
+### 6b.2 Data model: the `Base` record
+
+New module: `src/game/bases/base.ts` (owned by M6, fields populated
+incrementally as M9/M10/M11 land — same "declare the shape now, populate later"
+pattern M5 already uses for ship-intrinsic stats owned by M7). This ownership
+covers `base.ts`/`bases.ts`/`difficulty.ts` only — `fit-check.ts`, introduced
+later in this subsection, is owned by **M9**, not M6; see §6b.3 point 4 for
+why.
+
+```ts
+// src/game/bases/base.ts
+
+import type { CelestialBody } from '../planets/celestial-body'; // M5
+import type { GenerateTerrainOptions, Terrain } from '../terrain/terrain-generator'; // M2, extended M10
+import type { EncounterSpec } from '../combat/encounter'; // M11 (empty until then)
+
+export type LoadoutTag =
+  | 'fuel-efficient'
+  | 'high-thrust'
+  | 'lightweight'
+  | 'corrosion-resistant'
+  | 'cold-hardened'
+  | 'high-handling'
+  | 'combat-capable';
+
+export interface TWRBand {
+  readonly hardFloor: number; // e.g. 1.05 — below this, UI flags "not completable"
+  readonly comfortable: number; // e.g. 1.30 — at/above this, no warning shown
+  // between the two = "risky": flyable by a skilled pilot, a soft warning, never a hard block
+}
+
+export interface HandlingBand {
+  readonly hardFloor: number; // deg/s — below this, threading the gate/pad is not completable
+  readonly comfortable: number; // deg/s — at/above this, no warning shown
+}
+
+export interface BaseRequirements {
+  readonly minTWR: TWRBand;
+  /** null = this base places no spatial precision demand beyond the default pad width. */
+  readonly handling: HandlingBand | null;
+  /** Soft hints — surfaced in the loadout-select UI, never a hard gate on their own
+   * (the underlying fuel-margin/TWR/handling/combat checks are the hard gates). */
+  readonly hazardCounterTags: readonly LoadoutTag[];
+  readonly recommendedTags: readonly LoadoutTag[];
+  readonly combat: {
+    /** UI hint precomputed from this base's own encounter data: the tier below
+     * which every equipped weapon deals zero effective damage against the
+     * base's toughest combatant (the armor-floor math, same as the "Bruiser"
+     * archetype). Lets the loadout-select UI pre-filter obviously-doomed
+     * choices, but `evaluateBaseFit`'s simulated combat branch — not this
+     * number — is what actually gates pass/fail at play-time. 0 = no weapon
+     * required at all (obstacle-avoidable or zero-combat base). Enforced as
+     * a hard gate. */
+    readonly minWeaponTier: 0 | 1 | 2 | 3;
+    /** Soft, UI-only recommendation — surfaced as a warning in the loadout
+     * screen, never enforced as a gate (unlike `minWeaponTier` above). */
+    readonly minShieldTier: 0 | 1 | 2;
+  };
+}
+
+export interface BaseDifficultyProfile {
+  /** Each axis independently 0-10. `spatial`/`combat` default to 0 until
+   * M10/M11 populate real obstacle/encounter data for a given base — the
+   * world-map UI hides a zero-value axis badge rather than fake one. */
+  readonly axes: { readonly mechanical: number; readonly spatial: number; readonly combat: number };
+  readonly dominant: 'tutorial' | 'mechanical' | 'spatial' | 'combat' | 'capstone-balanced';
+  /** dominant === 'mechanical' | 'spatial' | 'combat': 1.0×dominantAxisScore + 0.4×(sum of the
+   *  other two). dominant === 'tutorial': a UI display label only, not a fourth axis — every
+   *  tutorial base's one nonzero axis is mechanical by construction (a base with no obstacles
+   *  or encounters can't be spatial- or combat-dominant), so the formula is applied identically
+   *  to dominant === 'mechanical'; the distinct label exists purely so the world-map UI can
+   *  suppress the difficulty badge on introductory bases instead of rendering a misleadingly
+   *  precise "1". dominant === 'capstone-balanced': 0.7×(sum of all three) — see §6b.4. */
+  readonly budget: number;
+}
+
+export interface Base {
+  readonly id: string;
+  readonly name: string;
+  readonly worldId: string; // CelestialBody.id (M5)
+  readonly order: number; // position within the world's base-select list (M6, Decision D17)
+
+  /** M2's existing generator options, extended by M10 with optional
+   * padStartIndexOverride / terrainOverrides / obstacles fields — every
+   * field added by M10 is optional so a Base authored at M6 time (before
+   * M10 exists) keeps compiling and behaving identically. */
+  readonly terrainOptions: GenerateTerrainOptions;
+
+  /** Always an array, never undefined — empty until M11 ships, and empty
+   * is itself meaningful (the zero-combat-trap archetype, §6b.1). */
+  readonly encounters: readonly EncounterSpec[];
+
+  readonly requirements: BaseRequirements;
+  readonly difficulty: BaseDifficultyProfile;
+
+  /** First-clear reward (M8). Replay reward is a separate, always-nonzero
+   * derived value — see §6b.4's replayability guard. */
+  readonly firstClearCredits: number;
+
+  /** Added by Milestone 9.5's design pass (§9.5.4), on this same record —
+   * not a separate `BaseConfig` type — so there is exactly one authoring
+   * surface, per this section's own stated principle. Status is a
+   * three-state machine, not binary discovered/locked: */
+  readonly status: 'locked' | 'discovered-unclaimed' | 'established';
+  /** True for bases on the critical path to farther worlds/bases — used
+   * by §6b.4's anti-spike soft-lock guard, which only applies its budget
+   * ceiling to critical-path bases. */
+  readonly isCriticalPath: boolean;
+  /** Base ids that flip `locked → discovered-unclaimed` once *this* base
+   * reaches `established` (Milestone 9.5 §9.5.4). */
+  readonly unlocks: readonly string[];
+  /** Same-world distance (in Transit Units, TU) from that world's
+   * reference point — used by Milestone 9.5's relay-distance formula
+   * (§9.5.6) for same-world legs only; cross-world legs use
+   * `CelestialBody.distance` instead. */
+  readonly localOffset: number;
+}
+```
+
+**Merged `Obstacle` type** (resolves a real duplication between the spatial
+and combat proposals — see §6b.6 item 3). Lives in `terrain-generator.ts`
+(M10 extension), collision in a new `src/game/terrain/obstacles.ts` mirroring
+`landing.ts`'s pure, dependency-free style:
+
+```ts
+export type ObstacleKind = 'spire' | 'debris';
+
+export interface Obstacle {
+  readonly kind: ObstacleKind;
+  readonly xStart: number;
+  readonly xEnd: number;
+  readonly yTop: number; // smaller y = higher (Phaser y-down)
+  readonly yBottom: number;
+  /** Absent = a pure flight hazard (crash on contact, unconditionally).
+   * Present once M11 ships = combat-clearable: effective damage against it
+   * is max(0, hit.damage - armorRating); cleared once its own health (not
+   * modeled here — see EncounterSpec) reaches zero. One shape serves both
+   * "M10 ships obstacles as pure hazards first" and "M11 makes some of them
+   * clearable," per M10's own acceptance-criteria note that this sequencing
+   * is expected. */
+  readonly armorRating?: number;
+  readonly cleared?: boolean;
+}
+
+export function isCollidingWithObstacle(
+  position: { x: number; y: number },
+  radius: number,
+  obstacle: Obstacle,
+): boolean {
+  const closestX = Math.min(Math.max(position.x, obstacle.xStart), obstacle.xEnd);
+  const closestY = Math.min(Math.max(position.y, obstacle.yTop), obstacle.yBottom);
+  const dx = position.x - closestX;
+  const dy = position.y - closestY;
+  return dx * dx + dy * dy <= radius * radius && !(obstacle.cleared ?? false);
+}
+```
+
+`GenerateTerrainOptions` gains (M10, all optional, preserving every existing
+M2 test's `BASE_OPTIONS` unchanged):
+
+```ts
+readonly padStartIndexOverride?: number;                              // curated bases pin the pad
+readonly terrainOverrides?: readonly { index: number; y: number }[];  // authored cliffs/plateaus
+readonly obstacles?: readonly Obstacle[];                             // fixed, curated obstacle set
+```
+
+Randomized obstacle placement (for endless/procedural bases, out of scope for
+curated story bases) continues drawing from the _same_ seeded PRNG stream that
+already produces heights and pad index, strictly after pad placement — this
+is the only way to keep the existing "deterministic given a seed" guarantee
+extending cleanly to obstacles.
+
+**Encounter spec** (M11, `src/game/combat/encounter.ts` and
+`src/game/combat/combatant.ts`):
+
+```ts
+export interface CombatantDefinition {
+  readonly id: string;
+  readonly health: number;
+  readonly armorRating: number; // effectiveDamage = max(0, hit.damage - armorRating)
+  readonly contactDamage: number;
+  readonly attack: { damagePerHit: number; cooldownMs: number; range: number } | null;
+  readonly movement:
+    | { kind: 'static' }
+    | { kind: 'homing'; speed: number; turnRateDegPerSec: number }
+    | { kind: 'diveStrafe'; speed: number; diveAltitude: number };
+}
+
+export interface EncounterSpec {
+  readonly id: string;
+  readonly combatants: readonly { definition: CombatantDefinition; count: number }[];
+  readonly clearWindowMs: number;
+  readonly triggerAltitude: number;
+  readonly seed: number;
+}
+```
+
+**The three per-axis evaluators, composed behind one facade** — owned by
+**M9**, not M6 (its signature needs `ShipClass` from M7 and M9's own
+`PermanentUpgrade`/`EquipmentItem` types, none of which exist at M6's point in
+the build sequence; see §6b.3 point 4). This is the load-bearing design
+decision resolving §6b.6 item 5 (three uncoordinated "is this good enough"
+checks would drift):
+
+```ts
+// src/game/bases/fit-check.ts — pure, no Phaser, unit-testable like everything else in this repo
+
+export interface BaseFitResult {
+  readonly twr: number;
+  readonly twrBand: 'impossible' | 'risky' | 'comfortable';
+  readonly fuelMarginRatio: number;
+  readonly handlingBand: 'impossible' | 'risky' | 'comfortable' | 'not-applicable';
+  readonly combatOutcome: { cleared: boolean; hullRemaining: number } | 'not-applicable';
+  readonly warnings: readonly string[];
+}
+
+export function evaluateBaseFit(
+  ship: ShipClass, // M7
+  upgrades: readonly PermanentUpgrade[], // M9
+  loadout: readonly EquipmentItem[], // M9
+  body: CelestialBody, // M5
+  base: Base, // this section
+): BaseFitResult {
+  // 1. mechanical: effectiveMass, engineForce/effectiveMass -> TWR; fuel-needed vs.
+  //    fuel-available including any corrosive drain over the base's par time. A real
+  //    implementation runs this through the same per-tick integrator FlightState /
+  //    atmosphericDrag(velocity, dragCoefficient) (M5) already use for actual flight,
+  //    rather than the closed-form px/s-equivalent estimate used for illustration in
+  //    §6b.5 — see the note after Base 5's worked check for why the two diverge.
+  // 2. spatial: ship's effective handling (base + item bonuses) vs. base.requirements.handling.
+  // 3. combat: base.encounters.length === 0 ? 'not-applicable' : simulateEncounter(...) (M11).
+  // BaseRequirements' authored thresholds (minTWR, handling, combat.minWeaponTier/
+  // minShieldTier) are this function's *inputs*, not a competing verdict — evaluateBaseFit
+  // is the only place that computes pass/fail from them, at both play-time and design-time.
+}
+```
+
+This is consumed by M9's already-scoped pre-mission loadout screen (live
+warnings before launch) and reused headlessly by a per-base test-fixture
+suite (`src/game/bases/*.solvability.test.ts`) that asserts the intended
+pass/fail matrix for each curated base — the concrete mechanism for §6b.4's
+soft-lock guarantee below.
+
+---
+
+### 6b.3 Where this hooks into the milestone structure
+
+**Recommendation: this is an amendment to Milestone 6, not a new milestone.**
+No M3.5/M6.5 is introduced.
+
+**Justification:**
+
+1. **M6's own charter is exactly this.** Decision D17 already scopes M6 as
+   "per-world multiple landing bases, progression unlocks farther
+   worlds/bases." A `Base` record — which world it's in, its order, its
+   requirements, its difficulty — _is_ the concrete shape of "a base," not a
+   separate concern from the world map that displays it.
+2. **Splitting it across a new milestone would recreate exactly the
+   "two sources of truth" problem** the combat proposal explicitly warned
+   against for `simulateEncounter`: a separate "Base Puzzle System" milestone
+   would either (a) duplicate fields M6 already needs (order, worldId,
+   unlock-gating) or (b) become a second authority on base data that M6's own
+   world-map UI has to stay in sync with. One milestone owning one schema
+   avoids this by construction.
+3. **The forward-reference problem is already a solved pattern in this
+   plan.** M5's own Scope text says ship-intrinsic stats are "owned by M7's
+   `ShipClass` once that milestone lands" while M5 ships first — the same
+   forward-declare-now/populate-later pattern applies here: M6 ships the
+   `Base` interface with `encounters: []` always valid and
+   `difficulty.axes.combat` defaulting to 0, and M10/M11 populate real values
+   into the _same_ fields later. No redesign needed when M10/M11 land.
+4. **Dependency order stays intact — including for the evaluator.** M6
+   depends only on M5 and M3 today; the `Base` schema itself (§6b.2:
+   `base.ts`/`bases.ts`/`difficulty.ts`) has no dependency on M7/M9/M10/M11
+   and ships cleanly at M6's point in the sequence. The one piece of §6b.2
+   that _does_ have a hard dependency the other way — `evaluateBaseFit`
+   (`fit-check.ts`), whose signature takes `ShipClass` (M7) and
+   `PermanentUpgrade[]`/`EquipmentItem[]` (M9) — is therefore **not** M6's to
+   own; it is placed with **M9** instead (see the amendment below), which is
+   the first point in the build order where all three of its required types
+   actually exist, since M8 (and therefore M9) already depends on M7 per the
+   roadmap table. `obstacles.ts`/`combatant.ts`/`encounter.ts` are explicitly
+   M10/M11 for the identical reason (§6b.7 tags every new file by owning
+   milestone so this isn't left ambiguous). Keeping the _schema_ in M6, the
+   _evaluator_ in M9, and _population_ of `encounters`/`spatial` data in
+   M10/M11 preserves the existing dependency graph exactly as documented —
+   no milestone reads a type that doesn't exist yet at its point in the
+   sequence.
+
+**Concrete amendments required** (to be merged into the existing sections
+when this is inserted):
+
+- **M6 Scope** gains: "`src/game/bases/base.ts`/`bases.ts` — the `Base`
+  record (§6b.2) and a starter registry of curated bases per world (the
+  schema and registry only — `evaluateBaseFit` is M9's, see below); a
+  `BaseDifficultyProfile` computed from each base's mechanical (and, once
+  available, spatial) parameters; base-select UI shows per-base
+  difficulty-axis badges (mechanical/spatial/combat pip counts + a
+  dominant-axis emphasis + a distinct capstone marker), reading `spatial`
+  from M2's existing pad-width/terrain-roughness parameters (no M10
+  dependency needed for a non-zero spatial score) and leaving `combat` at 0
+  until M11 lands."
+- **M6 Acceptance criteria** gains: "a base's difficulty badges are computed
+  from its real authored parameters, never hardcoded independent of the
+  actual `Base` record; completed bases remain re-enterable, with a reduced
+  but always-nonzero replay reward (extends the existing M8-adjacent
+  currency criterion)."
+- **M9 Scope** gains: "authors `src/game/bases/fit-check.ts` — the
+  `evaluateBaseFit` facade (§6b.2), placed here rather than M6 because its
+  signature needs `ShipClass` (M7) and M9's own `PermanentUpgrade`/
+  `EquipmentItem` types, none of which exist at M6's point in the build
+  sequence; the pre-mission loadout screen calls it against the target
+  `Base`'s `requirements`/`difficulty` for live warnings before launch, not a
+  separately-authored per-base rule."
+- **M10 Scope** gains: "extends `GenerateTerrainOptions`/`Obstacle`
+  (§6b.2) — all new fields optional, existing M2 tests keep passing
+  unmodified; populates `Base.difficulty.axes.spatial` for bases with real
+  obstacle layouts."
+- **M11 Scope** gains: "populates `Base.encounters` and
+  `Base.difficulty.axes.combat`; `evaluateBaseFit`'s combat branch becomes
+  live instead of `'not-applicable'`."
+
+---
+
+### 6b.4 Soft-lock avoidance guarantee
+
+**The rule:** a base's `requirements` must always be clearable by _some_
+combination of ships/equipment already unlocked (starter, purchased, or
+achievement-unlocked) at the point that base itself becomes reachable in the
+progression sequence.
+
+**Four guards, all baked into the data model or the authoring discipline
+above, not left as a hope:**
+
+1. **Anti-spike budget rule.** On the critical path (bases gating access to
+   the next world), `nextBase.difficulty.budget − previousBase.budget` must
+   be affordable via the cheapest relevant store item(s) reachable with the
+   cumulative minimum-path currency at that point. The one named exception is
+   a `capstone-balanced` base, explicitly flagged in the UI (§6b.1), which may
+   require two or three unowned purchases at once.
+2. **Capability floor is always the cheapest tier.** `requirements.combat.
+minWeaponTier` is almost always `1` (starter tier); higher tiers make a
+   base _easier_, never define the literal minimum. Same for
+   `minTWR.hardFloor`/`handling.hardFloor` — these are checked against the
+   _cheapest_ item in each relevant category, not the best one.
+3. **Ship choice is a zero-cost lever from minute one.** Decision D13 already
+   puts all 5 starter ships in the player's hands unconditionally — a
+   currency-starved player can bias toward a spatial-dominant base (nimble
+   class) or combat-dominant base (high-slot-count class) before ever
+   touching the store.
+4. **Replayability.** A base's unlock state gates first entry only;
+   completed bases stay re-enterable for a reduced but always-nonzero reward
+   — the actual escape valve if a player is under-geared for base _N_: farm
+   bases `1..N-1`, return.
+
+**Worked proof, using §6b.5's six concrete bases** (minimum-path, one clear
+each, no grinding, prices per the item table in §6b.5). Unlike a per-row
+"cumulative credits minus this row's own purchase" computation, the wallet
+below **carries forward every purchase made on earlier rows**, since bought
+items are owned permanently and money spent earlier is not available later:
+
+| After clearing                            | Reward | Cumulative earned | Purchase(s) made before this base                                                              | Running wallet |
+| ----------------------------------------- | ------ | ----------------- | ---------------------------------------------------------------------------------------------- | -------------- |
+| 1-1 Aerthos Flats                         | 60     | 60                | — (zero-equipment base)                                                                        | 60             |
+| 1-2 Aerthos Ridge                         | 90     | 150               | — (Sparrow path: bare handling 220 ≥ hardFloor 130, the zero-cost ship-choice lever in action) | 150            |
+| 2-1 Corvane Spires                        | 140    | 290               | — (obstacle avoidable by flight path, no weapon required)                                      | 290            |
+| 2-2 Corvane Reach                         | 160    | 450               | Scrap Cannon, 80cr (cheapest weapon tier)                                                      | 370            |
+| 3-1 Pyrrhal Shallows                      | 200    | 650               | + Corrosion Coating, 90cr (mandatory — bare Falcon fails the fuel-margin check, §6b.5)         | 480            |
+| 3-2 Cryonax Descent (capstone) — entering | —      | 650               | + Path A: Thermal Lining (90) + Lance Cannon (180) + RCS Pack (60) = 330                       | **150**        |
+
+(Path B — Hauler, all 4 slots, Thermal Lining + RCS Pack + Lance Cannon +
+Barrier Shield = 440 — leaves **40** remaining instead of 150; both are
+valid, and neither ever goes negative.)
+
+The capstone (Cryonax Descent) is the one base allowed to require a
+three-item combined purchase per guard #1's named exception — and even so,
+the running wallet never goes negative under either valid loadout,
+satisfying the soft-lock guarantee at the hardest point in this worked
+slice. §6b.5 shows the full numeric derivation, including the second valid
+loadout (Hauler, using all 4 of its slots), which clears the same base by a
+different route at a tighter margin (40cr remaining instead of 150) —
+proving the base has more than one solution, not a single answer key.
+
+**Recommended regression test** (once M6/M8/M9 data exists,
+`src/game/bases/critical-path-affordability.test.ts`): walk the critical path
+in unlock order, sum minimum-path rewards, subtract each base's cheapest
+viable loadout cost in sequence — carrying forward all prior spend, as the
+table above does — and assert the running balance never goes negative. Turns
+this section's soft-lock claim into something the existing quality gates
+actually verify, not just prose.
+
+---
+
+### 6b.5 Six concrete example bases
+
+Three illustrative ship classes (M7), calibrated so **Falcon reproduces
+today's certified M1/M2 constants exactly** (`baseThrustAccel = 46`,
+`fuelCapacity = 100`, `burnRate = 18`, `handling = 150` — literally
+`THRUST_ACCEL`/`MAX_FUEL`/`FUEL_BURN_RATE`/`ROTATION_SPEED_DEG`), so the new
+ship-class system is a strict generalization of what's already shipped, not a
+break from it:
+
+| Ship                                              | dryMass (mu) | baseThrustAccel (px/s²) | engineForce | fuelCapacity | burnRate | handling (deg/s) | equipmentSlots |
+| ------------------------------------------------- | ------------ | ----------------------- | ----------- | ------------ | -------- | ---------------- | -------------- |
+| **Sparrow** (scout)                               | 70           | 62                      | 4340        | 70           | 14       | 220              | 2              |
+| **Falcon** (balanced — matches today's constants) | 100          | 46                      | 4600        | 100          | 18       | 150              | 3              |
+| **Hauler** (heavy)                                | 160          | 34                      | 5440        | 160          | 24       | 95               | 4              |
+
+`engineForce = baseThrustAccel × dryMass`, held fixed thereafter — bolting on
+equipment mass lowers realized acceleration without touching the engine
+itself (see §6b.6 item 2 for why this specific model is required, not
+optional).
+
+Equipment items and prices (M8/M9): Fuel Tank Mk1 (+18mu, +40fu, 70cr),
+Corrosion Coating (+22mu, negates corrosive drain, 90cr), Thermal Lining
+(+14mu, negates cold penalty, 90cr), RCS Thruster Pack (+12mu, +40deg/s,
+60cr), Vernier Fins (+10mu, +35deg/s, 50cr), Scrap Cannon — tier 1 —
+(+8mu, 4dmg/hit, 300ms cooldown, 80cr), Lance Cannon — tier 2 — (+16mu,
+14dmg/hit, 900ms cooldown, 180cr), Barrier Shield — tier 1 — (+10mu,
+absorbs 1 hit, 110cr).
+
+Four worlds (M5, matching that milestone's own required span: airless
+low-gravity, thin-atmosphere temperate, thick-atmosphere corrosive, extreme
+cold):
+
+| World       | gravityAccel | atmosphereDensity | hazard                          |
+| ----------- | ------------ | ----------------- | ------------------------------- |
+| **Aerthos** | 12           | 0                 | null                            |
+| **Corvane** | 18           | 0.12              | null                            |
+| **Pyrrhal** | 22           | 0.35              | corrosive, `fuelDrainRate: 1.4` |
+| **Cryonax** | 20           | 0.15              | cold, `thrustEfficiency: 0.72`  |
+
+#### Base 1 — "Aerthos Flats" (World: Aerthos) — _tutorial_
+
+`terrainOptions`: `minHeightFraction: 0.70, maxHeightFraction: 0.75,
+maxStepFraction: 0.02, padSegmentCount: 6` (pad ≈120px, >4× lander diameter),
+no obstacles. `encounters: []`.
+
+`requirements`: `minTWR { hardFloor: 1.05, comfortable: 1.30 }`,
+`handling: null`, `combat: { minWeaponTier: 0, minShieldTier: 0 }`.
+
+Falcon bare: TWR = 46/12 = **3.83** (comfortable). Zero purchases needed.
+`difficulty`: `{ mechanical: 1, spatial: 0, combat: 0 }`, dominant
+`'tutorial'`, budget **1** (per §6b.2's `BaseDifficultyProfile` note,
+computed identically to `dominant === 'mechanical'`: `1.0×1 + 0.4×(0+0) = 1`).
+`firstClearCredits: 60`. This is the exactly-one world+base unlocked from a
+fresh save (M6's own acceptance criterion).
+
+#### Base 2 — "Aerthos Ridge" (World: Aerthos) — spatial, mild (slot-budget composite)
+
+`terrainOptions`: `minHeightFraction: 0.60, maxHeightFraction: 0.85,
+maxStepFraction: 0.05, padSegmentCount: 3` (48px pad), no discrete obstacles —
+difficulty comes from M2's existing rougher random walk alone, no M10
+dependency.
+
+`requirements`: `handling { hardFloor: 130, comfortable: 200 }`, unchanged TWR
+bands, no combat.
+
+Sparrow bare handling 220 ≥ comfortable — **passes free**. Falcon bare 150 —
+between hardFloor and comfortable, "risky" but flyable, or +1 item (RCS,
+60cr) reaches 190 (comfortable). Hauler bare 95 — **below hardFloor**;
+equipping RCS Thruster Pack alone (+40 → 135) already clears the hardFloor
+(130) on a single slot, landing it in the "risky" band — a real but marginal
+clear. Only equipping Vernier Fins as well (+35 → 170) pushes it fully into
+"comfortable," a matter of buying back safety margin, not a hard requirement.
+This is the concrete slot-budget/opportunity-cost archetype at low stakes:
+the same base is a free pass for one ship class, a one-slot risky clear for
+another, and a comfortable-but-two-slot clear for the heaviest — the
+_choice_ of how much margin to buy back with slots, not a fixed gate, is the
+puzzle. `difficulty`: `{ mechanical: 1, spatial: 3, combat: 0 }`, dominant
+`'spatial'`, budget `1.0×3 + 0.4×1 = 3.4`. `firstClearCredits: 90`.
+
+#### Base 3 — "Corvane Spires" (World: Corvane) — approach-vector gate
+
+`terrainOptions`: `padSegmentCount: 3, padStartIndexOverride: 19` (pad
+xStart=456, xEnd=504), `obstacles: [{kind:'spire', xStart:360, xEnd:408,
+yTop: 420, yBottom: 640}, {kind:'spire', xStart:552, xEnd:600, yTop: 420,
+yBottom: 640}]` — gate width 552−408 = **144px** ≈5.1× lander diameter, a
+real but human-flyable chute. `encounters: []`.
+
+`requirements`: `handling: null` (route-commitment, not turn-rate-under-
+pressure), `combat: { minWeaponTier: 0 }` (avoidable by flight path — the
+obstacle never blocks the pad's own airspace).
+
+Any of the three ships clears this with zero purchases — pure piloting.
+`difficulty`: `{ mechanical: 2, spatial: 5, combat: 0 }`, dominant
+`'spatial'`, budget `5 + 0.4×2 = 5.8`. `firstClearCredits: 140`.
+
+#### Base 4 — "Corvane Reach" (World: Corvane) — swarm, first combat appearance
+
+Same world params as Base 3. `encounters`: one wave of 4 "Skitterling"
+combatants (`health: 1, armorRating: 0, contactDamage: 6`, homing,
+`speed: 40`), `clearWindowMs: 5000`. Ship baseline hull: 30.
+
+`requirements`: `combat: { minWeaponTier: 0 (soft-recommended: 1),
+minShieldTier: 0 }` — bare-handed survival is possible (4×6=24 contact damage
+< 30 hull) but foregoes the full-clear bonus; Scrap Cannon (80cr, ~3.3
+shots/s) kills all 4 with large margin inside the 5s window.
+
+`difficulty`: `{ mechanical: 2, spatial: 2, combat: 4 }`, dominant
+`'combat'`, budget `4 + 0.4×4 = 5.6`. `firstClearCredits: 160`.
+
+#### Base 5 — "Pyrrhal Shallows" (World: Pyrrhal) — corrosive drain, isolated
+
+`terrainOptions`: standard 3-segment pad, no obstacles. `encounters: []`
+(the new hazard is introduced alone, per the pacing rule in §6b.1).
+`requiredDeltaV`-equivalent burn budget (authored, playtested constant, not a
+derived physics formula — consistent with this project's "arcade game, not a
+physics sandbox" stance, §4): 180 px/s-equivalent; par mission time 45s.
+
+`requirements`: `minTWR` unchanged, `hazardCounterTags: ['corrosion-
+resistant']`, `recommendedTags: ['fuel-efficient']`.
+
+**Worked check (Falcon, bare hull):** effectiveThrustAccel = 46,
+fuelForBurn = `18 × (180/46)` = 70.4fu, drain = `1.4 × 45` = 63fu, total
+**133.4fu > 100fu capacity — fails**, exactly the "corrosive alone locks out
+an unmitigated ship" archetype. **With Corrosion Coating** (+22mu → mass 122):
+effectiveThrustAccel = `4600/122` = 37.7, TWR = `37.7/22` = **1.71**
+(comfortable), fuelForBurn = `18 × (180/37.7)` = 85.9fu, drain = 0 (negated),
+total **85.9fu < 100fu — passes**, 14fu margin. `difficulty`:
+`{ mechanical: 6, spatial: 2, combat: 0 }`, dominant `'mechanical'`, budget
+`6 + 0.4×2 = 6.8`. `firstClearCredits: 200`.
+
+_Note on drag:_ this worked check (and every other mechanical-axis
+calculation in this section) uses a closed-form px/s-equivalent burn-budget
+approximation, consistent with this section's illustrative-numbers framing.
+It does not integrate M5's actual per-tick `atmosphericDrag(velocity,
+dragCoefficient)` term — a velocity-dependent force only resolvable by
+simulation, not by a closed-form estimate. Pyrrhal's nonzero
+`atmosphereDensity` (0.35) does add real per-tick drag in the actual game,
+which a real `evaluateBaseFit` mechanical branch must account for by running
+the same integrator `FlightState` already uses (or an equivalent numeric
+simulation), not by reimplementing a closed-form formula. The qualitative
+conclusion above (corrosive drain alone locks out an unmitigated Falcon) is
+expected to hold regardless, since drag only tightens the margin further —
+but the exact fuel numbers in this subsection are illustrative, not
+authoritative, and should not be copied into `fit-check.ts` as-is.
+
+#### Base 6 — "Cryonax Descent" (World: Cryonax) — capstone-balanced
+
+`terrainOptions`: `padSegmentCount: 3`, `obstacles`: flanking spires with gate
+width **120px** (≈4.3× diameter, tighter than Base 3). `encounters`: one
+"Warden" enemy ship (`health: 30, armorRating: 5`, homing, attack
+`damagePerHit: 16, cooldownMs: 2200`). Ship baseline hull: 30.
+
+`requirements`: `minTWR { hardFloor: 1.05, comfortable: 1.30 }`, `handling {
+hardFloor: 130, comfortable: 200 }`, `hazardCounterTags: ['cold-hardened']`,
+`combat: { minWeaponTier: 2, minShieldTier: 1 (recommended) }` — the armor
+floor of 5 makes the tier-1 Scrap Cannon (4dmg) deal **zero** effective
+damage, a hard fail forcing the Lance Cannon.
+
+**Worked check A — Falcon (3 slots), skill-substitutes-for-shield path:**
+equip Thermal Lining (+14) + RCS Pack (+12, +40deg/s) + Lance Cannon (+16) =
+mass 142. effectiveThrustAccel = `4600/142` = 32.4, TWR = `32.4/20` = **1.62**
+(comfortable). handling = `150+40` = 190 (risky-to-comfortable, clears
+hardFloor 130 with room). No shield — the Warden's 16dmg hits are survivable
+once (hull 30) but not twice within its 2200ms cooldown if the pilot doesn't
+reposition; clearing requires actively dodging the second hit, a genuine
+skill demand. Cost: 90+60+180 = 330cr.
+
+**Worked check B — Hauler (4 slots), gear-substitutes-for-skill path:** equip
+Thermal Lining (+14) + RCS Pack (+12, +40deg/s) + Lance Cannon (+16) + Barrier
+Shield (+10) = mass 212, all 4 slots used. effectiveThrustAccel =
+`5440/212` = 25.7, TWR = `25.7/20` = **1.28** (risky, just under
+comfortable). handling = `95+40` = 135 (risky, just clears hardFloor 130).
+Shield absorbs the Warden's first hit outright — no dodging required, but
+every other margin is thin. Cost: 90+60+180+110 = 440cr.
+
+Both are valid, cost-different, skill-different solutions — the concrete
+"more than one correct answer" property the taxonomy calls for. `difficulty`:
+`{ mechanical: 5, spatial: 6, combat: 6 }`, dominant `'capstone-balanced'`,
+budget `0.7×(5+6+6) = 11.9` — clearly the largest budget in this slice, and
+explicitly flagged with a distinct marker in the world-map UI (§6b.1).
+`firstClearCredits: 260`.
+
+Cross-reference §6b.4's affordability table: cumulative credits entering this
+base (minimum path) = 650; mandatory prior spend (Scrap Cannon + Corrosion
+Coating, since the Sparrow-bare-handling and avoidable-spire bases needed no
+purchase) = 170; remaining = 480 — sufficient for either Path A (330,
+remaining 150) or Path B (440, remaining 40). Neither goes negative.
+
+---
+
+### 6b.6 Contradictions found across the four proposals, and how resolved
+
+1. **Unit-system mismatch.** The mechanical/stats proposal invented an
+   abstract `units/s²` scale ("matches the existing `GRAVITY_ACCEL = 18`-style
+   constant convention," per its own text) that in fact does _not_ match —
+   `GRAVITY_ACCEL` is a concrete `18 px/s²`, not an abstract unit. **Resolved**:
+   this section uses the real px-based constants throughout (§6b.5), and
+   deliberately calibrates the "Falcon" ship class to reproduce
+   `THRUST_ACCEL`/`MAX_FUEL`/`FUEL_BURN_RATE`/`ROTATION_SPEED_DEG` exactly,
+   so the new ship-class system is demonstrably a generalization of the
+   certified M1/M2 code, not a competing numeric universe.
+2. **`ShipClass` thrust representation is ambiguous in M7's current prose**
+   ("mass or thrust multiplier") — insufficient to make M9's acceptance
+   criterion ("equipping items... measurably degrades thrust-to-weight")
+   mathematically real rather than merely asserted. The mechanical proposal's
+   `engineForce = baseThrustAccel × dryMass`, held constant as loadout mass
+   is added, is the specific model required. **Resolved**: adopted explicitly
+   in §6b.2/§6b.5 and flagged here as a refinement M7's implementer should
+   apply, not an open question.
+3. **Obstacle type duplication.** The spatial proposal's `Obstacle
+{kind, xStart, xEnd, yTop, yBottom}` (pure geometry) and the combat
+   proposal's `ObstacleSpec {id, position, armorRating, blocksOnlyPath}`
+   (combat-clearability) are two independent partial models of the same
+   thing. **Resolved**: merged into one `Obstacle` type (§6b.2) with
+   `armorRating`/`cleared` as fields added _by M11_, matching what M10's own
+   PLAN.md acceptance criteria already implies ("a cleared obstacle no longer
+   blocks flight" — M11's job, on M10's data).
+4. **Classification ambiguity**: is "wind/visibility" (M10's own scope text)
+   mechanical or spatial? The spatial proposal implicitly treats all of M10
+   as one axis; the progression proposal explicitly separates them by
+   player-effect. **Resolved**: adopted the progression proposal's
+   effect-based rule explicitly, stated in §6b.1, so M10's implementer tags
+   bases correctly rather than lumping wind in with spire placement.
+5. **Evaluator fragmentation.** Three independent "is this loadout good
+   enough" functions (mechanical `evaluateLoadout`, spatial gate-width scan,
+   combat `simulateEncounter`) risked becoming three uncoordinated,
+   driftable answer-keys — precisely what the combat proposal's own
+   "no separate puzzle-authoring language" principle warns against, but the
+   proposal only applied that principle to its own axis. **Resolved**: kept
+   as three small, independently-testable pure functions, composed behind one
+   `evaluateBaseFit` facade (§6b.2) — the same principle, generalized to all
+   three axes. `BaseRequirements` still hand-authors per-base thresholds
+   (`minTWR`, `handling`, `combat.minWeaponTier`/`minShieldTier`) — a
+   puzzle's difficulty has to be authored _somewhere_, and this is that
+   somewhere — but those thresholds are simulation _inputs_ consumed
+   uniformly by `evaluateBaseFit`, not a parallel, independently-computed
+   pass/fail verdict that could silently drift from what the simulation
+   actually says. What's eliminated is a redundant fourth, hand-authored
+   _verdict_ field (e.g. a flat `completable: boolean` or a `requiredWeaponId`
+   maintained by hand alongside the sim) — not the authored thresholds
+   themselves. Within `requirements.combat`, `minWeaponTier` and
+   `minShieldTier` are not symmetric: `minWeaponTier` is precomputed from the
+   same armor-floor math `evaluateBaseFit`'s combat branch runs (the tier
+   below which effective damage is provably zero against this base's
+   toughest combatant) and is enforced as a hard gate at play-time, while
+   `minShieldTier` is a soft, UI-only recommendation never enforced as a
+   gate — both are annotated as such directly on the interface (§6b.2)
+   precisely so this isn't left ambiguous the way the source proposals left
+   it.
+6. **Four independently-invented per-base config shapes** (`LandingBase`,
+   `Terrain`, `BaseCombatSpec`, `BaseDifficultyProfile`) each carried their
+   own overlapping `requirements`/`recommended` block. **Resolved**: a single
+   `Base` record (§6b.2) is the one authoring surface;
+   `BaseDifficultyProfile` is a field on it, not a parallel table that could
+   silently drift out of sync with the actual mission content.
+7. **Non-reconciled illustrative economies.** The mechanical and progression
+   proposals each invented their own reward/price numbers, independently,
+   with no shared arithmetic. **Resolved**: §6b.5/§6b.4 define one canonical
+   illustrative reward/price schedule that supersedes both source proposals'
+   numbers for implementation purposes; a future implementer should treat
+   _these_ as the placeholder figures to refine at M8 time, not the ones in
+   the four input proposals.
+
+---
+
+### 6b.7 Summary of required documentation/test updates
+
+- **New files** (populated incrementally per §6b.3's amendments):
+  `src/game/bases/base.ts`, `src/game/bases/bases.ts`,
+  `src/game/bases/difficulty.ts` (M6), `src/game/bases/fit-check.ts` (M9),
+  `src/game/terrain/obstacles.ts` (M10), `src/game/combat/combatant.ts`,
+  `src/game/combat/encounter.ts` (M11).
+- **Required tests** (added to the relevant milestone's own "Required tests"
+  list, not a new tier): unit tests for `Base`/registry validity (every base
+  has a valid, distinct `id`/`worldId`, difficulty axes in range 0–10);
+  unit tests for `evaluateBaseFit`'s three branches independently; a per-base
+  `*.solvability.test.ts` fixture for each curated base in §6b.5, asserting
+  the specific pass/fail matrix worked out above (e.g. Cryonax Descent:
+  Falcon+ThermalLining+RCS+Lance passes, Falcon bare fails, Sparrow+ScrapCannon
+  fails on armor floor); the critical-path-affordability regression test
+  from §6b.4.
+- **Documentation updates**: this file (§6b inserted, M6/M9/M10/M11 sections
+  amended per §6b.3), `CHANGELOG.md` noting the schema's introduction at
+  whichever milestone actually lands it.
+
+---
+
+### 6b.8 Revision history (adversarial verification pass)
+
+This section (§6b) was generated by a multi-agent design workflow: four
+independent proposals (mechanical, spatial, combat, progression angles),
+synthesized into one spec, then adversarially reviewed against the real
+codebase and PLAN.md before insertion. The review found and required
+fixing five real issues; this subsection is the record of what changed
+between the first synthesis and the version above, kept for the same
+reason `PLAN.md` §5 keeps its own "verify, don't guess" incident log —
+so a future reader can see exactly what a skeptical pass caught.
+
+- **§6b.4 affordability table**: replaced the per-row "cumulative − this row's own purchase" arithmetic (which silently dropped earlier purchases) with a running wallet that carries forward all prior spend. New consistent numbers: prior spend before the capstone = 170cr (Scrap Cannon 80 + Corrosion Coating 90), wallet entering the capstone = 480cr, Path A (330cr) leaves 150 remaining, Path B (440cr) leaves 40 remaining — now identical to the numbers already stated in §6b.5's cross-reference paragraph (previously 230 vs. 150 vs. 40 disagreed across three spots).
+- **§6b.3 point 4 and its amendment bullets**: `fit-check.ts`/`evaluateBaseFit` reassigned from an implied-M6 file to explicitly **M9**-owned (the first point in the build order where `ShipClass` (M7) and `PermanentUpgrade`/`EquipmentItem` (M9) all exist), with the M6 and M9 Scope amendment bullets and §6b.7's file list updated to match.
+- **Base 2 "Aerthos Ridge" worked example**: corrected to reflect that Hauler + RCS Thruster Pack alone (135 deg/s) already clears the stated `hardFloor` of 130 (risky band, one slot), rather than claiming both RCS and Vernier are required; reframed the slot-budget point as a margin/opportunity-cost choice rather than a hard two-item requirement.
+- **§6b.6 item 5 and `BaseRequirements.combat`**: reconciled the "no fourth hand-authored field" claim with the fact that `minTWR`/`handling`/`combat.*` are themselves hand-authored, by distinguishing authored _thresholds_ (necessary inputs) from a hand-authored _verdict_ (eliminated); added interface-level doc comments distinguishing `minWeaponTier` (hard gate) from `minShieldTier` (soft, UI-only).
+- **`BaseDifficultyProfile.dominant`**: added an explicit note that `'tutorial'` uses the same budget arithmetic as `'mechanical'` (its only nonzero axis by construction), closing the previously-undefined case exercised by Base 1.
+- **Base 5 "Pyrrhal Shallows"**: added an explicit note acknowledging the worked fuel/TWR arithmetic is a closed-form approximation that does not incorporate M5's real per-tick `atmosphericDrag`, and that a real `evaluateBaseFit` implementation must run the same integrator instead of reusing these illustrative numbers as-is.
 
 ---
 
@@ -486,7 +1296,16 @@ planets.
   id, name, `gravityAccel`, `atmosphereDensity` (drag coefficient; 0 for
   airless worlds), `hazard` (`{ type: 'corrosive'; fuelDrainRate: number }`
   \| `{ type: 'cold'; thrustEfficiency: number }` \| `null`), terrain
-  palette, and a "distance" number used for unlock ordering in M6.
+  palette, and a `distance` number (in fictional "Transit Units," TU).
+  **Amendment (from Milestone 9.5's design pass)**: `distance`'s originally
+  stated "unlock ordering" role is retired — M6's actual unlock mechanism
+  (below) is a discrete `unlocks: string[]` graph keyed off base ids, which
+  never reads `distance`. `distance` keeps two real jobs instead: a loose
+  narrative/visual one (farther worlds read as farther out on M6's world
+  map) and, starting at M9.5, a hard mechanical one as the literal
+  fictional distance fed into relay-mission transit-fuel costing. Flagged
+  explicitly so a future change to `distance`'s semantics doesn't silently
+  break M9.5's relay-fuel math.
 - `src/game/planets/bodies.ts` — a starter registry of at least 4
   fictional worlds spanning the gravity/atmosphere/hazard space
   meaningfully (an airless low-gravity moon, a thin-atmosphere temperate
@@ -527,25 +1346,65 @@ Notes), `CHANGELOG.md`.
 ### Milestone 6 — Planetary Browser (World Map) (not started)
 
 **Goal**: A world-select screen (extends M3's menu system) per Decision
-D17: discovered (unlocked) worlds are selectable, locked worlds are
-visible but unavailable; worlds with more than one landing base show
-base-select within that world; completing/upgrading bases unlocks
+D17: discovered worlds are selectable, locked worlds are visible but
+unavailable; worlds with more than one landing base show base-select
+within that world; establishing/resupplying bases (Milestone 9.5) unlocks
 farther worlds and/or more bases.
 
-**Scope**: `src/game/progression/` — unlock-state data model (which
-worlds/bases are discovered), persisted via M4's validated-`localStorage`
-pattern; a `WorldMapScene` rendering M5's body registry with locked/
-unlocked visual states; base-select UI for multi-base worlds.
+**Scope**:
 
-**Acceptance criteria**: starting state has exactly one world (and its
-first base) unlocked; completing a base updates persisted unlock state;
-locked worlds/bases are visible but not selectable; unlock state survives
-a real page reload.
+- `src/game/bases/base.ts`, `bases.ts`, `difficulty.ts` — the `Base`
+  record (§6b.2: `terrainOptions`, `encounters` — empty array until M11,
+  `requirements`, `difficulty`, `firstClearCredits`) and a starter registry
+  of curated bases per world. **Schema and registry only** —
+  `evaluateBaseFit` (`fit-check.ts`) is **not** built here; it's M9's (see
+  §6b.3 point 4 and the M9 amendment below), since its signature needs
+  `ShipClass` (M7) and `PermanentUpgrade`/`EquipmentItem` (M9) types that
+  don't exist yet at M6's point in the sequence.
+- **Base status is a three-state machine, not binary**: `locked →
+discovered-unclaimed → established` (amended from a simpler discovered/
+  locked flag per Milestone 9.5's design — establishing a base, not merely
+  discovering it, is what has narrative/mechanical weight, see §9.5.4).
+  `status`, `isCriticalPath`, `unlocks`, and `localOffset` are fields on
+  the same `Base` record §6b.2 defines (not a separate `BaseConfig` type —
+  see §6b.2's own copy of these fields for the authoritative shapes).
+  Persisted via M4's validated-`localStorage` pattern, alongside
+  `establishedAt`/`resupplyCounts` (§9.5.4, feeds M12).
+- A `BaseDifficultyProfile` (§6b.2) computed from each base's mechanical
+  (and, once available, spatial) parameters.
+- A `WorldMapScene` rendering M5's body registry with locked/discovered/
+  established visual states; base-select UI for multi-base worlds shows
+  per-base difficulty-axis badges (mechanical/spatial/combat pip counts, a
+  dominant-axis emphasis, a distinct capstone marker — §6b.1) and, once
+  M9.5 lands, the mission-brief fields a player needs before committing:
+  distance to target (TU) and atmosphere/hazard summary (read from the
+  target `CelestialBody`, M5), target hostility level (from
+  `difficulty.axes.combat`/`requirements.combat` on `Base`, §6b.2 —
+  reads as 0/no-requirement until M11 populates real encounter data, the
+  same "empty until M11" state `Base.encounters` is already in), and
+  cargo/load weight required — this last one is **not** on `Base` or
+  `CelestialBody` at all, but on the specific `MissionDefinition`
+  (`minManifest`, §9.5.1) offered at that base, since the same base's
+  requirement differs between its Establish-Presence and Resupply
+  missions. The briefing composes these from three different records, not
+  one — flagged explicitly so an implementer doesn't look for a single
+  "briefing" field that doesn't exist.
+
+**Acceptance criteria**: starting state has exactly one world, with its
+first base `discovered-unclaimed` (the opening mission — §9.5.4 — is
+itself an Establish Presence mission that flips it to `established`); a
+base's difficulty badges are computed from its real authored parameters,
+never hardcoded independent of the actual `Base` record; locked
+worlds/bases are visible but not selectable; unlock state survives a real
+page reload; completed (`established`) bases remain re-enterable, with a
+reduced but always-nonzero replay reward (Resupply missions, M9.5).
 
 **Required tests**: unit tests for the unlock-state data model (initial
-state, unlock transitions, persistence schema validation); e2e test
-reaching a locked world/base, confirming it can't be entered, then
-unlocking one and confirming it can.
+state, the three-state transition graph, `unlocks` propagation,
+persistence schema validation) and for `Base`/registry validity (every
+base has a valid, distinct `id`/`worldId`, difficulty axes in range
+0-10); e2e test reaching a locked world/base, confirming it can't be
+entered, then unlocking one and confirming it can.
 
 **Required quality gates**: full gate list, must stay green.
 
@@ -576,18 +1435,30 @@ This same purchase-or-unlock model applies to equipment items in M9 too
 inconsistent acquisition rules).
 
 **Scope**: `src/game/ships/ship.ts` (a `ShipClass` config: id, name,
-class/archetype, mass or thrust multiplier, fuel capacity, rotation
+class/archetype, `dryMass`, `baseThrustAccel`, fuel capacity, rotation
 speed, **equipment slot count** (consumed by M9), and an `acquisition`
 field — `{ type: 'starter' }` \| `{ type: 'purchase'; price: number }` \|
-`{ type: 'unlock'; condition: ... }`),
-`src/game/ships/ships.ts` (registry: 5 `starter` ships + at least 2 more
-split across `purchase` and `unlock`), a ship-select screen (extends
-M3/M6's menu system, showing locked ships with _why_ they're locked —
-price or unlock condition), `FlightState`/`GameScene` taking the selected
-ship's stats instead of the current hardcoded
-`THRUST_ACCEL`/`MAX_FUEL`/etc. The actual purchase transaction is M8's
-job (a generic mechanism that sells anything with a price tag, ships
-here and equipment in M9) — this milestone only needs the ship data
+`{ type: 'unlock'; condition: ... }`). **Thrust model, made explicit**
+(resolves an ambiguity §6b.6 item 2 flagged in the original "mass or
+thrust multiplier" phrasing): `engineForce = baseThrustAccel × dryMass`,
+held fixed — bolting on equipment/cargo mass lowers realized acceleration
+without touching the engine itself; see the M9 amendment below for the
+full `effectiveThrustAccel` formula this feeds. Two more fields, added by
+Milestone 9.5 (cheaper to bake into this not-yet-built interface now than
+retrofit after M7 certifies): `massBudget: number` (total mass-units this
+class can carry across equipment _and_ cargo combined — conceptually
+paired with M9's mass-budget mechanism, not a separate ceiling) and
+`cargoBayCapacity: number` (a secondary, cargo-only ceiling; `0` is valid,
+for combat-archetype classes with no cargo bay regardless of leftover
+`massBudget`), plus `fuelPerDistanceUnit: number` (consumed only by
+M9.5's relay transit-fuel formula). `src/game/ships/ships.ts` (registry: 5
+`starter` ships + at least 2 more split across `purchase` and `unlock`), a
+ship-select screen (extends M3/M6's menu system, showing locked ships
+with _why_ they're locked — price or unlock condition), `FlightState`/
+`GameScene` taking the selected ship's stats instead of the current
+hardcoded `THRUST_ACCEL`/`MAX_FUEL`/etc. The actual purchase transaction
+is M8's job (a generic mechanism that sells anything with a price tag,
+ships here and equipment in M9) — this milestone only needs the ship data
 model and read-only "is it available" logic; wiring a real purchase
 button is acceptance criteria for M8, not this milestone.
 
@@ -673,9 +1544,24 @@ store (Decision D14):
   slot type `'weapon' | 'utility'`, and either weapon stats consumed by
   M11's combat resolution, or a utility effect — e.g. a temporary stat
   modifier for boost items); a per-ship loadout (which purchased items
-  are currently equipped, within a slot-count and/or mass budget); total
-  equipped mass feeds into the same thrust-to-weight calculation as ship
-  class and world gravity.
+  are currently equipped, within a slot-count and/or mass budget).
+  **Thrust-to-weight formula, made explicit** (so Milestone 9.5 reuses it
+  exactly instead of reinventing it):
+  `effectiveThrustAccel = shipClass.baseThrustAccel × shipClass.dryMass / (shipClass.dryMass + totalCarriedMass)`,
+  where `totalCarriedMass` is the sum of every equipped item's mass (M9.5
+  extends this same variable to also include cargo mass — same formula,
+  same variable, no parallel formula). The hard constraint this implies —
+  `Σ equippedItemMass ≤ shipClass.massBudget` — is likewise formalized
+  here as the named limit M9's acceptance criteria already assume but
+  don't spell out.
+- Authors `src/game/bases/fit-check.ts` — the `evaluateBaseFit` facade
+  (§6b.2: takes `ShipClass` (M7), `PermanentUpgrade[]`/`EquipmentItem[]`
+  (this milestone), `CelestialBody` (M5), and `Base` (M6), returns a
+  `BaseFitResult` covering the mechanical/spatial/combat branches). Placed
+  here, not M6, because this is the first point in the build sequence
+  where all of its required types exist (§6b.3 point 4). Consumed by the
+  pre-mission loadout screen below for live pre-launch warnings, and
+  reused headlessly by per-base `*.solvability.test.ts` fixtures (§6b.7).
 - **Cycling and triggering, as input/UI (not combat resolution — that's
   M11)**: a cycle input switches the _active_ weapon among equipped
   weapons; a separate cycle input switches the _active_ utility item; a
@@ -709,17 +1595,257 @@ fuel-tank-vs-handling and shield-vs-handling).
 
 ---
 
+### Milestone 9.5 — Mission & Cargo Delivery System (not started)
+
+**Goal**: Turn "land safely" into a real mission with a purpose. A mission carries cargo (troops or supplies) whose mass draws from the _same_ mass budget as M9's equipped weapons/utility items — cargo, weapons, and utility items are one three-way tradeoff, not cargo bolted on as a separate resource. Missions come in three structures (single-trip, timed multi-trip to one base, and relay between two bases/worlds) and two narrative flavors (establishing a new presence vs. resupplying/reinforcing an existing one) that tie directly into M6's world/base unlock progression and M12's achievements.
+
+#### 9.5.1 Cargo model and the shared mass budget
+
+Two cargo types, deliberately built to behave differently:
+
+- **Troops** — discrete, whole-unit-only ("squad" = personnel + minimal gear; you can't deliver 0.6 of a squad). `unitMass = 10` MU (mass units — same non-SI, pixel-space spirit as `GRAVITY_ACCEL`/`THRUST_ACCEL`). `baseUnitValue = 25` credits/squad. Troops represent a permanent capability at the destination (garrison strength) — this is the cargo type Establish Presence missions require.
+- **Supplies** — continuously loadable, up to whatever mass remains (a slider/stepper, not discrete inventory — mirrors how fuel is already a continuous 0..100 gauge elsewhere in the codebase). `unitMass = 2` MU/crate. `baseUnitValue = 5` credits/unit. Supplies represent consumables that sustain an existing base — the cargo type Resupply missions require.
+
+**One shared mass pool, not two.** Extending M9's amended formula:
+
+`totalCarriedMass = equipmentMass + cargoMass`, where `cargoMass = troopSquads × 10 + supplyUnits × 2`, and the single constraint is `totalCarriedMass ≤ shipClass.massBudget`. Every troop squad or supply crate loaded is mass that cannot go to a shield or weapon, and vice versa — this is the mechanical core of "cargo vs. weapons/shields vs. handling all draw from one pool."
+
+**`cargoBayCapacity` is a second, narrower ceiling — deliberately not a duplicate of `massBudget`.** It caps only the cargo _portion_ (`cargoMass ≤ shipClass.cargoBayCapacity`), independent of how much of `massBudget` is otherwise free. This is what lets a heavily-armed combat-archetype ship class have `cargoBayCapacity = 0` — physically no hold — even if its `massBudget` has headroom after equipping weapons; and what lets a hauler-class ship have a huge `cargoBayCapacity` relative to its `massBudget`, making it the natural choice for cargo-heavy missions. Both constraints are checked together; failing either blocks launch.
+
+**Pre-mission screen**: extends M9's loadout screen (doesn't replace it) — one shared mass-budget bar, with equipment slots and cargo quantity steppers both filling the _same_ bar, plus a separate, visually distinct cargo-bay-capacity indicator for the cargo portion specifically. A mission's minimum cargo requirement (`minManifest`, e.g. "≥8 troop squads") is shown inline, alongside the mission-brief fields M6's world-map screen already surfaces (load weight, distance to target, target identity, target hostility level, atmosphere/hazard summary); the Launch button is disabled until `minManifest` is met — same UX pattern as M9's slot-count gating.
+
+Fuel is **excluded** from this shared pool — fuel capacity stays a permanent-upgrade stat (M9 category 1, no slot/mass cost), not something competing for mass-budget space. Including fuel mass would mean thrust-to-weight changes continuously mid-flight as fuel burns, more simulation fidelity than this project has committed to anywhere (§4, "arcade game, not a physics sandbox"). `massBudget` stays a fixed, pre-mission quantity, consistent with M9's own acceptance criteria being a static, integration-testable comparison, not a live per-frame recalculation.
+
+**Interaction with §6b's base-puzzle difficulty/requirements design**: `minManifest` is one more requirement dimension of exactly the same general shape §6b's `evaluateBaseFit` already checks (cargo capacity, fuel range, and whatever difficulty-tag requirements §6b defines, all evaluated together, each individually named in the UI when it fails) — not an incompatible parallel mechanism. `fit-check.ts` (M9, §6b.2/§6b.3) is the one composed feasibility check both systems share.
+
+#### 9.5.2 Mission structure taxonomy
+
+Three structures, one shared `MissionDefinition`/`MissionOutcome` event shape so flavor, progression, and achievement logic (§9.5.4) don't need to know or care which structure produced a given landing. **Between every trip/leg, control always returns to the world-map/mission screen** (§9.5.3) — there is no in-place "relaunch" within a single `GameScene` instance, for any of the three structures below:
+
+| Structure                | Description                                                                                                                                                                                                                                                                                                                               | Success                                                                                                                                   | Partial success                                                                                                                                                       | Failure                                                                                                                                                                                                                                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Single-trip**          | Exactly today's certified M2 behavior: one launch, one landing, immediately terminal. Default when no `MissionDefinition` is supplied (existing e2e/unit tests keep passing unmodified).                                                                                                                                                  | Safe landing at the correct pad, with `minManifest` (if any) met.                                                                         | **None** — single-trip is strictly binary.                                                                                                                            | Crash, or landing at the wrong pad/site.                                                                                                                                                                                                                                                      |
+| **Multi-trip-same-base** | A cumulative cargo target delivered to one fixed base (same terrain every trip, seeded from the base id) across any number of round trips — each trip its own `GameScene` session, chosen again from the world-map screen — gated by a mission-wide countdown timer that runs continuously regardless of how many trips happen inside it. | Cumulative `delivered ≥ target` before the timer expires.                                                                                 | `0 < delivered < target` when the timer expires (or, under `crashPolicy: 'endMission'`, when a crash ends the mission early with partial progress banked).            | `delivered === 0` when the timer expires.                                                                                                                                                                                                                                                     |
+| **Relay**                | Pickup at one base (possibly a different world), transit (abstracted, non-interactive), delivery at a second base. Cargo is loaded once at the origin and is one indivisible payload — not cumulative.                                                                                                                                    | Safe landing at origin (cargo loads) **and** safe landing at destination (cargo delivered), with sufficient fuel to complete the transit. | **None in v1** — relay is binary, deliberately (see §9.5.8, item 7). Multi-hop relay with per-hop partial credit is flagged as a future v2 extension, not built here. | Crash at either leg (cargo lost, mission ends immediately), **or** a distinct "stranded" failure: fuel remaining after the origin leg is less than the computed transit cost (checked before cruise begins; cargo lost, mission fails — different failure mode from a crash, same end state). |
+
+Cargo per trip/leg is credited **only on confirmed safe touchdown, never in-flight** — if a multi-trip mission's timer expires mid-descent, that trip's cargo (never touched down) is simply never credited. This is a single, simple invariant across all three structures: `recordDelivery()` is called from exactly one place, the safe-landing branch, never from a timer-expiry or crash branch.
+
+Cargo quantity per trip is **player-chosen at each launch's loadout screen** (not a mission-defined constant) — bounded by the ship's `cargoBayCapacity`/`massBudget` and by the mission's remaining need. This generalizes cleanly: a player can overshoot (deliver more than strictly required, banking extra `cargoReward`) or take a smaller, safer load on a later trip if an earlier one crashed. A crash under `crashPolicy: 'loseTripOnly'` returns the player to the world-map screen with that trip's cargo lost and the mission clock still running, exactly like a successful trip does — the only difference is what got credited, not how the player gets back to choosing their next action (§9.5.3).
+
+#### 9.5.3 Changes required to the certified Milestone 2 `GameScene`
+
+**Amended after this design was first drafted**: the person building this game clarified the actual intended flow — _"after a successful landing the loading and takeoff will always be automated to the planet choice screen where you choose the destination with the loadout."_ This is a simpler, more consistent model than an in-place "hold thrust to relaunch" mechanic within one `GameScene` instance, and is adopted in full below. It also **substantially reduces** the restructuring cost an earlier draft of this section flagged as significant — most of what follows is closer to additive than that draft, not because the estimate was wrong, but because the corrected UX genuinely needs less.
+
+**The corrected model**: every trip/leg is its own complete `GameScene` session, exactly like today's certified single-trip flow — launch, fly, land-or-crash, **always exit the scene** (never an in-place relaunch). What happens next (another trip to the same base, a relay's second leg, a completely different mission, or just returning to the world map) is decided entirely by the menu/world-map flow, not by `GameScene` itself. Cargo loading and "takeoff" are administrative — resolved automatically between scenes, never a manual in-scene action.
+
+**What changes, concretely** (read against `src/game/scenes/game-scene.ts` lines 61-195):
+
+1. **`GameScene` optionally receives mission context via scene launch data**: `{ mission?: MissionContext }`, where `MissionContext` names the mission id, which base, and how much cargo this specific trip is carrying. **Absent `mission` reproduces certified M2 behavior byte-for-byte** — the existing e2e smoke/landing specs need zero modification.
+2. **`create()` needs no new per-trip/per-leg branching.** Since every trip is a fresh scene instance, the existing single-pass `create()` already does exactly the right thing each time — generate terrain, build the visual, construct a `FlightState`, position the lander at its normal spawn point. No trip-setup/relaunch split, no ground-clearance fix, no "is this trip 1 or trip 2+" branching — those were only needed for the in-place-relaunch model this correction replaces. One real addition: terrain generation is seeded from the `base.id` (not the wall-clock seed M2 currently uses) whenever `mission` is present, so revisiting the same base within one mission (another trip, or a later Resupply mission) presents the _same_ terrain layout — fair and consistent, rather than a fresh random layout every attempt.
+3. **`update()`'s existing two-branch structure barely changes.** The `outcome !== 'flying'` branch still freezes the scene on landing/crash exactly as it does today — the only change is _what happens after the brief result display_. With no `mission` in scene data: unchanged, `R` triggers `scene.restart()`, identical to certified M2 behavior. With `mission` present: after the outcome displays (safe landing or crash), the scene automatically transitions to the world-map/mission screen (`this.scene.start('WorldMap', { mission: updatedMissionState })`) instead of waiting on `R` — crediting cargo to `this.registry`'s `MissionState` first if the landing was safe and at the correct base/pad (§9.5.2's touchdown-only invariant). **This also eliminates the R-key-overload UX concern an earlier draft of this section flagged**: `R` never means two different things depending on mission state, because the mission-context path never uses `R` for progression at all.
+4. **The mission-wide timer / mid-flight-expiry edge case** still needs a deliberate resolution: if the mission-wide timer reaches zero while the ship is still airborne mid-descent, the in-progress trip is not artificially frozen or interrupted — physics and input continue exactly as before, and the trip resolves naturally to `'landed'`/`'crashed'` one or more frames later. A `missionTimerExpired` flag (set the instant the timer hits zero) suppresses cargo crediting for that trip regardless of which way it naturally resolves; the scene then transitions to the world map exactly as in point 3, carrying the finalized `missionStatus` (`'partial'`/`'failure'`, from the cumulative `delivered`-vs-`target` comparison).
+5. **Relay legs need no special-case scene bridging beyond what every other mission-context trip already does.** Under this corrected model, _every_ trip/leg (multi-trip or relay) already exits to the world-map/mission screen between attempts, so a relay's second leg is just another instance of that same pattern. A `TransitScene` (or an equivalent transit step folded into the world-map screen) is still needed to render the animated origin→destination transfer and deduct transit fuel (§9.5.6) — but it's reached via the exact same "scene exits to the mission/world-map flow" path every other trip uses, not a relay-only special case.
+6. **`MissionState` persistence** lives on `this.registry` (Phaser's game-global `DataManager`, which survives a `scene.start()` to a different scene key), since mission state must survive genuine scene changes between trips/legs, which `this.data` does not. The existing per-scene `this.data.set('outcome', ...)` contract (and its e2e test) is preserved exactly as today — scoped correctly to one `GameScene` instance's lifetime, since `tripOutcome` never needs to survive past its own trip's scene instance under this model.
+7. **Fuel resets to full at the start of every trip** (recommendation, not forced by any technical constraint) — "you refuel at base/menu between trips."
+8. **HUD additions are purely additive**: new text objects for delivered/target cargo and a countdown timer, added beside the existing `fuelText`/`outcomeText`, no deletion of existing HUD code.
+
+**Summary — additive vs. restructuring, corrected**:
+
+| Change                                                                   | Additive                                                                       | Restructures certified code                                                                                   |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `MissionState`/`MissionContext`/cargo/relay-math modules (all new files) | ✅ pure, zero Phaser dependency, unit-testable exactly like `flight-state.ts`  |                                                                                                               |
+| `terrain-generator.ts`, `landing.ts`, `lander-physics.ts`, `FlightState` | ✅ zero changes — a trip/leg is just another call to the same pure functions   |                                                                                                               |
+| `GameScene.create()`                                                     | ✅ unchanged control flow; only a seed-source change when `mission` is present |                                                                                                               |
+| `GameScene.update()`                                                     |                                                                                | ✅ the post-outcome branch gains a scene-transition path when `mission` is present, instead of waiting on `R` |
+| `outcome` field / data-manager contract                                  | ✅ unchanged meaning and scope                                                 |                                                                                                               |
+| New `TransitScene` (or transit step in the world-map flow)               | ✅ new scene, reuses `WorldMapScene` rendering                                 | touches scene-transition wiring in `main.ts`/scene registry                                                   |
+| Cross-scene `MissionState` persistence                                   |                                                                                | ✅ new for this codebase — uses `this.registry`                                                               |
+| HUD                                                                      | ✅ new text objects only                                                       |                                                                                                               |
+
+This is a meaningfully smaller restructuring footprint than an earlier draft of this section estimated — most of that cost was specifically the in-place relaunch mechanic (a `startTrip()` split, a ground-clearance fix, the trip/mission-status split needing to survive within one scene instance), which the corrected always-exit-to-menu flow doesn't need at all.
+
+#### 9.5.4 Mission flavors and tie-in to Milestone 6 / Milestone 12
+
+Two flavors, orthogonal to the structure taxonomy above (a relay can carry either flavor; multi-trip is typically but not exclusively Resupply):
+
+- **Establish Presence** — founding a new site. Offered only at bases in `discovered-unclaimed` status. Requires troop cargo (a garrison). Success is binary safe-landing-with-manifest-met (no partial concept — see §9.5.2). Reward: standard formula (§9.5.5) multiplied once by `ESTABLISH_PRESENCE_BONUS_MULTIPLIER = 2.5`, since it's the only mission that base will ever pay this bonus (it cannot be repeated once established). On success: `baseStatus[baseId]` flips `discovered-unclaimed → established`, every id in that base's `unlocks` list flips `locked → discovered-unclaimed` (revealing that base's world on the map too, if it's the first discovered base there), `establishedAt[baseId]` is recorded, and an achievement-eligible `MissionOutcome` event fires.
+- **Resupply/Reinforcement** — sustaining a site that's already established. Offered only at `established` bases. Requires supply cargo (or troop cargo for a reinforcement variant, mechanically identical). Repeatable indefinitely. Reward: standard formula, no flavor multiplier. No `baseStatus` mutation — increments `resupplyCounts[baseId]` only, which feeds M12 achievements but never gates world-map progression. This is the deliberate design point: the critical path to farther worlds is one one-time action per critical-path base (never a grind wall), while resupply still has real purpose (currency, ship/equipment unlock conditions keyed to mission counts, achievements).
+
+**Starting-state resolution** (amends M6's acceptance criterion): the game's opening mission _is_ an Establish Presence mission — the player founds their own home base. This teaches the mechanic immediately, hands the player the "first ever" achievement as their first toast, and after that mission the home base is `established` and all further home-base missions are Resupply.
+
+**Achievement hooks (extends M12's registry, no new infrastructure — same trigger-condition/display-text shape M12 already defines)**:
+
+| id                        | Display text                                                        | Trigger                                                              |
+| ------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `first-presence`          | "Boots on the Ground"                                               | First-ever completed Establish Presence mission, any base            |
+| `world-pioneer-<worldId>` | "Pioneer of \<World\>"                                              | First base established on a world with zero prior established bases  |
+| `full-claim-<worldId>`    | "World Secured: \<Name\>"                                           | Every base on that (multi-base) world reaches `established`          |
+| `resupply-streak-<tier>`  | "Lifeline" (5) / "Old Reliable" (10) / "Backbone of the Fleet" (25) | `resupplyCounts[baseId]` (or a global sum) crosses the threshold     |
+| `frontier-claimed`        | "Frontier Claimed"                                                  | Establish Presence completed at every critical-path base in the game |
+
+Data needed beyond what M6 already persists: `resupplyCounts: Record<string, number>` and `establishedAt: Record<string, number>` — both persisted via M4's existing validated-`localStorage` pattern, the same one M6/M8/M12 already share.
+
+#### 9.5.5 Reward formula (extends M4/M8, doesn't replace either)
+
+```
+massUtilization   = totalCarriedMass / shipClass.massBudget                    // 0..1
+riskBonus         = 1 + CARGO_RISK_BONUS_COEFFICIENT × massUtilization         // coefficient 0.5 → range 1.0–1.5
+
+perTripCargoReward = Σ over cargo types: unitsDeliveredThisTrip × baseUnitValue(type) × riskBonus
+missionCargoReward = Σ over every trip/leg that ended in a credited safe landing  // naturally prorates a partial multi-trip mission — no separate proration formula needed
+
+flavorMultiplier  = (flavor === 'establish-presence') ? ESTABLISH_PRESENCE_BONUS_MULTIPLIER : 1.0   // 2.5 : 1.0
+
+missionReward     = MISSION_BASE_COMPLETION_REWARD                             // 100 credits, paid once, only on success or partial
+                   + missionCargoReward × flavorMultiplier
+                   + m4ScoreBonus(fuelRemaining, time, precision)               // existing M4 formula, summed per successful trip/leg, unchanged
+```
+
+`missionCargoReward` for a crashed trip/leg is `0` — cargo is destroyed, not partially credited — this holds uniformly across all three structures (single-trip's one landing, each of multi-trip's trips independently, relay's one indivisible payload).
+
+#### 9.5.6 Relay-specific mechanics
+
+`transitDistanceTU(origin, dest)` reuses M5's `CelestialBody.distance` (TU) for cross-world legs and M6's new `localOffset` (TU) for same-world legs — one formula, two magnitudes, no special-casing (same-world offsets are small, ~1–5 TU; world distances are 0–210+ TU):
+
+```
+distanceTU = sameWorld ? |originBase.localOffset − destBase.localOffset|
+                       : |destWorld.distance − originWorld.distance|
+
+transitFuelCost = TRANSIT_LAUNCH_OVERHEAD                                      // 8 fuel units, launch-to-transfer-orbit burn
+                + distanceTU × shipClass.fuelPerDistanceUnit
+                  × (shipClass.dryMass + totalCarriedMass) / shipClass.dryMass  // heavier cargo/equipment load = costlier transit
+```
+
+Deducted from the same fuel pool used for descent thrusting — deliberate: a ship must arrive at the origin with enough reserve for (transit + a second flown descent), not just enough to get there. Hazard effects (M5's corrosive drain / cold thrust-efficiency) apply only during a _flown descent leg_ at that body, never during the abstracted transit.
+
+A relay mission is only selectable when **both** origin and destination bases are currently `discovered-unclaimed` or better (Establish Presence relays need the destination `discovered-unclaimed`; Resupply relays need it `established`) — composes for free with M6, no new unlock mechanism.
+
+**Pre-launch feasibility gate** (composed pure function, same "greyed out with a stated reason" UX pattern as M7's locked ships):
+
+```
+relayFeasibility(mission, shipClass):
+  if cargoMass(mission.manifest) > shipClass.cargoBayCapacity → infeasible: "cargo exceeds hold capacity"
+  if cargoMass(mission.manifest) + equipmentMass > shipClass.massBudget → infeasible: "cargo + equipment exceeds mass budget"
+  if estimateDescent(origin) + transitFuelCost + estimateDescent(dest, loaded=true) > shipClass.fuelCapacity → infeasible: "insufficient fuel range"
+  else → feasible
+```
+
+A relay may fail on cargo capacity alone, fuel range alone, both, or neither — these are independent gates (§9.5.7, Example F demonstrates a mission the entire roster currently fails).
+
+**Acceptance criteria**:
+
+- Cargo (troops/supplies) mass is checked against the _same_ `massBudget` constraint as M9's equipment, and against the additional `cargoBayCapacity` ceiling — integration-tested: two loadouts with identical total mass (one all-cargo, one cargo+weapon) produce identical `effectiveThrustAccel` but different `missionReward`.
+- Single-trip missions with no `MissionDefinition` supplied reproduce certified M2 behavior exactly — the existing e2e smoke/landing specs pass unmodified.
+- A multi-trip-same-base mission: cargo credits only on confirmed safe landing; a crash under `loseTripOnly` doesn't end the mission and doesn't credit that trip's cargo, and returns the player to the world-map screen with the mission clock still running; the mission-wide timer expiring mid-flight lets the in-progress trip resolve naturally (§9.5.3, point 4) and discards that trip's cargo regardless of the natural outcome, then resolves `success`/`partial`/`failure` correctly from cumulative `delivered` vs. `target`.
+- A relay mission: cargo loads only after a safe origin landing; total mass increases for the outbound leg (measurably worse `effectiveThrustAccel`, integration-tested); a crash on either leg or an under-fuel transit fails the mission and loses the cargo; a successful destination landing credits reward and, for Establish Presence, flips base status and unlock state correctly.
+- Establishing a base flips its status, opens every base in its `unlocks` list, and is a one-time-only bonus (a second attempt at an already-established base's site is simply not offered — Resupply is offered instead).
+- At least one relay mission in the shipped registry is genuinely infeasible for every ship class in the current roster, and the mission-select UI states why (cargo gate, fuel gate, or both) rather than silently hiding it.
+- Achievements in the table above fire exactly once each, on the correct trigger, and persist across a reload (M4's pattern).
+- Every trip/leg, regardless of outcome, returns the player to the world-map/mission screen — never an in-place relaunch prompt (§9.5.3).
+
+**Required tests**:
+
+- Unit: cargo-mass/mass-budget/cargo-bay-capacity checks (pure); `MissionState`'s `recordDelivery`/`isTargetMet`/`resolveFinalStatus`/`isTimeExpired` (pure, Node-only, same philosophy as `flight-state.ts`); reward formula (`riskBonus`, `flavorMultiplier`, per-trip vs. cumulative summation); relay distance/fuel/feasibility functions (same-world vs. cross-world distance, fuel scaling with distance and mass, all four cargo/fuel-gate quadrants); base-status state-machine transitions (`locked→discovered-unclaimed→established`, `unlocks` propagation).
+- Integration: same ship, cargo-loaded vs. unloaded, measurably different descent time/fuel burn under identical input (same methodology as M5's body-variation and M7's ship-variation tests); a full multi-trip sequence (success, partial, and failure end states) driven through `MissionState` without Phaser, including a timer-expiry-mid-flight case verifying the trip resolves naturally and is uncredited either way; a full relay sequence (both legs, cargo mass change between legs, transit fuel deduction).
+- E2E: a full single-trip flow reproduces existing M2 behavior; a multi-trip mission's first trip ends at the world-map screen (not an in-place relaunch prompt), and launching a second trip to the same base from there continues the same mission; the `outcome`/`missionStatus` data-manager keys both observable and correctly separated.
+
+**Required quality gates**: full gate list, must stay green.
+
+**Certification checklist**: not started. Depends on **Milestone 6**, **Milestone 8**, and **Milestone 9**.
+
+#### 9.5.7 Worked examples
+
+Ship classes (extends M7):
+
+| Class   | dryMass (MU) | baseThrustAccel (px/s²) | massBudget (MU) | cargoBayCapacity (MU) | equipmentSlots | fuelCapacity | fuelPerDistanceUnit |
+| ------- | ------------ | ----------------------- | --------------- | --------------------- | -------------- | ------------ | ------------------- |
+| Scout   | 250          | 54                      | 90              | 60                    | 2              | 140          | 1.4                 |
+| Courier | 400          | 46                      | 200             | 160                   | 3              | 180          | 1.0                 |
+| Hauler  | 650          | 40                      | 380             | 340                   | 4              | 260          | 0.75                |
+
+Equipment (M9): Light Cannon (weapon, 40 MU, 12 dmg/hit), Deflector Shield (utility, 60 MU, absorbs 1 hit), Aux Fuel Tank (utility, 30 MU, +25 fuel capacity).
+
+Worlds (extends M5, distances in TU): Kessel's Reach (home, airless, distance 0, no hazard) → Verdalis (thin atmosphere, distance 42, no hazard) → Pyrrhine Expanse (thick atmosphere, distance 95, corrosive) → Glacian Drift (extreme cold, distance 210, cold).
+
+Bases (extends M6, `localOffset` in TU): Anchor Station (Kessel's Reach, 0, critical path, `unlocks: [meridian-yard, scarp-outpost]`), Scarp Outpost (Kessel's Reach, 2.4, spur), Meridian Yard (Verdalis, 0, critical path, `unlocks: [rustwell-landing]`), Rustwell Landing (Pyrrhine Expanse, 0, critical path, `unlocks: [frostgate]`), Frostgate (Glacian Drift, 0, critical path). Starting state: Anchor Station `discovered-unclaimed`, everything else `locked`.
+
+Constants used: `MISSION_BASE_COMPLETION_REWARD = 100`, `CARGO_RISK_BONUS_COEFFICIENT = 0.5`, `ESTABLISH_PRESENCE_BONUS_MULTIPLIER = 2.5`, `TRANSIT_LAUNCH_OVERHEAD = 8`. Descent-leg fuel figures below are illustrative typical-skilled-pilot values (only the transit-fuel term is exactly formula-computable pre-flight; descent burn depends on player input, which is why `relayFeasibility` uses an _estimated_ worst-case descent cost, not an exact one).
+
+**Example A — Single-trip, Establish Presence (tutorial: founding Anchor Station)**
+Ship: Courier, unarmed. Manifest: 6 troop squads (`minManifest: {troops: 6}`). `cargoMass = 60` MU, `equipmentMass = 0`, `totalCarriedMass = 60` (≤ `cargoBayCapacity` 160, ≤ `massBudget` 200). `massUtilization = 0.30` → `riskBonus = 1.15`. `effectiveThrustAccel = 46 × 400/460 = 40.0` px/s² — comfortable margin over `GRAVITY_ACCEL = 18`, appropriate for a tutorial. `cargoReward = 6 × 25 × 1.15 = 172.5 ≈ 173`. `missionReward = 100 + 173 × 2.5 + m4ScoreBonus ≈ 533 + scoreBonus`. On safe landing: Anchor Station `discovered-unclaimed → established`; Meridian Yard and Scarp Outpost flip to `discovered-unclaimed`; Verdalis becomes visible on the world map; `first-presence` achievement fires.
+
+**Example B — Single-trip, Resupply (Anchor Station, now established)**
+Ship: Scout, Light Cannon equipped (40 MU). Cargo: 20 supply units (40 MU). `totalCarriedMass = 80` (≤ 90 `massBudget`, cargo portion 40 ≤ 60 `cargoBayCapacity`). `massUtilization = 0.889` → `riskBonus = 1.444`. `effectiveThrustAccel = 54 × 250/330 = 40.9` px/s². `cargoReward = 20 × 5 × 1.444 = 144.4 ≈ 144`. `missionReward = 100 + 144 + scoreBonus = 244 + scoreBonus` (no flavor multiplier). `resupplyCounts['anchor-station']++`; no base-status change.
+
+**Example C — Multi-trip-same-base, timed, Resupply (Meridian Yard, established off-screen prior to this example)**
+Definition: `cargoTargetUnits = 60` supplies, `timeLimitSeconds = 300`, `crashPolicy = 'loseTripOnly'`. Ship: Courier, unequipped, 20 supply units chosen each trip (40 MU/trip, `riskBonus = 1.1`, `perTripCargoReward = 20 × 5 × 1.1 = 110`).
+
+- `t=0:00` mission starts, terrain generated once (seeded from `meridian-yard`, reused every trip).
+- `t=0:00–0:40` Trip 1: safe landing, scene exits to world-map screen. `delivered = 20/60`, reward banked 110.
+- `t=0:50–1:30` Trip 2 (attempt, relaunched from the world map): crash. `loseTripOnly` → that trip's cargo lost, `delivered` stays 20/60, reward banked 0, scene exits to world-map screen exactly as a safe landing would.
+- `t=1:35–2:10` Trip 2 (retry, launched again from the world map, mission clock untouched): safe landing. `delivered = 40/60`, reward banked 110 (running total 220).
+- `t=2:20–2:55` Trip 3: safe landing. `delivered = 60/60` → target met → `missionStatus = 'success'` immediately, no further trips offered.
+  `missionReward = 100 + (110+0+110+110) × 1.0 + Σ scoreBonus = 100 + 330 = 430 + scoreBonus`. Elapsed 2:55 of a 5:00 budget.
+
+**Example D — Same-world relay, Establish Presence (Anchor Station → Scarp Outpost, both Kessel's Reach)**
+`distanceTU = |0 − 2.4| = 2.4`. Ship: Courier. Manifest: 10 troop squads (100 MU, ≤160 cargoBayCapacity, ≤200 massBudget), unequipped. `massUtilization = 0.5` → `riskBonus = 1.25`. `totalMassFactor = 500/400 = 1.25`. `transitFuelCost = 8 + 2.4 × 1.0 × 1.25 = 11.0` fuel units. Fuel budget: ~35 (unloaded origin descent) + 11 (transit) + ~45 (loaded destination descent) ≈ 91 of 180 fuelCapacity — comfortable. `cargoReward = 10 × 25 × 1.25 = 312.5 ≈ 313`. `missionReward = 100 + 313 × 2.5 + scoreBonus ≈ 883 + scoreBonus`. On success: Scarp Outpost `discovered-unclaimed → established` (a same-world branch, no new world revealed since Kessel's Reach was already visible).
+
+**Example E — Cross-world relay, Establish Presence (Meridian Yard, Verdalis → Rustwell Landing, Pyrrhine Expanse, corrosive)**
+`distanceTU = |95 − 42| = 53`. Ship: Hauler. Manifest: 30 troop squads (300 MU, ≤340 cargoBayCapacity, ≤380 massBudget), unequipped. `massUtilization = 0.789` → `riskBonus = 1.395`. `totalMassFactor = 950/650 = 1.4615`. `transitFuelCost = 8 + 53 × 0.75 × 1.4615 ≈ 66.1`. Fuel budget: ~50 (unloaded origin descent) + 66.1 (transit) + ~70 (loaded destination descent, corrosive-hazard drain active) ≈ 186 of 260 fuelCapacity — feasible, ~74 fuel margin. `cargoReward = 30 × 25 × 1.395 = 1046.25 ≈ 1046`. `missionReward = 100 + 1046 × 2.5 + scoreBonus ≈ 2715 + scoreBonus` — the largest reward in these examples, reflecting the highest narrative/mechanical stakes (founding a hazardous cross-world base). On success: Rustwell Landing established, `world-pioneer-pyrrhine-expanse` fires, Frostgate flips to `discovered-unclaimed`, Glacian Drift becomes visible on the map.
+
+**Example F — Cross-world relay, infeasible (Rustwell Landing, Pyrrhine Expanse → Frostgate, Glacian Drift, extreme cold) — a deliberate surfaced dead end**
+`distanceTU = |210 − 95| = 115`. Manifest requirement: 30 troop squads (300 MU) — a harsher garrison requirement reflecting the destination's cold hazard.
+
+- **Scout**: `cargoBayCapacity = 60 < 300` → excluded on cargo, before any fuel math.
+- **Courier**: `cargoBayCapacity = 160 < 300` → excluded on cargo.
+- **Hauler**: `cargoBayCapacity = 340 ≥ 300` → the only ship that can physically carry it. `totalMassFactor = 950/650 = 1.4615`. `transitFuelCost = 8 + 115 × 0.75 × 1.4615 ≈ 134.1`. Fuel budget: ~55 (origin descent, corrosive-hazard drain) + 134.1 (transit) + ~100 (destination descent, loaded, cold-hazard reduced thrust efficiency compounding an already-poor thrust-to-weight) ≈ **289 fuel needed against a 260 fuelCapacity — short by ~29 fuel, infeasible.** Reallocating the 80 MU of spare mass budget to an Aux Fuel Tank (+30 MU mass, +25 fuel capacity) adds that mass to `totalCarriedMass` (330 MU total), so `totalMassFactor` becomes `(650+330)/650 ≈ 1.508` and `transitFuelCost = 8 + 115 × 0.75 × 1.508 ≈ 138.0` — only ~4 fuel units costlier than before, since the added mass is small relative to the distance-driven term. `fuelCapacity` rises to 285 (260+25). Holding the same descent-fuel estimates (~55 + ~100 = 155): total need ≈ 155 + 138.0 = **293.0 against a 285 fuelCapacity — short by ~8 fuel, still infeasible.**
+
+Result: this mission is currently uncompletable by the entire existing roster. It should render in the mission-select UI as "no owned ship can complete this," the same greyed-out-with-reason pattern M7 uses for locked ships — a deliberate, surfaced dead end (motivating either a future long-range heavy class or a multi-hop relay v2 feature), not a bug to quietly patch.
+
+#### 9.5.8 Contradictions found across the four design-proposal angles (and how this spec resolves them)
+
+1. **Cargo-integrity spectrum vs. all-or-nothing binary.** One proposal wanted a graded cargo-integrity meter (partial payout below 100%); another wanted strict binary (crash destroys everything, safe landing pays in full). **Resolved: binary, v1.** M2's `isSafeLanding` is already a binary pass/fail with no continuous impact-severity output, and no hazard/combat damage model exists yet to generate one. Cargo-integrity-as-a-spectrum is deferred as an explicitly future extension once M10/M11 exist to produce real degradation input.
+2. **A separate hard cargo-capacity cap vs. one single shared mass budget.** One proposal wanted `cargoCapacity` as an independent hard ceiling; another wanted cargo and equipment drawing from one pool with no separate cargo ceiling. **Resolved: both, serving different purposes.** `massBudget` (shared, primary) is what creates the actual three-way tradeoff the task requires; `cargoBayCapacity` (secondary, cargo-only, can be `0`) is what lets ship-class _archetype_ exist — a pure combat ship simply can't run cargo missions, independent of its mass headroom.
+3. **Fixed per-trip cargo amount vs. continuously-loadable-per-mission cargo.** One proposal modeled `cargoPerTripUnits` as a mission-wide constant (simpler to test); another modeled supplies as a continuous stepper. **Resolved: player-chosen per launch**, bounded by ship capacity and remaining mission need — generalizes the fixed-constant version as a valid non-default special case, and stays faithful to the continuous-loading model.
+4. **Milestone placement**: proposals variously recommended M8.5 (between M8 and M9), M7a (after M7, before M8), or folding into M6 — three of the four proposals argued for an earlier slot. **Resolved: new Milestone 9.5, placed after M9.** The shared-mass-budget tradeoff this system depends on is M9's own mechanism — sequencing before M9 would mean defining the mass-budget/thrust-to-weight formula twice. M9.5 is the **first** milestone to merge the M6 (world/base) branch with the M8/M9 (economy/equipment) branch — a genuinely new cross-branch dependency, not a free one, but the right one: a mission-and-cargo system is meaningless without both a world/base graph to unlock (M6) and a mass-budget/equipment system to share cargo's pool with (M9), so the two branches were always going to have to merge somewhere for this feature to exist at all.
+5. **M6's base model**: three-state (`locked`/`discovered-unclaimed`/`established`) vs. a simpler binary discovered/locked model. **Resolved**: amend M6's own not-yet-built scope now (§6, M6 amendment) rather than retrofitting after M6 ships — cheaper before certification, and M6 has zero certified code to disturb.
+6. **M6's stated starting-state criterion** ("exactly one world and its first base unlocked") is ambiguous once a tri-state model exists. **Resolved**: "unlocked" means `discovered-unclaimed`; the opening mission is itself an Establish Presence mission that establishes the home base — teaches the mechanic immediately and gives the player a free "first ever" achievement moment.
+7. **Relay crash policy vs. multi-trip's configurable `crashPolicy`.** Multi-trip missions get a real choice between `endMission` and `loseTripOnly`; relay has no equivalent "retry in place" option. **Resolved deliberately, not by oversight**: relay legs are always effectively `endMission` — a crash on either leg fails the whole relay (cargo lost), because a relay leg isn't retryable in place the way a same-base trip is (different terrain already generated, cargo already loaded/committed). Retrying a failed relay leg means starting the relay mission over from scratch.
+8. **Cross-scene persistence** wasn't explicitly addressed by an early draft's `startTrip()`-based design, which assumed everything stays within one `GameScene` instance, while a relay-specific `TransitScene`-bridged design required state to survive a genuine scene change. **Resolved**: `MissionState` lives on `this.registry` (Phaser's game-global `DataManager`, which survives `scene.start()` to a different scene key) for every mission-context trip, not just relay — the existing per-scene `this.data.set('outcome', ...)` contract is left untouched in meaning, with a new `missionStatus` key added alongside it rather than repurposing the original.
+9. **In-place relaunch vs. always-return-to-menu.** The original synthesis of this milestone (before adversarial review and before a clarifying instruction arrived) proposed an in-place "hold thrust to relaunch" mechanic within one `GameScene` instance for multi-trip missions specifically, with relay as the one exception requiring a scene change. **Resolved by explicit instruction, after this section was first drafted**: every trip/leg, of every structure, always exits to the world-map/mission screen — never an in-place relaunch. This is not a compromise between two designs; it fully replaces the in-place-relaunch mechanic, which is why §9.5.3 above reads as a correction rather than an amendment. It also collapses relay from "the one structure needing a scene-change mechanism" to "just another instance of the mechanism every structure now uses" — a net simplification, not a special case that needed preserving.
+
+---
+
 ### Milestone 10 — Obstacles & Hazardous Conditions (not started)
 
 **Goal**: Static obstacles (rock spires, floating debris) placed in
 terrain generation, and per-world environmental conditions beyond
 atmosphere (visibility, wind gusts, etc. — exact set finalized when this
-milestone starts, informed by M5's hazard framework).
+milestone starts, informed by M5's hazard framework). **Classification
+rule** (§6b.1, resolving a real ambiguity in this goal text's own
+"visibility, wind gusts" phrasing): a per-world condition is _mechanical_
+(M5's territory) if it changes a term in the flight-model equations
+(gravity, drag, thrust efficiency, fuel drain, wind force); it's _spatial_
+(this milestone's territory) if it changes the geometry the ship must
+navigate (pad width, obstacle placement, terrain shape). Wind is
+mechanical; spires are spatial — tag every base accordingly rather than
+lumping "M10's own conditions" into one axis.
 
-**Scope**: extends `src/game/terrain/terrain-generator.ts` with obstacle
-placement (seeded, same determinism guarantee as terrain/pad placement —
-see the existing landing-pad placement logic for the pattern to follow).
-Colliding with an obstacle is a crash unless cleared by a weapon (M11).
+**Scope**: extends `src/game/terrain/terrain-generator.ts` with the merged
+`Obstacle` type (§6b.2: `kind: 'spire' | 'debris'`, `xStart`/`xEnd`/
+`yTop`/`yBottom`, plus optional `armorRating`/`cleared` fields — absent
+means a pure flight hazard, present once M11 ships means combat-clearable)
+and new `src/game/terrain/obstacles.ts` (pure `isCollidingWithObstacle`,
+mirroring `landing.ts`'s dependency-free style). `GenerateTerrainOptions`
+gains `padStartIndexOverride`, `terrainOverrides`, and `obstacles` — all
+optional, so every existing M2 test's `BASE_OPTIONS` keeps compiling and
+behaving identically unmodified. Randomized obstacle placement (for any
+non-curated/procedural bases) draws from the same seeded PRNG stream that
+already produces heights and pad index, strictly after pad placement —
+the only way to keep "deterministic given a seed" extending cleanly to
+obstacles. Colliding with an obstacle is a crash unless cleared by a
+weapon (M11); populates `Base.difficulty.axes.spatial` (§6b.2) for bases
+with real obstacle layouts.
 
 **Acceptance criteria**: obstacles are deterministic given a seed and
 never overlap the landing pad; colliding with an uncleared obstacle
@@ -751,9 +1877,15 @@ wires that trigger event to spawning a real projectile.
 **Scope**: `src/game/combat/` — projectile physics (pure-function
 trajectories, not Arcade Physics bodies — consistent with §4's physics
 philosophy) parameterized by the currently-equipped weapon's stats (from
-M9's equipment definitions), hostile/enemy definitions (position, simple
-movement pattern, health), damage resolution against shields (M9) before
-hull.
+M9's equipment definitions); `CombatantDefinition` and `EncounterSpec`
+(§6b.2: health, `armorRating` — `effectiveDamage = max(0, hit.damage -
+armorRating)`, a hit whose damage doesn't clear the armor floor deals
+**zero** effective damage, a hard fail rather than a slow grind — attack
+stats, and a movement pattern: `static`/`homing`/`diveStrafe`); damage
+resolution against shields (M9) before hull. Populates `Base.encounters`
+and `Base.difficulty.axes.combat` (§6b.2) for bases with real
+encounters; makes `evaluateBaseFit`'s (M9's `fit-check.ts`) combat branch
+live instead of `'not-applicable'`.
 
 **Acceptance criteria**: triggering the currently-selected weapon (M9)
 clears an obstacle or damages a hostile; a shielded ship absorbs one hit
