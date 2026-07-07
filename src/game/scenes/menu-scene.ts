@@ -2,10 +2,13 @@ import Phaser from 'phaser';
 import {
   GAME_HEIGHT,
   GAME_WIDTH,
+  UI_BUTTON_FONT_SIZE_PX,
   UI_BUTTON_ROW_HEIGHT_PX,
+  UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
 } from '../constants';
+import { getSafeLocalStorage, loadHighScores } from '../persistence/high-scores';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createUiButton } from '../rendering/ui-button';
 import { SCENE_KEY_GAME, SCENE_KEY_MENU, SCENE_KEY_SETTINGS } from './scene-keys';
@@ -14,6 +17,7 @@ import type { SettingsSceneData } from './settings-scene';
 
 const ORIGIN_CENTER = 0.5;
 const TITLE_Y_FRACTION = 0.3;
+const BEST_SCORE_Y_FRACTION = 0.42;
 const START_BUTTON_Y_FRACTION = 0.55;
 
 export class MenuScene extends Phaser.Scene {
@@ -36,6 +40,30 @@ export class MenuScene extends Phaser.Scene {
         color: hexToCss(UI_TEXT_COLOR),
       })
       .setOrigin(ORIGIN_CENTER);
+
+    // Only shown once a real score exists (Milestone 4/Decision D8) — a
+    // first-time player with an empty leaderboard sees a clean menu, not a
+    // confusing "BEST: 0". getSafeLocalStorage() returns null when storage
+    // access itself is blocked (sandboxed iframe, privacy setting), in which
+    // case the menu degrades to showing no BEST line at all, same as a
+    // first-time player, rather than throwing and aborting the rest of
+    // create() (the START/SETTINGS buttons below).
+    const storage = getSafeLocalStorage();
+    const bestScore = storage === null ? undefined : loadHighScores(storage)[0]?.score;
+    if (bestScore !== undefined) {
+      this.add
+        .text(
+          GAME_WIDTH / 2,
+          GAME_HEIGHT * BEST_SCORE_Y_FRACTION,
+          `BEST: ${bestScore.toString()}`,
+          {
+            fontFamily: 'monospace',
+            fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
+            color: hexToCss(UI_MUTED_TEXT_COLOR),
+          },
+        )
+        .setOrigin(ORIGIN_CENTER);
+    }
 
     const startY = GAME_HEIGHT * START_BUTTON_Y_FRACTION;
     createUiButton(this, {

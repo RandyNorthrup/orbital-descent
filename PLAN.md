@@ -34,7 +34,7 @@ milestones depend on understanding _why_, not just _what_.
 | D5  | Hosting/deploy target  | **None — source published to GitHub only**                                                                                                                                                                                                                                                              | `github.com/RandyNorthrup/orbital-descent` (public). No live deployment (no Pages/Vercel/Netlify) — the repository itself is the deliverable. No CI/CD either (Decision D9) — GitHub stores the code only; quality gates are run locally before each push.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | D6  | Platform/input         | **Desktop keyboard only (v1)**                                                                                                                                                                                                                                                                          | Arrow keys / WASD, classic lunar-lander controls. Touch controls are a possible future milestone, not committed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | D7  | Testing depth          | **Unit + integration + e2e**                                                                                                                                                                                                                                                                            | Vitest for pure-function and multi-module-orchestration logic; Playwright for real-browser verification. See Architecture Notes for why this split exists and what each tier actually covers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| D8  | Score persistence      | **`localStorage`, schema-validated**                                                                                                                                                                                                                                                                    | No backend. Deferred to Milestone 4 — not yet implemented.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D8  | Score persistence      | **`localStorage`, schema-validated**                                                                                                                                                                                                                                                                    | No backend. Implemented in Milestone 4 (`src/game/persistence/high-scores.ts`) — see that milestone's entry below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | D9  | CI/CD                  | **None — GitHub is code storage only**                                                                                                                                                                                                                                                                  | `.github/workflows/ci.yml` existed briefly (two real pushes, both verified green — see §5's Lighthouse investigation, which happened precisely because that CI run existed) and was removed by explicit instruction between Milestones 1 and 2. Quality gates (`pnpm quality`, `pnpm quality:full`, `pnpm lighthouse`) are run locally, by whoever makes a change, before pushing — not automated.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | D10 | Project name           | **Orbital Descent** (was "Lunar Lander")                                                                                                                                                                                                                                                                | Renamed once the scope grew to multiple fictional worlds, ships, and combat — "Lunar Lander" implied a single-Moon physics-sim scope that no longer fit. Renamed everywhere in the same pass: GitHub repo (`gh repo rename`), `package.json`, `index.html`, all docs, and the `window.__ORBITAL_DESCENT_GAME__` e2e test hook. The local working directory (`lunar_lander/`) was deliberately left as-is — renaming it mid-session would have broken every subsequent absolute-path tool call; rename it yourself with `mv` if you want the folder name to match.                                                                                                                                                                                                                                                                                                                                                                                                        |
 | D11 | Celestial bodies       | **Fictional worlds, not real planets**                                                                                                                                                                                                                                                                  | Explicit instruction: worlds are invented, not "Mars"/"Venus"/etc. Frees up gravity/atmosphere/hazard combinations from real planetary data and avoids any implied claim of scientific accuracy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -1597,33 +1597,93 @@ after both the `ArmedKeyGuard` fix and the canvas-relative click fix).
 
 ---
 
-### Milestone 4 — Scoring & High Scores (not started)
+### Milestone 4 — Scoring & High Scores (certified)
 
 **Goal**: Implement Decision D8 — a scoring formula (fuel remaining, time
 taken, landing precision) and `localStorage`-backed high scores, schema
 validated on read so a corrupted or old-shape entry can't crash the game.
 
-**Scope**: `src/game/scoring/score.ts` (pure formula, unit-tested),
-`src/game/persistence/high-scores.ts` (storage interface + validated
-localStorage adapter, unit-tested against an injected in-memory fake — no
-`jsdom` needed, consistent with the Architecture Notes testing philosophy).
-This persistence pattern (validated `localStorage`, injectable storage
-interface for testing) is reused as-is by M6's unlock state, M8's currency
-balance, and M12's achievement state — one philosophy, four consumers.
+**Scope**:
 
-**Acceptance criteria**: landing produces a score; scores persist across a
-real page reload (verified in e2e, not just unit-tested); a manually
-corrupted `localStorage` entry is rejected gracefully, not thrown.
+- `src/game/scoring/score.ts` (new) — `calculateScore`, a pure function
+  over `ScoreInputs`/`ScoreWeights`: a flat `baseLandingBonus` for any
+  confirmed safe landing, plus three 0..1 fractions (fuel remaining,
+  time-under-par, landing precision relative to pad center) each scaled by
+  its own max-bonus weight and summed, then rounded. Only ever called for a
+  confirmed safe landing (`isSafeLanding()` already true) — no crash
+  branch, by design. All tunables (`SCORE_BASE_LANDING_BONUS`,
+  `SCORE_MAX_FUEL_BONUS`, `SCORE_MAX_PRECISION_BONUS`,
+  `SCORE_MAX_TIME_BONUS`, `SCORE_TIME_PAR_MS`) live in `constants.ts` and
+  are passed in as `ScoreWeights` — `score.ts` itself imports neither
+  `constants.ts` nor Phaser, matching `terrain-generator.ts`'s own
+  options-parameter pattern.
+- `src/game/persistence/high-scores.ts` (new) — `KeyValueStorage` (a
+  narrow, injectable 2-method interface a real `window.localStorage`
+  satisfies with zero adaptation), `loadHighScores` (parses and validates
+  the stored list, rejecting the whole read on any parse failure or shape
+  mismatch rather than sanitizing down to a valid subset), `recordHighScore`
+  (appends, sorts descending, truncates to `HIGH_SCORE_LIST_MAX_ENTRIES`,
+  best-effort persists — a failed `setItem`, e.g. Safari private
+  browsing's zero quota, is swallowed and the in-memory result still
+  returned), and `getSafeLocalStorage` (a `window.localStorage`-reading
+  wrapper that returns `null` instead of throwing, since merely _reading_
+  that property can throw a `SecurityError` in a sandboxed iframe or
+  storage-blocking privacy setting — callers use this instead of the bare
+  global). Unit-tested entirely against an injected `FakeStorage`/
+  `ThrowingStorage` in plain Node — no `jsdom`, consistent with the
+  Architecture Notes testing philosophy. This persistence pattern
+  (validated `localStorage`, injectable storage interface for testing) is
+  reused as-is by M6's unlock state, M8's currency balance, and M12's
+  achievement state — one philosophy, four consumers.
+- `src/game/scenes/game-scene.ts` — tracks `elapsedMs` (accumulated only
+  while `update()` actually runs, so pausing doesn't count against it),
+  and on a safe landing computes the score, calls `recordHighScore` via
+  `getSafeLocalStorage`, and carries `{ outcome, score, bestScore }` to
+  `ResultScene`; a crash carries just `{ outcome }` — `calculateScore`/
+  `recordHighScore` are never reached on that path (e2e-verified).
+  `this.data.remove('score')` on `create()` clears a stale score from a
+  prior landing before a restart, since `GameScene` is one long-lived
+  Phaser instance reused across restarts.
+- `src/game/scenes/result-scene.ts` — new SCORE/BEST text block (only
+  rendered when both are present, i.e. never on a crash).
+- `src/game/scenes/menu-scene.ts` — new BEST text block, shown only once
+  a real score exists (an empty leaderboard shows no line at all, not
+  "BEST: 0").
+- `vitest.config.ts` — coverage `include` widened to cover
+  `src/game/scoring/**` and `src/game/persistence/**`.
 
-**Required tests**: unit tests for the scoring formula and the storage
-schema validator (valid entry, corrupted entry, wrong-shape entry, empty
-storage); e2e test reloading the page and confirming a prior score persists.
+**Acceptance criteria**: met — landing produces a score; scores persist
+across a real page reload (e2e-verified: a seeded `localStorage` entry
+survives a reload and is read back by `MenuScene`'s own `loadHighScores`
+call); a manually corrupted `localStorage` entry (invalid JSON) is
+rejected gracefully — menu shows no BEST line, zero console/page errors —
+not thrown; a crash never scores and never writes to the leaderboard
+(e2e-verified directly against `localStorage`).
 
-**Required quality gates**: full gate list, must stay green.
+**Required tests**: `src/game/scoring/score.test.ts` (formula unit tests);
+`src/game/persistence/high-scores.test.ts` (schema validator against
+valid/corrupted/wrong-shape/empty storage, `recordHighScore` sort/
+truncate/best-effort-write behavior, `getSafeLocalStorage`'s success/
+throw/no-`window` cases via `vi.stubGlobal` — no `jsdom`);
+`e2e/high-scores.spec.ts` (a persisted score survives a real reload and a
+corrupted entry is rejected gracefully; a crash produces neither a score
+nor a leaderboard write).
 
-**Required documentation updates**: this file, `CHANGELOG.md`, README.
+**Required quality gates**: full gate list — green (93 unit/integration
+tests, up from Milestone 3's 68; e2e 33/33 across Chromium/Firefox/WebKit).
+`e2e/high-scores.spec.ts`'s two tests each initially budgeted their overall
+`test.setTimeout` below the real worst-case sum of their own constituent
+waits (60000ms of waits against a 30000ms ceiling; 65800ms against 50000ms)
+— this reproduced as a genuine timeout on the third of three verification
+runs, not a hypothetical, and was fixed by widening both to 90000ms
+(matching `game-flow.spec.ts`'s established ceiling for this suite's
+heaviest tests) rather than adding retries. Confirmed stable across 3
+further consecutive full runs after that fix.
 
-**Certification checklist**: not started.
+**Required documentation updates**: this file, `CHANGELOG.md`, README —
+done.
+
+**Certification checklist**: certified. Depends on Milestone 3.
 
 ---
 

@@ -8,6 +8,56 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 4 — Scoring & High Scores (Decision D8), certified**: a safe
+  landing now scores via new `src/game/scoring/score.ts`
+  (`calculateScore`, pure): a flat base bonus for any confirmed safe
+  landing plus three linearly-scaled 0..1 fractions — fuel remaining,
+  time under a tuned "par" duration, and landing precision relative to
+  pad center — summed and rounded; never called on a crash. New
+  `src/game/persistence/high-scores.ts` persists the top
+  `HIGH_SCORE_LIST_MAX_ENTRIES` scores to schema-validated `localStorage`
+  (`loadHighScores` rejects the whole read on any parse failure or shape
+  mismatch rather than sanitizing a valid subset; `recordHighScore`
+  best-effort writes, swallowing a Safari-private-browsing-style quota
+  throw and still returning the correct in-memory result;
+  `getSafeLocalStorage` returns `null` instead of throwing when merely
+  _reading_ `window.localStorage` itself throws, e.g. a sandboxed iframe)
+  — both modules are pure/DI'd, unit-tested in plain Node against an
+  injected fake, no `jsdom`. `GameScene` tracks real flight duration,
+  computes the score on a safe landing only, and carries it to
+  `ResultScene` (new SCORE/BEST text, shown only on a landing) and
+  `MenuScene` (new BEST text, hidden until a real score exists — no
+  misleading "BEST: 0" for a first-time player).
+- **Verified this release**: format/lint/typecheck all clean; unit +
+  integration 93 tests (up from Milestone 3's 68); coverage 99.16%/91.66%/
+  100%/99.12% (thresholds 90/85/90/90, all met); `pnpm build`/`deadcode`/
+  `security:audit`/`security:secrets` all clean; `pnpm test:e2e` 33/33
+  across Chromium/Firefox/WebKit, confirmed stable across 3 consecutive
+  full runs after a real fix, not just a retry: `e2e/high-scores.spec.ts`'s
+  two tests each budgeted their overall `test.setTimeout` below the actual
+  worst-case sum of their own constituent waits (one summed to 60000ms
+  against a 30000ms ceiling, the other to 65800ms against 50000ms) — this
+  under-budgeting reproduced as a real timeout on the third of three
+  verification runs, not a hypothetical risk, and was fixed by widening
+  both to 90000ms (matching `game-flow.spec.ts`'s own established ceiling
+  for this suite's heaviest tests), not by adding retries or loosening an
+  assertion. An adversarial review (dimension-specific finder agents, each
+  finding independently re-verified before acceptance) found no
+  magic-number, duplication, or architecture-boundary violations in the
+  new modules, and did catch two other real defects: a `getSafeLocalStorage`
+  unit test that referenced the DOM `window` global directly in this
+  project's plain-Node Vitest environment (fixed via `vi.stubGlobal`, not
+  `jsdom`, per the Architecture Notes testing philosophy), and an
+  unguarded `window.localStorage` read in `GameScene`/`MenuScene` — a
+  sandboxed iframe or storage-blocking privacy setting can throw on
+  merely _accessing_ that property, before `high-scores.ts`'s own internal
+  try/catches around `JSON.parse`/`setItem` would ever run — fixed via
+  the new `getSafeLocalStorage` wrapper (returns `null` instead of
+  throwing; both call sites degrade to "can't persist" rather than
+  crashing). The review also added a crash-vs-leaderboard e2e test and a
+  mixed-valid/invalid-array unit test, closing two real, previously-unfilled
+  coverage gaps it identified.
+
 - **Milestone 3 — Start Screen & Game Flow, certified**: replaced the
   old boot-straight-into-`GameScene` / "press R to try again" flow with
   a real game loop shell. New `MenuScene` (title, START/SETTINGS

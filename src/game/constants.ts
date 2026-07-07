@@ -285,3 +285,45 @@ export const RESULT_TRANSITION_DELAY_MS = 1200;
  * visible underneath as a visual reminder of what "resume" returns to. */
 export const SETTINGS_OVERLAY_COLOR = 0x000000;
 export const SETTINGS_OVERLAY_ALPHA = 0.6;
+
+/* ---------------------------------------------------------------------- */
+/* Scoring (Decision D8, Milestone 4) — src/game/scoring/score.ts         */
+/* Passed into calculateScore as its ScoreWeights parameter (not imported  */
+/* directly by score.ts itself — see that file for why: same options-     */
+/* parameter pattern terrain-generator.ts uses for its own tunable dials). */
+/* ---------------------------------------------------------------------- */
+
+/** Flat reward for any confirmed safe landing, regardless of the other
+ * three factors below — landing at all is worth something on its own. */
+export const SCORE_BASE_LANDING_BONUS = 100;
+
+/** Max additional points for touching down with a full tank, scaling
+ * linearly to 0 at empty. The single largest factor — fuel conservation is
+ * this game's core skill test. */
+export const SCORE_MAX_FUEL_BONUS = 500;
+
+/** Max additional points for touching down dead-center on the pad, scaling
+ * linearly to 0 at the pad's edge (a safe landing is already guaranteed to
+ * be somewhere on the pad, so this is never negative in practice). */
+export const SCORE_MAX_PRECISION_BONUS = 300;
+
+/** Max additional points for landing at or before SCORE_TIME_PAR_MS after
+ * spawn, scaling linearly to 0 by the cap and never negative beyond it — a
+ * slow, careful landing still scores the fuel/precision bonuses in full. */
+export const SCORE_MAX_TIME_BONUS = 100;
+
+/** "Par" flight duration, in ms, for the full time bonus — tuned for feel
+ * at this game's gravity/thrust scale (a direct, confident descent from
+ * LANDER_START_Y comfortably beats this; a cautious hover-and-correct
+ * approach may not, which is the intended fuel-vs-time skill tradeoff). */
+export const SCORE_TIME_PAR_MS = 20000;
+
+/* ---------------------------------------------------------------------- */
+/* High-score persistence (Decision D8, Milestone 4)                      */
+/* src/game/persistence/high-scores.ts                                    */
+/* ---------------------------------------------------------------------- */
+
+/** How many past scores the persisted leaderboard keeps, highest first —
+ * enough to feel like a real leaderboard without the list growing forever
+ * in localStorage. */
+export const HIGH_SCORE_LIST_MAX_ENTRIES = 10;

@@ -8,14 +8,17 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 3 (Start Screen & Game Flow) certified — a
-full play session is reachable end-to-end (menu → start → fly → land or
-crash → result screen → restart-or-menu, with a pause/settings overlay
-mid-flight), on top of Milestone 2's gravity, thrust, fuel, rotation,
-procedurally generated terrain, and a scrolling parallax world (Milestone
-2.5) in the paper-cutout art style. Single ship, single world so far — see
-`PLAN.md` §6 for the full roadmap (multiple fictional worlds, ships,
-upgrades, weapons, obstacles/hostiles, and more).
+**Current status**: Milestone 4 (Scoring & High Scores) certified — a safe
+landing now scores (fuel remaining, time taken, landing precision) and the
+top scores persist across reloads in schema-validated `localStorage`,
+shown on both the menu ("BEST") and result screen ("SCORE"/"BEST"), on top
+of Milestone 3's full menu → start → fly → land or crash → result screen →
+restart-or-menu loop (with a pause/settings overlay mid-flight), Milestone
+2's gravity, thrust, fuel, rotation, procedurally generated terrain, and a
+scrolling parallax world (Milestone 2.5) in the paper-cutout art style.
+Single ship, single world so far — see `PLAN.md` §6 for the full roadmap
+(multiple fictional worlds, ships, upgrades, weapons, obstacles/hostiles,
+and more).
 
 ## Stack
 

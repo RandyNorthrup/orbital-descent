@@ -4,7 +4,9 @@ import {
   GAME_HEIGHT,
   GAME_WIDTH,
   LANDED_COLOR_TOP,
+  UI_BUTTON_FONT_SIZE_PX,
   UI_BUTTON_ROW_HEIGHT_PX,
+  UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
 } from '../constants';
 import { hexToCss } from '../rendering/canvas-texture-utils';
@@ -14,12 +16,19 @@ import { ArmedKeyGuard, requireKeyboard } from './scene-utils';
 
 const ORIGIN_CENTER = 0.5;
 const HEADING_Y_FRACTION = 0.35;
-const BUTTON_Y_FRACTION = 0.6;
+const SCORE_Y_FRACTION = 0.46;
+const BEST_SCORE_Y_FRACTION = 0.52;
+const BUTTON_Y_FRACTION = 0.62;
 
 export type FlightOutcome = 'landed' | 'crashed';
 
 export interface ResultSceneData {
   readonly outcome: FlightOutcome;
+  /** Only present when outcome === 'landed' — a crash never scores
+   * (Milestone 4/Decision D8: calculateScore is only meaningful for a
+   * confirmed safe touchdown). */
+  readonly score?: number;
+  readonly bestScore?: number;
 }
 
 /** Single source of truth for how an outcome is labeled — shared with
@@ -41,6 +50,8 @@ export function outcomeColor(outcome: FlightOutcome): number {
  */
 export class ResultScene extends Phaser.Scene {
   private outcome!: FlightOutcome;
+  private score: number | undefined;
+  private bestScore: number | undefined;
   private keyR!: Phaser.Input.Keyboard.Key;
   private keyEscape!: Phaser.Input.Keyboard.Key;
   private restartGuard!: ArmedKeyGuard;
@@ -52,6 +63,8 @@ export class ResultScene extends Phaser.Scene {
 
   init(data: ResultSceneData): void {
     this.outcome = data.outcome;
+    this.score = data.score;
+    this.bestScore = data.bestScore;
   }
 
   create(): void {
@@ -68,6 +81,28 @@ export class ResultScene extends Phaser.Scene {
         color: hexToCss(outcomeColor(this.outcome)),
       })
       .setOrigin(ORIGIN_CENTER);
+
+    if (this.score !== undefined && this.bestScore !== undefined) {
+      this.add
+        .text(GAME_WIDTH / 2, GAME_HEIGHT * SCORE_Y_FRACTION, `SCORE: ${this.score.toString()}`, {
+          fontFamily: 'monospace',
+          fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
+          color: hexToCss(UI_TEXT_COLOR),
+        })
+        .setOrigin(ORIGIN_CENTER);
+      this.add
+        .text(
+          GAME_WIDTH / 2,
+          GAME_HEIGHT * BEST_SCORE_Y_FRACTION,
+          `BEST: ${this.bestScore.toString()}`,
+          {
+            fontFamily: 'monospace',
+            fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
+            color: hexToCss(UI_TEXT_COLOR),
+          },
+        )
+        .setOrigin(ORIGIN_CENTER);
+    }
 
     const buttonY = GAME_HEIGHT * BUTTON_Y_FRACTION;
     createUiButton(this, {

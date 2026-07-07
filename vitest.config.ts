@@ -29,7 +29,8 @@ export default defineConfig({
       reporter: ['text', 'html', 'lcov'],
       // Scoped to the Phaser-free pure-logic layers (physics, flight
       // orchestration, terrain generation, landing rules, seeded procedural
-      // layout) that unit + integration tests actually exercise. Scene glue
+      // layout, the scoring formula, and validated high-score persistence)
+      // that unit + integration tests actually exercise. Scene glue
       // and Phaser-dependent rendering (src/game/scenes/**, most of
       // src/game/rendering/**, src/main.ts) wire that logic into Phaser/the
       // DOM and are verified by the Playwright e2e smoke test instead — no
@@ -42,6 +43,8 @@ export default defineConfig({
         'src/game/flight/**/*.ts',
         'src/game/terrain/**/*.ts',
         'src/game/random/**/*.ts',
+        'src/game/scoring/**/*.ts',
+        'src/game/persistence/**/*.ts',
         'src/game/rendering/starfield.ts',
         'src/game/rendering/ridgeline.ts',
       ],

@@ -9,6 +9,7 @@ import {
   GAME_HEIGHT,
   GAME_WIDTH,
   GRAVITY_ACCEL,
+  HIGH_SCORE_LIST_MAX_ENTRIES,
   HUD_LAYER_DEPTH,
   HUD_MARGIN,
   LANDED_COLOR_BOTTOM,
@@ -27,6 +28,11 @@ import {
   MAX_FUEL,
   RESULT_TRANSITION_DELAY_MS,
   ROTATION_SPEED_DEG,
+  SCORE_BASE_LANDING_BONUS,
+  SCORE_MAX_FUEL_BONUS,
+  SCORE_MAX_PRECISION_BONUS,
+  SCORE_MAX_TIME_BONUS,
+  SCORE_TIME_PAR_MS,
   TERRAIN_ETCH_LINE_COUNT,
   TERRAIN_FILL_COLOR_BOTTOM,
   TERRAIN_FILL_COLOR_TOP,
@@ -45,6 +51,8 @@ import {
 } from '../constants';
 import { FlightState } from '../flight/flight-state';
 import { degreesToRadians } from '../physics/lander-physics';
+import { getSafeLocalStorage, recordHighScore } from '../persistence/high-scores';
+import { calculateScore } from '../scoring/score';
 import { isOnLandingPad, isSafeLanding } from '../terrain/landing';
 import { generateTerrain, getTerrainHeightAt, type Terrain } from '../terrain/terrain-generator';
 import { hexToCss } from '../rendering/canvas-texture-utils';
@@ -76,6 +84,11 @@ export class GameScene extends Phaser.Scene {
   private terrain!: Terrain;
   private lander!: PaperShape;
   private outcome: GameOutcome = 'flying';
+  /** Real flight duration so far, in ms — one of calculateScore's three
+   * factors. Only accumulates while this scene's update() actually runs,
+   * so pausing (Phaser stops calling update() on a paused scene entirely)
+   * doesn't count against it. */
+  private elapsedMs = 0;
   private fuelText!: Phaser.GameObjects.Text;
   private outcomeText!: Phaser.GameObjects.Text;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -101,6 +114,12 @@ export class GameScene extends Phaser.Scene {
 
     this.outcome = 'flying';
     this.data.set('outcome', this.outcome);
+    // GameScene is one long-lived Phaser instance reused across restarts
+    // (only create() re-runs, not the constructor), so a stale 'score' from
+    // a previous landing must be explicitly cleared — otherwise a crash
+    // following an earlier safe landing would still report that old score.
+    this.data.remove('score');
+    this.elapsedMs = 0;
 
     buildBackground(this);
 
@@ -227,6 +246,7 @@ export class GameScene extends Phaser.Scene {
     const thrust = this.cursors.up.isDown || this.keyW.isDown;
 
     const snapshot = this.flightState.tick({ thrust, rotate }, deltaMs / MILLISECONDS_PER_SECOND);
+    this.elapsedMs += deltaMs;
     this.updateFuelText(snapshot.fuel);
 
     const groundY = getTerrainHeightAt(this.terrain.points, snapshot.position.x);
@@ -242,23 +262,62 @@ export class GameScene extends Phaser.Scene {
       maxSafeAngleRadians: degreesToRadians(LANDING_MAX_SAFE_ANGLE_DEG),
     });
 
-    this.outcome = safe ? 'landed' : 'crashed';
+    const outcome: FlightOutcome = safe ? 'landed' : 'crashed';
+    this.outcome = outcome;
     // Exposed via Phaser's data manager (not a bare property read) so the
     // Playwright e2e suite can observe the outcome without reaching into
     // canvas-rendered text, which isn't visible to DOM-based locators.
-    this.data.set('outcome', this.outcome);
+    this.data.set('outcome', outcome);
     this.lander.container.setPosition(snapshot.position.x, groundY - LANDER_RADIUS);
     this.lander.setFillColors(
       safe ? LANDED_COLOR_TOP : CRASHED_COLOR_TOP,
       safe ? LANDED_COLOR_BOTTOM : CRASHED_COLOR_BOTTOM,
     );
-    this.outcomeText.setText(outcomeLabel(this.outcome));
-    this.outcomeText.setColor(hexToCss(outcomeColor(this.outcome)));
+    this.outcomeText.setText(outcomeLabel(outcome));
+    this.outcomeText.setColor(hexToCss(outcomeColor(outcome)));
 
-    const outcome = this.outcome;
+    // A crash never scores (Decision D8/Milestone 4) — calculateScore is
+    // only meaningful for a confirmed safe touchdown, and only a landing
+    // is worth persisting to the high-score leaderboard at all.
+    let resultData: ResultSceneData = { outcome };
+    if (safe) {
+      const { landingPad } = this.terrain;
+      const padCenterX = (landingPad.xStart + landingPad.xEnd) / 2;
+      const padHalfWidth = (landingPad.xEnd - landingPad.xStart) / 2;
+      const score = calculateScore(
+        {
+          fuelRemaining: snapshot.fuel,
+          elapsedMs: this.elapsedMs,
+          touchdownX: snapshot.position.x,
+          padCenterX,
+          padHalfWidth,
+        },
+        {
+          maxFuel: MAX_FUEL,
+          baseLandingBonus: SCORE_BASE_LANDING_BONUS,
+          maxFuelBonus: SCORE_MAX_FUEL_BONUS,
+          maxPrecisionBonus: SCORE_MAX_PRECISION_BONUS,
+          maxTimeBonus: SCORE_MAX_TIME_BONUS,
+          timeParMs: SCORE_TIME_PAR_MS,
+        },
+      );
+      // getSafeLocalStorage() returns null when storage access itself is
+      // blocked (sandboxed iframe, privacy setting) -- the landing still
+      // scores and transitions to ResultScene normally, it just can't
+      // persist, same degradation as recordHighScore's own internal
+      // best-effort setItem try/catch, just one layer further out.
+      const storage = getSafeLocalStorage();
+      const highScores =
+        storage === null
+          ? []
+          : recordHighScore(storage, score, Date.now(), HIGH_SCORE_LIST_MAX_ENTRIES);
+      const bestScore = highScores[0]?.score ?? score;
+      this.data.set('score', score);
+      resultData = { outcome, score, bestScore };
+    }
+
     this.time.delayedCall(RESULT_TRANSITION_DELAY_MS, () => {
-      const data: ResultSceneData = { outcome };
-      this.scene.start(SCENE_KEY_RESULT, data);
+      this.scene.start(SCENE_KEY_RESULT, resultData);
     });
   }
 
