@@ -21,13 +21,12 @@ export const WORLD_WIDTH = GAME_WIDTH * WORLD_WIDTH_MULTIPLIER;
  * flash a different hue. */
 export const BACKGROUND_COLOR = 0x141428;
 
-/** Downward acceleration applied every tick, in px/s². Not calibrated to real
- * lunar gravity (1.62 m/s²) — pixel-space units are arbitrary and tuned for
- * feel at GAME_WIDTH/GAME_HEIGHT scale. */
-export const GRAVITY_ACCEL = 18;
-
-/** Main engine acceleration in px/s² while thrust is held. Must exceed
- * GRAVITY_ACCEL for ascent to be possible at all. */
+/** Main engine acceleration in px/s² while thrust is held — ship-intrinsic
+ * (owned by Milestone 7's ShipClass once that milestone lands), unlike
+ * gravity, which became a per-world stat in Milestone 5
+ * (`CelestialBody.gravityAccel`, `planets/bodies.ts`). Every registered
+ * world's gravity stays comfortably under this so every world is flyable —
+ * see `bodies.ts`'s own doc comment. */
 export const THRUST_ACCEL = 46;
 
 /** Rotation rate in degrees/s while a rotate key is held. */
@@ -109,11 +108,12 @@ export const LANDED_COLOR_BOTTOM = 0x3fb868;
 export const CRASHED_COLOR_TOP = 0xf08f8f;
 export const CRASHED_COLOR_BOTTOM = 0xb83f3f;
 
-/** Foreground terrain fill gradient. Muted slate-violet ("Ashgeld Reach"
- * flavor from the approved art review) — deliberately restrained next to
- * the lander/pad so the ship keeps the strongest color contrast in frame. */
-export const TERRAIN_FILL_COLOR_TOP = 0x8f8aa8;
-export const TERRAIN_FILL_COLOR_BOTTOM = 0x4a4560;
+/** Terrain fill gradient is a per-world stat since Milestone 5
+ * (`CelestialBody.terrainPalette`, `planets/bodies.ts`) — Kessel's Reach's
+ * entry there carries forward the original muted slate-violet from the
+ * approved art review byte-for-byte. The landing pad stays one universal
+ * green across every world, deliberately: a consistent "safe zone" visual
+ * cue regardless of which body the player is on. */
 export const LANDING_PAD_FILL_COLOR_TOP = 0x7fe89a;
 export const LANDING_PAD_FILL_COLOR_BOTTOM = 0x3aa859;
 
@@ -124,11 +124,12 @@ export const OUTLINE_WIDTH = 3;
 /** Offset, in px, of the hard drop-shadow copy behind each shape. */
 export const SHADOW_OFFSET = 6;
 
-/** Fine etched surface-texture strokes (rock striations / hull panel lines)
- * baked into a shape's gradient fill — generic line-scribble texture for
- * now. PLAN.md §4/M5 flags this as the hook where distinct per-world
- * terrain materials (foliage, water, sand, ice) will plug in later; it
- * intentionally isn't a single hard-coded "look". */
+/** Fine etched surface-texture strokes (rock striations / hull panel lines /
+ * dune ripples / wave-lines / foliage clusters, depending on the shape's own
+ * `etchStyle` — see `rendering/paper-shape.ts`'s `ETCH_STYLE_CONFIGS`, added
+ * Milestone 5). This constant is only the shared *density* (how many
+ * strokes); the *look* varies per world via each `CelestialBody`'s
+ * `terrainPalette.etchStyle`. */
 export const TERRAIN_ETCH_LINE_COUNT = 14;
 export const LANDER_ETCH_LINE_COUNT = 4;
 export const ETCH_LINE_MAX_ALPHA = 0.3;

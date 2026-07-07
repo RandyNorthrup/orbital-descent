@@ -8,11 +8,41 @@ import {
   SHADOW_OFFSET,
 } from '../constants';
 import type { Vector2 } from '../physics/lander-physics';
+import type { EtchStyle } from '../planets/celestial-body';
 import { ensurePaperGrainTexture, PAPER_GRAIN_TEXTURE_KEY } from './paper-texture';
 import { bakeCanvasTexture, hexToCss, hexToRgba } from './canvas-texture-utils';
 
 const FULL_ALPHA = 1;
-const FULL_TURN_RADIANS = Math.PI * 2;
+
+/**
+ * Per-`EtchStyle` stroke recipe: `baseAngleRadians` is the center of each
+ * line's angle spread, `angleJitterRadians` is the half-width of a uniform
+ * spread around it, and `lengthMultiplier` scales the shared
+ * `ETCH_LINE_MAX_LENGTH_FRACTION`-derived max length.
+ *
+ * `rock` is byte-for-byte identical to this module's pre-`EtchStyle`
+ * behavior (full random-angle scribbles, unscaled length): a uniform
+ * angle drawn from `[baseAngle - jitter, baseAngle + jitter)` with
+ * `baseAngle = 0, jitter = Math.PI` covers `[-π, π)`, the same full circle
+ * as the old `Math.random() * (2π)` covering `[0, 2π)` — just phase-shifted.
+ * Angle only ever feeds `Math.cos`/`Math.sin`, both periodic and therefore
+ * phase-shift-invariant in distribution, so the rendered texture's
+ * statistics are indistinguishable from before.
+ *
+ * `sand`/`water` are mostly-horizontal with a small jitter (dune ripples /
+ * calm wave-lines), water flatter and longer. `foliage` keeps rock's full
+ * angle spread but much shorter strokes (scattered leaf/cluster marks
+ * rather than long scribbles).
+ */
+const ETCH_STYLE_CONFIGS: Record<
+  EtchStyle,
+  { baseAngleRadians: number; angleJitterRadians: number; lengthMultiplier: number }
+> = {
+  rock: { baseAngleRadians: 0, angleJitterRadians: Math.PI, lengthMultiplier: 1 },
+  sand: { baseAngleRadians: 0, angleJitterRadians: 0.25, lengthMultiplier: 0.6 },
+  water: { baseAngleRadians: 0, angleJitterRadians: 0.08, lengthMultiplier: 1.3 },
+  foliage: { baseAngleRadians: 0, angleJitterRadians: Math.PI, lengthMultiplier: 0.25 },
+};
 
 export interface PaperShapeOptions {
   /** Polygon vertices in the shape's own local space (e.g. centered on the
@@ -30,6 +60,10 @@ export interface PaperShapeOptions {
    * (rock striations, hull panel lines). Omit or 0 for a smooth silhouette —
    * appropriate for e.g. a landing pad. */
   readonly etchLineCount?: number;
+  /** Stroke recipe for the etched lines above — only meaningful when
+   * `etchLineCount` is also set. Defaults to `'rock'` (today's fully-random
+   * scribble look) when omitted. */
+  readonly etchStyle?: EtchStyle;
 }
 
 export interface PaperShape {
@@ -62,15 +96,18 @@ function drawEtchedLines(
   width: number,
   height: number,
   count: number,
+  style: EtchStyle,
 ): void {
-  const maxLength = Math.hypot(width, height) * ETCH_LINE_MAX_LENGTH_FRACTION;
+  const config = ETCH_STYLE_CONFIGS[style];
+  const maxLength =
+    Math.hypot(width, height) * ETCH_LINE_MAX_LENGTH_FRACTION * config.lengthMultiplier;
   ctx.strokeStyle = hexToRgba(OUTLINE_COLOR, ETCH_LINE_MAX_ALPHA);
   ctx.lineWidth = ETCH_LINE_WIDTH_PX;
 
   for (let i = 0; i < count; i += 1) {
     const startX = Math.random() * width;
     const startY = Math.random() * height;
-    const angle = Math.random() * FULL_TURN_RADIANS;
+    const angle = config.baseAngleRadians + (Math.random() * 2 - 1) * config.angleJitterRadians;
     const length = Math.random() * maxLength;
 
     ctx.globalAlpha = Math.random() * ETCH_LINE_MAX_ALPHA;
@@ -140,7 +177,7 @@ export function createPaperShape(scene: Phaser.Scene, options: PaperShapeOptions
       }
 
       if (options.etchLineCount) {
-        drawEtchedLines(ctx, width, height, options.etchLineCount);
+        drawEtchedLines(ctx, width, height, options.etchLineCount, options.etchStyle ?? 'rock');
       }
     });
   };

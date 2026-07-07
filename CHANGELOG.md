@@ -8,6 +8,48 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 5 — Fictional Celestial Bodies (Decision D11/D20),
+  certified**: generalized the single hardcoded world into a data-driven
+  registry of 12 fictional worlds (`src/game/planets/bodies.ts`,
+  `BODIES`), each with its own gravity, atmospheric drag, an optional
+  hazard (corrosive passive fuel drain or cold reduced thrust
+  efficiency), and a distinct terrain material (rock/sand/water/foliage,
+  not just a recolor — new `etchStyle` support in
+  `rendering/paper-shape.ts`, `'rock'` proven bit-for-bit identical to
+  the pre-Milestone-5 look so Kessel's Reach, the default world, is
+  unchanged). New pure `atmosphericDrag` physics function; `FlightState`
+  now takes a required `dragCoefficient`/`hazard` and composes them into
+  its per-tick acceleration/fuel math, keeping ship-intrinsic stats
+  (thrust/rotation/fuel-burn, owned by Milestone 7's `ShipClass` once it
+  lands) separate from body/environment stats. `GameScene` takes the
+  selected body via scene data, defaulting to `BODIES[0]` until
+  Milestone 6 adds real selection. Verdalis/Pyrrhine Expanse/Glacian
+  Drift match Milestone 9.5's own worked-example roster exactly
+  (distance/hazard pinned by a dedicated regression test).
+- **Verified this release**: format/lint/typecheck all clean; unit +
+  integration 111 tests (up from Milestone 4's 93); coverage
+  99.21%/92.3%/100%/99.17% (thresholds 90/85/90/90, all met); `pnpm
+build`/`deadcode`/`security:audit`/`security:secrets` all clean;
+  `pnpm test:e2e` 33/33 across Chromium/Firefox/WebKit (no scene-glue
+  regression from the physics/rendering generalization); a manual
+  5-screenshot visual check confirmed all four terrain materials render
+  as distinct "places," not a recolored rock silhouette twelve times,
+  and Kessel's Reach is pixel-for-pixel unchanged from before this
+  milestone. An adversarial review (correctness, gameplay-balance,
+  standards/DRY, test-coverage — every finding independently
+  re-verified with hand-redone arithmetic, not just re-run gates) found
+  zero correctness or standards defects, but its gameplay-balance pass
+  caught one genuine tuning problem: Corvexa Shallows' corrosive
+  `fuelDrainRate` (originally 5) fully drained `MAX_FUEL` from passive
+  drain **alone, with zero thrust used**, in exactly 20s — precisely
+  this game's own `SCORE_TIME_PAR_MS` reference duration, leaving zero
+  fuel margin for the mandatory braking burn regardless of skill; fixed
+  by reducing it to 4. One gap was identified and correctly left open
+  rather than patched over: no test at any tier yet drives `GameScene`
+  through a non-default body, since every real caller today omits scene
+  data entirely — explicitly deferred to Milestone 6, which needs to
+  build that selection UI (and the observability hook to test it) anyway.
+
 - **Milestone 4 — Scoring & High Scores (Decision D8), certified**: a safe
   landing now scores via new `src/game/scoring/score.ts`
   (`calculateScore`, pure): a flat base bonus for any confirmed safe

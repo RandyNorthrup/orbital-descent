@@ -38,6 +38,28 @@ export function integrate(current: Vector2, rateOfChange: Vector2, dtSeconds: nu
   };
 }
 
+/**
+ * Linear atmospheric drag: a force opposing velocity, scaled by a single
+ * coefficient. No v² term and no directional dependence beyond "opposite
+ * the way we're already moving" — the simplest physically-reasonable drag
+ * model, chosen to match this project's "arcade game, not a physics
+ * sandbox" philosophy (see PLAN.md §4, "Custom physics core, not Phaser
+ * Arcade Physics").
+ *
+ * `dragCoefficient` is a `CelestialBody`'s `atmosphereDensity` field (0 for
+ * airless worlds) passed through unchanged — same quantity, named for what
+ * it models there (a world property) vs. how it's used here (a drag-physics
+ * coefficient); see `planets/celestial-body.ts`. The caller (`FlightState`)
+ * adds the returned vector into its per-frame acceleration sum alongside
+ * gravity and thrust.
+ */
+export function atmosphericDrag(velocity: Vector2, dragCoefficient: number): Vector2 {
+  return {
+    x: -velocity.x * dragCoefficient,
+    y: -velocity.y * dragCoefficient,
+  };
+}
+
 export function integrateRotation(
   currentRadians: number,
   rotationInput: -1 | 0 | 1,

@@ -8,7 +8,6 @@ import {
   FUEL_BURN_RATE,
   GAME_HEIGHT,
   GAME_WIDTH,
-  GRAVITY_ACCEL,
   HIGH_SCORE_LIST_MAX_ENTRIES,
   HUD_LAYER_DEPTH,
   HUD_MARGIN,
@@ -34,8 +33,6 @@ import {
   SCORE_MAX_TIME_BONUS,
   SCORE_TIME_PAR_MS,
   TERRAIN_ETCH_LINE_COUNT,
-  TERRAIN_FILL_COLOR_BOTTOM,
-  TERRAIN_FILL_COLOR_TOP,
   TERRAIN_MAX_HEIGHT_FRACTION,
   TERRAIN_MIN_HEIGHT_FRACTION,
   TERRAIN_MAX_STEP_FRACTION,
@@ -52,6 +49,8 @@ import {
 import { FlightState } from '../flight/flight-state';
 import { degreesToRadians } from '../physics/lander-physics';
 import { getSafeLocalStorage, recordHighScore } from '../persistence/high-scores';
+import { BODIES } from '../planets/bodies';
+import type { CelestialBody } from '../planets/celestial-body';
 import { calculateScore } from '../scoring/score';
 import { isOnLandingPad, isSafeLanding } from '../terrain/landing';
 import { generateTerrain, getTerrainHeightAt, type Terrain } from '../terrain/terrain-generator';
@@ -79,7 +78,17 @@ const ENGINE_GLOW_TEXTURE_KEY = 'lander-engine-glow';
 
 type GameOutcome = 'flying' | FlightOutcome;
 
+export interface GameSceneData {
+  /** The world to fly on. Defaults to BODIES[0] (Kessel's Reach) when
+   * omitted — every caller today (MenuScene's START, ResultScene's
+   * RESTART) starts a fresh flight with no data at all, since there's no
+   * world-selection UI yet (Milestone 6 adds one and will pass this
+   * explicitly). */
+  readonly body?: CelestialBody;
+}
+
 export class GameScene extends Phaser.Scene {
+  private body!: CelestialBody;
   private flightState!: FlightState;
   private terrain!: Terrain;
   private lander!: PaperShape;
@@ -100,6 +109,10 @@ export class GameScene extends Phaser.Scene {
 
   constructor() {
     super(SCENE_KEY_GAME);
+  }
+
+  init(data: GameSceneData = {}): void {
+    this.body = data.body ?? BODIES[0];
   }
 
   create(): void {
@@ -142,10 +155,12 @@ export class GameScene extends Phaser.Scene {
         rotationRadians: 0,
         fuel: MAX_FUEL,
       },
-      gravityAccel: GRAVITY_ACCEL,
+      gravityAccel: this.body.gravityAccel,
       thrustAccel: THRUST_ACCEL,
       rotationSpeedRadPerSec: degreesToRadians(ROTATION_SPEED_DEG),
       fuelBurnRate: FUEL_BURN_RATE,
+      dragCoefficient: this.body.atmosphereDensity,
+      hazard: this.body.hazard,
     });
 
     this.lander = createPaperShape(this, {
@@ -330,9 +345,10 @@ export class GameScene extends Phaser.Scene {
     const ground = createPaperShape(this, {
       points: groundPoints,
       textureKey: TERRAIN_TEXTURE_KEY,
-      fillTopColor: TERRAIN_FILL_COLOR_TOP,
-      fillBottomColor: TERRAIN_FILL_COLOR_BOTTOM,
+      fillTopColor: this.body.terrainPalette.fillTopColor,
+      fillBottomColor: this.body.terrainPalette.fillBottomColor,
       etchLineCount: TERRAIN_ETCH_LINE_COUNT,
+      etchStyle: this.body.terrainPalette.etchStyle,
     });
     ground.container.setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
 

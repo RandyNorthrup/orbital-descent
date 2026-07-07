@@ -88,6 +88,41 @@ needs. A hand-rolled physics core is a handful of pure functions, trivially
 unit-tested in plain Node, and precisely as accurate as the game requires
 (this is an arcade game, not a physics sandbox).
 
+### `FlightState`/`CelestialBody` — final shape (Milestone 5)
+
+`FlightState` splits its inputs into two categories, per `FlightStateOptions`:
+
+- **Ship-intrinsic** (`thrustAccel`, `rotationSpeedRadPerSec`,
+  `fuelBurnRate`): global constants in `constants.ts` today, owned by
+  Milestone 7's `ShipClass` once that milestone lands.
+- **Body/environment** (`gravityAccel`, `dragCoefficient`, `hazard`):
+  sourced from the selected `CelestialBody` (`src/game/planets/
+celestial-body.ts`), not a constant. `dragCoefficient` is that body's
+  `atmosphereDensity` passed through unchanged (same quantity, named for
+  what it models on `CelestialBody` vs. how `atmosphericDrag` uses it).
+  `hazard` is required, not optional — every call site must be explicit
+  about environment status rather than relying on an implicit default.
+
+`FlightState` derives two more fields once, at construction, from
+`hazard` — not re-branched every `tick()`: `thrustEfficiency` (1 unless
+a `cold` hazard is active) and `passiveFuelDrainRate` (0 unless a
+`corrosive` hazard is active). Each `tick()` multiplies thrust by
+`thrustEfficiency`, adds `atmosphericDrag(velocity, dragCoefficient)`
+into the acceleration sum alongside gravity/thrust, and composes
+`passiveFuelDrainRate` into the same `consumeFuel` call as the normal
+thrust burn (one clamped subtraction, not two).
+
+`CelestialBody` (`id`, `name`, `gravityAccel`, `atmosphereDensity`,
+`hazard`, `terrainPalette`, `distance`) and its `Hazard` union
+(`{type:'corrosive'; fuelDrainRate}` \| `{type:'cold';
+thrustEfficiency}` \| `null`) live in `src/game/planets/
+celestial-body.ts` — a Phaser-free pure-data module, architecturally
+parallel to `physics/`/`flight/`/`terrain/`/`scoring/`/`persistence/`.
+`src/game/planets/bodies.ts` exports `BODIES`, typed as a non-empty
+tuple (`readonly [CelestialBody, ...CelestialBody[]]`) specifically so
+`GameScene`'s `BODIES[0]` default-body fallback is statically known
+non-`undefined` under this project's `noUncheckedIndexedAccess`.
+
 ### Paper-cutout art style — concrete rules
 
 **Superseded by Decision D18** ("Ship-Forward / Atmospheric Depth", below) —
@@ -118,13 +153,15 @@ one consistent style rather than a grab-bag of shapes:
   polygon path directly, replacing the old `TileSprite` +
   `createGeometryMask()` indirection. See `src/game/rendering/paper-shape.ts`.
 - **Fine etched surface-texture strokes** (rock striations / hull panel
-  lines) are optionally baked into the same fill (`etchLineCount`) —
-  generic line-scribble for now. **Flagged for Milestone 5**: distinct
-  per-world terrain materials (foliage/trees, water, sand, ice) need their
-  own etch styles, not one hard-coded scribble reused everywhere with only
-  a palette swap — `paper-shape.ts`'s `etchLineCount` is deliberately a
-  plain count today so a future `etchStyle` parameter can plug in without
-  reworking the baking pipeline.
+  lines / dune ripples / wave-lines / foliage clusters) are optionally
+  baked into the same fill (`etchLineCount` for density, `etchStyle` for
+  which material recipe — added Milestone 5, `paper-shape.ts`'s
+  `ETCH_STYLE_CONFIGS`). Distinct per-world terrain materials
+  (rock/sand/water/foliage) are keyed off each `CelestialBody`'s own
+  `terrainPalette.etchStyle`, not one hard-coded scribble reused
+  everywhere with only a palette swap. `etchStyle` defaults to `'rock'`
+  (the original look, bit-for-bit) when omitted, so the lander's own
+  hull-panel etch is unaffected.
 - **A layered background sits behind the gameplay terrain**: sky gradient,
   a glowing moon/sun (baked radial gradient, `src/game/rendering/radial-glow.ts`),
   a seeded crisp starfield (`src/game/rendering/starfield.ts`, pure/unit-
@@ -1687,7 +1724,9 @@ done.
 
 ---
 
-### Milestone 5 — Fictional Celestial Bodies (not started)
+### Milestone 5 — Fictional Celestial Bodies (certified)
+
+**Status: CERTIFIED** (2026-07-07).
 
 **Goal**: Generalize the single hardcoded world into a data-driven
 `CelestialBody` config, and add real per-world variation per Decision
@@ -1696,77 +1735,133 @@ atmosphere = passive fuel drain; extreme cold = reduced thrust
 efficiency). Bodies are entirely fictional (Decision D11) — not real
 planets.
 
-**Scope**:
+**Scope delivered**:
 
-- `src/game/planets/celestial-body.ts` — the `CelestialBody` interface:
-  id, name, `gravityAccel`, `atmosphereDensity` (0 for airless worlds),
-  `hazard` (`{ type: 'corrosive'; fuelDrainRate: number }`
-  \| `{ type: 'cold'; thrustEfficiency: number }` \| `null`), terrain
-  palette, and a `distance` number (in fictional "Transit Units," TU).
-  **Naming note**: `atmosphereDensity` is the same quantity every call
-  site (below, and §6b) passes as the `dragCoefficient` parameter — the
-  field is named for what it models (a world property), the parameter for
-  how it's used (a drag-physics coefficient); same value, no conversion
-  between the two names.
-  **Amendment (from Milestone 9.5's design pass)**: `distance`'s originally
-  stated "unlock ordering" role is retired — M6's actual unlock mechanism
-  (below) is a discrete `unlocks: string[]` graph keyed off base ids, which
-  never reads `distance`. `distance` keeps two real jobs instead: a loose
-  narrative/visual one (farther worlds read as farther out on M6's world
-  map) and, starting at M9.5, a hard mechanical one as the literal
-  fictional distance fed into relay-mission transit-fuel costing. Flagged
-  explicitly so a future change to `distance`'s semantics doesn't silently
-  break M9.5's relay-fuel math.
-- `src/game/planets/bodies.ts` — a starter registry of **at least 12**
-  fictional worlds/moons (Decision D20 — raised from an earlier 4-world
-  minimum once the real content-scale target was set), spanning the
-  gravity/atmosphere/hazard space meaningfully and each hosting 1-3
-  landing bases (§6b's `Base` record, scoped to M6). Not every world
-  needs to be visible/reachable from the start — D20's dual-gate model
-  (mission-completion `unlocks` graph, D17/M9.5, _and_ upgrade-tier
-  `requirements`, §6b.2) is what paces revealing all 12 across a full
-  playthrough, not a flat "12 worlds visible on day one" registry.
-  **Terrain surface material, not just palette (flagged during Decision
-  D18's art-direction work)**: each world needs a visually distinct ground
-  material — rock/regolith, sand/dunes, water/wave-line, foliage/tree-
-  cluster — not twelve bodies that are the same gray rock silhouette with
-  twelve different tint colors. `paper-shape.ts`'s `etchLineCount` (a plain
-  stroke count today) is the hook this plugs into: extend it to an
-  `etchStyle: 'rock' | 'sand' | 'water' | 'foliage'` (or similar) that
-  picks a distinct stroke pattern/density per material, keyed off each
-  `CelestialBody`'s own field, rather than reusing one generic scribble
-  texture with a recolor. Concretely a per-world addition to `terrain
-palette` above, not a new top-level `CelestialBody` field.
+- `src/game/planets/celestial-body.ts` (new) — the `CelestialBody`
+  interface (`id`, `name`, `gravityAccel`, `atmosphereDensity`,
+  `hazard`, `terrainPalette`, `distance`) plus `EtchStyle`
+  (`'rock' | 'sand' | 'water' | 'foliage'`) and the `Hazard` discriminated
+  union (`{type:'corrosive'; fuelDrainRate}` \| `{type:'cold';
+thrustEfficiency}` \| `null`). `TerrainPalette`/`CorrosiveHazard`/
+  `ColdHazard` are deliberately not exported — nothing outside this file
+  needs to name them on their own, only as members of `CelestialBody`/
+  `Hazard` (knip caught this; made module-private rather than exported
+  dead weight). Zero imports — pure data types, matching `physics/`/
+  `flight/`/`terrain/`'s existing Phaser-free discipline.
+- `src/game/planets/bodies.ts` (new) — `BODIES`, a starter registry of
+  exactly 12 fictional worlds/moons (Decision D20's "at least 12"),
+  typed `readonly [CelestialBody, ...CelestialBody[]]` (a non-empty
+  tuple, not just `readonly CelestialBody[]`) specifically so
+  `BODIES[0]` is statically a real `CelestialBody` under this project's
+  `noUncheckedIndexedAccess`, without a disallowed non-null assertion or
+  a dead "can't happen" runtime guard. `gravityAccel` spans 9-26 px/s²
+  (always well under the ship's fixed 46 px/s² `THRUST_ACCEL`, so every
+  world stays flyable — confirmed by the adversarial review's own
+  per-body margin arithmetic, see below); `atmosphereDensity` spans
+  0 (airless) to 0.06; hazards split 6 null / 3 corrosive / 3 cold;
+  `etchStyle` covers all four materials at least twice each. Kessel's
+  Reach (`distance: 0`, no hazard) carries forward the original
+  Milestone 1/2 `GRAVITY_ACCEL` (18) and terrain colors byte-for-byte —
+  the default/home world is a continuation of the certified M1-M4
+  experience, not a competing numeric universe. Verdalis
+  (`distance: 42`, no hazard), Pyrrhine Expanse (`distance: 95`,
+  corrosive), and Glacian Drift (`distance: 210`, cold) match Milestone
+  9.5's own worked-example roster (§9.5.7) exactly — `bodies.test.ts`
+  pins these four bodies' `id`/`distance`/`hazard.type` explicitly so a
+  future casual edit can't silently break that milestone's arithmetic.
+- **Per-material terrain rendering, not just palette** (flagged during
+  Decision D18's art-direction work): `src/game/rendering/paper-shape.ts`
+  gained `PaperShapeOptions.etchStyle?: EtchStyle` (defaults to `'rock'`,
+  today's original look, when omitted) and an internal
+  `ETCH_STYLE_CONFIGS` lookup (per-style base angle / angle jitter /
+  length multiplier) that `drawEtchedLines` now uses instead of one
+  hard-coded fully-random scribble. `rock` is proven bit-for-bit
+  statistically identical to the pre-Milestone-5 look (a uniform angle
+  spread over a full circle is phase-shift-invariant once fed through
+  `Math.cos`/`Math.sin`) — verified both by written proof and by the
+  lander's own etch call (which never sets `etchStyle`) rendering
+  unchanged. `GameScene`'s ground now sources `fillTopColor`/
+  `fillBottomColor`/`etchStyle` from the selected body's
+  `terrainPalette`; the landing pad deliberately keeps one universal
+  green regardless of world — a consistent "safe zone" visual cue.
 - `src/game/physics/lander-physics.ts` — new pure
-  `atmosphericDrag(velocity, dragCoefficient): Vector2` (opposes velocity,
-  scaled by the coefficient — the simplest physically reasonable linear
-  drag model, consistent with this project's "arcade game, not a physics
-  sandbox" philosophy from §4).
-- `FlightState` generalized: ship-intrinsic stats (thrust, fuel burn,
-  rotation speed — owned by M7's `ShipClass` once that milestone lands)
-  stay separate from body/environment stats (gravity, drag, hazard
-  effects) passed in from the selected `CelestialBody`.
-- `GameScene` takes the selected body via scene data (default: the first
-  registry entry, until M6 adds real selection).
+  `atmosphericDrag(velocity, dragCoefficient): Vector2` (opposes
+  velocity, scaled by the coefficient — the simplest physically
+  reasonable linear drag model, consistent with this project's "arcade
+  game, not a physics sandbox" philosophy from §4).
+- `FlightState` generalized: `FlightStateOptions` gained `dragCoefficient`
+  and `hazard` (both required, not optional/defaulted, so every call
+  site is explicit about environment status). `thrustEfficiency`
+  (default 1) and `passiveFuelDrainRate` (default 0) are derived once
+  from `hazard` at construction, not re-branched every tick; `tick()`
+  adds `atmosphericDrag` into its per-frame acceleration sum alongside
+  gravity/thrust, multiplies thrust by `thrustEfficiency`, and composes
+  the corrosive passive drain into the same `consumeFuel` call as the
+  normal thrust burn. Ship-intrinsic stats (`THRUST_ACCEL`,
+  `ROTATION_SPEED_DEG`, `FUEL_BURN_RATE`, `MAX_FUEL` — owned by M7's
+  `ShipClass` once that milestone lands) stay in `constants.ts`,
+  unchanged; only gravity/drag/hazard moved to per-body data.
+- `GameScene` takes the selected body via new `GameSceneData.body?`
+  (optional; defaults to `BODIES[0]` in `init()` until M6 adds real
+  selection). Every current caller (`MenuScene`'s START, `ResultScene`'s
+  RESTART) starts with no data at all, so the default path is what's
+  live today — e2e-verified via the full existing suite.
 
-**Acceptance criteria**: the same ship flies measurably differently on at
-least two different bodies (integration-tested: compare descent
-time/fuel-at-landing between bodies with different gravity/drag); a
-corrosive-world flight loses fuel with no thrust input; a cold-world
-flight's thrust is measurably weaker than an identical warm-world flight.
+**Acceptance criteria**: met. The same ship flies measurably differently
+on bodies with different gravity/drag (integration-tested via a direct
+position/velocity comparison after equal elapsed time — a closer proxy
+for "flies differently" than a literal descent-time/fuel-at-landing
+diff, since `FlightState` explicitly doesn't own ground contact, see §4);
+a corrosive-world flight loses fuel with no thrust input, contrasted
+directly against a hazard-free control that loses none; a cold-world
+flight's sustained thrust produces measurably weaker ascent than an
+identical warm-world flight.
 
-**Required tests**: unit tests for `atmosphericDrag` (opposes velocity,
-scales with coefficient and speed, zero at zero coefficient) and the body
-registry (every body valid and distinct, no duplicate ids); integration
-tests for each hazard type's effect composed into `FlightState`.
+**Required tests**: `lander-physics.test.ts` — 7 new `atmosphericDrag`
+tests (opposes velocity on both axes, scales with coefficient, scales
+with speed, zero at zero coefficient, zero at zero velocity, one
+hand-computed diagonal case). `bodies.test.ts` — registry length ≥ 12,
+no duplicate ids, every field physically sane, every hazard type
+internally consistent, at least one body per hazard category and per
+etch style, and the four-body pin test against §9.5.7. `flight-state.
+integration.test.ts` — 5 new tests: atmospheric drag measurably slows a
+moving lander; a corrosive flight loses fuel with no thrust input
+(contrasted against a hazard-free control); a cold flight's sustained
+thrust produces measurably weaker ascent than a warm flight; the same
+ship flies measurably differently on two bodies with different
+gravity/drag.
 
-**Required quality gates**: full gate list, must stay green.
+**Required quality gates**: full gate list — green (111 unit/integration
+tests, up from Milestone 4's 93; coverage 99.21%/92.3%/100%/99.17%,
+thresholds 90/85/90/90 all met; `pnpm build`/`deadcode`/`security:audit`/
+`security:secrets` all clean; `pnpm test:e2e` 33/33 across
+Chromium/Firefox/WebKit). A dimension-specific adversarial review
+(correctness, gameplay-balance, standards/DRY, test-coverage — every
+finding independently re-verified, including hand-redone arithmetic)
+found zero correctness/standards defects, but the gameplay-balance pass
+caught one genuine tuning problem the design didn't originally account
+for: Corvexa Shallows' corrosive `fuelDrainRate` (originally 5) fully
+drained `MAX_FUEL` (100) from **passive drain alone, with zero thrust
+used**, in exactly 20s — precisely `SCORE_TIME_PAR_MS`, this game's own
+"a direct, confident descent comfortably beats this" reference duration —
+leaving zero fuel margin for the braking burn every real landing needs,
+regardless of skill. Fixed by reducing it to 4 (tied with Pyrrhine
+Expanse rather than uniquely worst), leaving real margin at par time
+while staying meaningfully harsher than Umbral Fen's introductory rate.
+One accepted, explicitly-scoped-out gap: no test at any tier drives
+`GameScene` through a non-default `CelestialBody` yet — every real
+caller passes no data, so only the `BODIES[0]` path is live, and PLAN.md's
+own scope text says selection is deliberately deferred ("until M6 adds
+real selection"). Building that coverage now would need an observability
+hook with no current production caller to justify it — exactly the
+placeholder infrastructure this project's standards prohibit; correctly
+left for M6, which needs that hook anyway.
 
-**Required documentation updates**: this file (mark M5 certified, record
-the final `FlightState`/`CelestialBody` interface shape in Architecture
-Notes), `CHANGELOG.md`.
+**Required documentation updates**: this file, `CHANGELOG.md` — done.
+See the "`FlightState`/`CelestialBody`" note added to §4 Architecture
+Notes below for the final interface shape.
 
-**Certification checklist**: not started.
+**Certification checklist**: certified. Depends on Milestone 2.5.
 
 ---
 

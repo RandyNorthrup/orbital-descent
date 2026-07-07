@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FlightState, type FlightSnapshot } from './flight-state';
+import { FlightState, type FlightSnapshot, type FlightStateOptions } from './flight-state';
 
 /**
  * These tests exercise FlightState as a whole — physics + fuel + rotation
@@ -21,13 +21,19 @@ const STARTING_SNAPSHOT: FlightSnapshot = {
   fuel: 100,
 };
 
-function makeFlightState(overrides: Partial<FlightSnapshot> = {}): FlightState {
+function makeFlightState(
+  overrides: Partial<FlightSnapshot> = {},
+  optionOverrides: Partial<Omit<FlightStateOptions, 'initial'>> = {},
+): FlightState {
   return new FlightState({
     initial: { ...STARTING_SNAPSHOT, ...overrides },
     gravityAccel: 20,
     thrustAccel: 50,
     rotationSpeedRadPerSec: Math.PI,
     fuelBurnRate: 25,
+    dragCoefficient: 0,
+    hazard: null,
+    ...optionOverrides,
   });
 }
 
@@ -97,5 +103,67 @@ describe('FlightState', () => {
     // small x, unlike the wraparound this milestone removed.
     const after = tickMany(state, 20, 1 / 60, { thrust: false, rotate: 0 });
     expect(after.position.x).toBeGreaterThan(900);
+  });
+
+  it('atmospheric drag measurably slows a moving lander with no other horizontal input', () => {
+    // Isolate drag from gravity/rotation by starting with pure horizontal
+    // motion and comparing against an identical zero-drag flight.
+    const dragged = makeFlightState(
+      { velocity: { x: 100, y: 0 } },
+      { gravityAccel: 0, dragCoefficient: 0.5 },
+    );
+    const undragged = makeFlightState(
+      { velocity: { x: 100, y: 0 } },
+      { gravityAccel: 0, dragCoefficient: 0 },
+    );
+    const draggedAfter = tickMany(dragged, 30, 1 / 60, { thrust: false, rotate: 0 });
+    const undraggedAfter = tickMany(undragged, 30, 1 / 60, { thrust: false, rotate: 0 });
+
+    expect(draggedAfter.velocity.x).toBeLessThan(undraggedAfter.velocity.x);
+    // Drag opposes motion, it doesn't reverse it outright at this
+    // coefficient/duration — still moving the same direction, just slower.
+    expect(draggedAfter.velocity.x).toBeGreaterThan(0);
+  });
+
+  it('a corrosive-world flight loses fuel with no thrust input, unlike a hazard-free flight', () => {
+    const corrosive = makeFlightState({}, { hazard: { type: 'corrosive', fuelDrainRate: 10 } });
+    const hazardFree = makeFlightState({}, { hazard: null });
+
+    const corrosiveAfter = tickMany(corrosive, 30, 1 / 60, { thrust: false, rotate: 0 });
+    const hazardFreeAfter = tickMany(hazardFree, 30, 1 / 60, { thrust: false, rotate: 0 });
+
+    expect(corrosiveAfter.fuel).toBeLessThan(STARTING_SNAPSHOT.fuel);
+    // A hazard-free flight burns no fuel at all while not thrusting — the
+    // contrast that proves the drain is the corrosive hazard's doing, not
+    // some other change.
+    expect(hazardFreeAfter.fuel).toBe(STARTING_SNAPSHOT.fuel);
+  });
+
+  it("a cold-world flight's sustained thrust produces measurably weaker ascent than an identical warm-world flight", () => {
+    const cold = makeFlightState({}, { hazard: { type: 'cold', thrustEfficiency: 0.5 } });
+    const warm = makeFlightState({}, { hazard: null });
+
+    const coldAfter = tickMany(cold, 30, 1 / 60, { thrust: true, rotate: 0 });
+    const warmAfter = tickMany(warm, 30, 1 / 60, { thrust: true, rotate: 0 });
+
+    // Both still climb (thrust exceeds gravity even at half efficiency
+    // here), but the cold flight climbs measurably less.
+    expect(coldAfter.position.y).toBeLessThan(STARTING_SNAPSHOT.position.y);
+    expect(warmAfter.position.y).toBeLessThan(STARTING_SNAPSHOT.position.y);
+    expect(coldAfter.position.y).toBeGreaterThan(warmAfter.position.y);
+  });
+
+  it('the same ship flies measurably differently on two bodies with different gravity and drag', () => {
+    const lightWorld = makeFlightState({}, { gravityAccel: 5, dragCoefficient: 0 });
+    const heavyWorld = makeFlightState({}, { gravityAccel: 40, dragCoefficient: 0.3 });
+
+    const lightAfter = tickMany(lightWorld, 60, 1 / 60, { thrust: false, rotate: 0 });
+    const heavyAfter = tickMany(heavyWorld, 60, 1 / 60, { thrust: false, rotate: 0 });
+
+    // Falling under gravity alone: the heavier/draggier world's descent
+    // still gains speed, but the two bodies produce clearly different
+    // outcomes for the identical ship and identical input.
+    expect(heavyAfter.position.y).toBeGreaterThan(lightAfter.position.y);
+    expect(heavyAfter.velocity.y).not.toBeCloseTo(lightAfter.velocity.y);
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addVectors,
+  atmosphericDrag,
   consumeFuel,
   degreesToRadians,
   integrate,
@@ -59,6 +60,54 @@ describe('integrate', () => {
   it('is a no-op over zero elapsed time', () => {
     const start = { x: 3, y: 7 };
     expect(integrate(start, { x: 100, y: 100 }, 0)).toEqual(start);
+  });
+});
+
+describe('atmosphericDrag', () => {
+  it('opposes rightward velocity with leftward drag', () => {
+    const drag = atmosphericDrag({ x: 10, y: 0 }, 0.5);
+    expect(drag.x).toBeLessThan(0);
+    expect(drag.y).toBeCloseTo(0);
+  });
+
+  it('opposes downward velocity with upward drag', () => {
+    const drag = atmosphericDrag({ x: 0, y: 10 }, 0.5);
+    expect(drag.x).toBeCloseTo(0);
+    expect(drag.y).toBeLessThan(0);
+  });
+
+  it('scales linearly with the drag coefficient', () => {
+    const velocity = { x: 6, y: -8 };
+    const single = atmosphericDrag(velocity, 0.4);
+    const doubled = atmosphericDrag(velocity, 0.8);
+    expect(doubled.x).toBeCloseTo(single.x * 2);
+    expect(doubled.y).toBeCloseTo(single.y * 2);
+  });
+
+  it('scales linearly with speed', () => {
+    const dragCoefficient = 0.3;
+    const slow = atmosphericDrag({ x: 4, y: -2 }, dragCoefficient);
+    const fast = atmosphericDrag({ x: 8, y: -4 }, dragCoefficient);
+    expect(fast.x).toBeCloseTo(slow.x * 2);
+    expect(fast.y).toBeCloseTo(slow.y * 2);
+  });
+
+  it('is exactly zero when the drag coefficient is zero, regardless of velocity', () => {
+    const drag = atmosphericDrag({ x: 1e6, y: -1e6 }, 0);
+    expect(drag.x).toBeCloseTo(0);
+    expect(drag.y).toBeCloseTo(0);
+  });
+
+  it('is exactly zero when velocity is the zero vector, regardless of coefficient', () => {
+    const drag = atmosphericDrag(ZERO_VECTOR, 500);
+    expect(drag.x).toBeCloseTo(0);
+    expect(drag.y).toBeCloseTo(0);
+  });
+
+  it('hand-computed: diagonal velocity {x: 3, y: -4} with coefficient 2.5', () => {
+    // drag.x = -velocity.x * dragCoefficient = -3 * 2.5 = -7.5
+    // drag.y = -velocity.y * dragCoefficient = -(-4) * 2.5 = 10
+    expect(atmosphericDrag({ x: 3, y: -4 }, 2.5)).toEqual({ x: -7.5, y: 10 });
   });
 });
 

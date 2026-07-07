@@ -1,5 +1,6 @@
 import {
   addVectors,
+  atmosphericDrag,
   consumeFuel,
   integrate,
   integrateRotation,
@@ -7,6 +8,7 @@ import {
   ZERO_VECTOR,
   type Vector2,
 } from '../physics/lander-physics';
+import type { Hazard } from '../planets/celestial-body';
 
 export interface FlightInput {
   readonly thrust: boolean;
@@ -22,10 +24,21 @@ export interface FlightSnapshot {
 
 export interface FlightStateOptions {
   readonly initial: FlightSnapshot;
+  /** Body/environment stats (Milestone 5) — sourced from the selected
+   * CelestialBody, not a ship-intrinsic constant. */
   readonly gravityAccel: number;
+  /** Ship-intrinsic stats — owned by Milestone 7's ShipClass once that
+   * milestone lands; a global constant until then. */
   readonly thrustAccel: number;
   readonly rotationSpeedRadPerSec: number;
   readonly fuelBurnRate: number;
+  /** Body/environment stat — CelestialBody.atmosphereDensity, passed
+   * through unchanged into atmosphericDrag. 0 for airless worlds. */
+  readonly dragCoefficient: number;
+  /** Body/environment stat — CelestialBody.hazard. Required (not
+   * optional) so every call site is explicit about hazard status rather
+   * than relying on an implicit "no hazard" default. */
+  readonly hazard: Hazard;
 }
 
 /**
@@ -41,6 +54,13 @@ export class FlightState {
   private readonly thrustAccel: number;
   private readonly rotationSpeedRadPerSec: number;
   private readonly fuelBurnRate: number;
+  private readonly dragCoefficient: number;
+  /** Derived once from `hazard` at construction, not re-derived every tick:
+   * 1 (no reduction) unless a cold hazard is active. */
+  private readonly thrustEfficiency: number;
+  /** Derived once from `hazard`: 0 (no passive drain) unless a corrosive
+   * hazard is active. */
+  private readonly passiveFuelDrainRate: number;
 
   constructor(options: FlightStateOptions) {
     this.currentSnapshot = options.initial;
@@ -48,6 +68,10 @@ export class FlightState {
     this.thrustAccel = options.thrustAccel;
     this.rotationSpeedRadPerSec = options.rotationSpeedRadPerSec;
     this.fuelBurnRate = options.fuelBurnRate;
+    this.dragCoefficient = options.dragCoefficient;
+    this.thrustEfficiency = options.hazard?.type === 'cold' ? options.hazard.thrustEfficiency : 1;
+    this.passiveFuelDrainRate =
+      options.hazard?.type === 'corrosive' ? options.hazard.fuelDrainRate : 0;
   }
 
   get snapshot(): FlightSnapshot {
@@ -60,9 +84,10 @@ export class FlightState {
 
     const gravity: Vector2 = { x: 0, y: this.gravityAccel };
     const thrust = isThrusting
-      ? thrustVector(current.rotationRadians, this.thrustAccel)
+      ? thrustVector(current.rotationRadians, this.thrustAccel * this.thrustEfficiency)
       : ZERO_VECTOR;
-    const acceleration = addVectors(gravity, thrust);
+    const drag = atmosphericDrag(current.velocity, this.dragCoefficient);
+    const acceleration = addVectors(addVectors(gravity, thrust), drag);
 
     const velocity = integrate(current.velocity, acceleration, dtSeconds);
     const rawPosition = integrate(current.position, velocity, dtSeconds);
@@ -72,9 +97,11 @@ export class FlightState {
       this.rotationSpeedRadPerSec,
       dtSeconds,
     );
-    const fuel = isThrusting
-      ? consumeFuel(current.fuel, this.fuelBurnRate, dtSeconds)
-      : current.fuel;
+    // A corrosive hazard drains fuel passively every tick regardless of
+    // thrust input, composed into the same consumeFuel call as the normal
+    // thrust burn rather than a second, separate subtraction.
+    const burnRateThisTick = (isThrusting ? this.fuelBurnRate : 0) + this.passiveFuelDrainRate;
+    const fuel = consumeFuel(current.fuel, burnRateThisTick, dtSeconds);
 
     this.currentSnapshot = {
       position: rawPosition,
