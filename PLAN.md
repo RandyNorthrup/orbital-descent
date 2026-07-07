@@ -25,25 +25,25 @@ certified — stale entries are corrected or removed, not left to rot.
 Captured in the order they were made, with the reasoning, since later
 milestones depend on understanding _why_, not just _what_.
 
-| #   | Decision              | Chosen                                                                                                                                                                              | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| --- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | Rendering engine      | **Phaser 4.2.0** (not 3.x)                                                                                                                                                          | Phaser 3 is frozen at 3.90.0 since 2025-05-23 — legacy. Phaser 4.0.0 went stable 2026-04-10 (after this assistant's Jan-2026 training cutoff, verified live against the npm registry, not assumed). Core `Scene`/`GameObject`/config API is unchanged from v3 (verified directly against `node_modules/phaser/types/phaser.d.ts`); the v4 rewrite is renderer-internal (new WebGL node renderer, unified filter/FX system, GPU-batched sprite/tilemap layers).                                                                                                    |
-| D2  | Language              | **TypeScript 6.0.3**                                                                                                                                                                | Required for the strict typecheck gate. Pinned `6.0.3` (not `^6.0.3`) because `typescript-eslint@8.62.1` requires `typescript >=4.8.4 <6.1.0` — a caret range risked a silent break the moment TS 6.1 ships.                                                                                                                                                                                                                                                                                                                                                      |
-| D3  | Build tooling         | **Vite 8.1.3 + vanilla TS** (no React)                                                                                                                                              | No app-wide UI state beyond the game itself; Phaser scenes own the canvas and game loop directly. Smallest dependency surface.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| D4  | Package manager       | **pnpm 11.10.0**                                                                                                                                                                    | Strict dependency resolution (no phantom deps), fast, disk-efficient. Installed globally via `npm install -g pnpm@11.10.0` since Node 26 no longer bundles Corepack — documented as a required one-time global install in README Prerequisites.                                                                                                                                                                                                                                                                                                                   |
-| D5  | Hosting/deploy target | **None — source published to GitHub only**                                                                                                                                          | `github.com/RandyNorthrup/orbital-descent` (public). No live deployment (no Pages/Vercel/Netlify) — the repository itself is the deliverable. No CI/CD either (Decision D9) — GitHub stores the code only; quality gates are run locally before each push.                                                                                                                                                                                                                                                                                                        |
-| D6  | Platform/input        | **Desktop keyboard only (v1)**                                                                                                                                                      | Arrow keys / WASD, classic lunar-lander controls. Touch controls are a possible future milestone, not committed.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| D7  | Testing depth         | **Unit + integration + e2e**                                                                                                                                                        | Vitest for pure-function and multi-module-orchestration logic; Playwright for real-browser verification. See Architecture Notes for why this split exists and what each tier actually covers.                                                                                                                                                                                                                                                                                                                                                                     |
-| D8  | Score persistence     | **`localStorage`, schema-validated**                                                                                                                                                | No backend. Deferred to Milestone 4 — not yet implemented.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| D9  | CI/CD                 | **None — GitHub is code storage only**                                                                                                                                              | `.github/workflows/ci.yml` existed briefly (two real pushes, both verified green — see §5's Lighthouse investigation, which happened precisely because that CI run existed) and was removed by explicit instruction after Milestone 1/6. Quality gates (`pnpm quality`, `pnpm quality:full`, `pnpm lighthouse`) are run locally, by whoever makes a change, before pushing — not automated.                                                                                                                                                                       |
-| D10 | Project name          | **Orbital Descent** (was "Lunar Lander")                                                                                                                                            | Renamed once the scope grew to multiple fictional worlds, ships, and combat — "Lunar Lander" implied a single-Moon physics-sim scope that no longer fit. Renamed everywhere in the same pass: GitHub repo (`gh repo rename`), `package.json`, `index.html`, all docs, and the `window.__ORBITAL_DESCENT_GAME__` e2e test hook. The local working directory (`lunar_lander/`) was deliberately left as-is — renaming it mid-session would have broken every subsequent absolute-path tool call; rename it yourself with `mv` if you want the folder name to match. |
-| D11 | Celestial bodies      | **Fictional worlds, not real planets**                                                                                                                                              | Explicit instruction: worlds are invented, not "Mars"/"Venus"/etc. Frees up gravity/atmosphere/hazard combinations from real planetary data and avoids any implied claim of scientific accuracy.                                                                                                                                                                                                                                                                                                                                                                  |
-| D12 | Combat scope          | **Landing + active combat**, weapons help with obstacles and local hostiles                                                                                                         | Not open-ended combat — weapons exist to clear a landing path and defend against hostiles/enemy ships encountered while descending, not a standalone shooter. Scopes Milestones 10-11.                                                                                                                                                                                                                                                                                                                                                                            |
-| D13 | Ship roster           | **5 starter ships + unlockable ships**                                                                                                                                              | Ships differ in mass/thrust/fuel-capacity/handling, unlocked through progression (exact trigger tied to M6/M12 when built). Scopes Milestone 7.                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| D14 | Ship upgrades         | **Shields, weapons, longer boost/fuel, stronger engines, lighter materials — equipped weapons/utility items are slotted, cycled, and triggered, and every equipped item adds mass** | Concrete upgrade categories for Milestone 9, purchasable via Milestone 8's store. Equipment mass feeds thrust-to-weight (same relationship as ship class/world gravity) — deliberate: heavier loadouts trade handling for capability, so equipment choice must fit the target base.                                                                                                                                                                                                                                                                               |
-| D15 | Economy               | **Fictional currency, earned per completed mission, spent in a store**                                                                                                              | Placeholder name "Credits" until a better one is chosen — trivially renamed later, low-stakes. Scopes Milestone 8.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| D16 | Achievements          | **Achievement system + toast notifications**                                                                                                                                        | Scopes Milestone 12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| D17 | World progression     | **Planetary browser/map: discovered vs. locked worlds, multi-base worlds, progression unlocks farther worlds/bases**                                                                | Scopes Milestone 6; depends on Milestone 5's per-world config existing first.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| #   | Decision              | Chosen                                                                                                                                                                                                 | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Rendering engine      | **Phaser 4.2.0** (not 3.x)                                                                                                                                                                             | Phaser 3 is frozen at 3.90.0 since 2025-05-23 — legacy. Phaser 4.0.0 went stable 2026-04-10 (after this assistant's Jan-2026 training cutoff, verified live against the npm registry, not assumed). Core `Scene`/`GameObject`/config API is unchanged from v3 (verified directly against `node_modules/phaser/types/phaser.d.ts`); the v4 rewrite is renderer-internal (new WebGL node renderer, unified filter/FX system, GPU-batched sprite/tilemap layers).                                                                                                    |
+| D2  | Language              | **TypeScript 6.0.3**                                                                                                                                                                                   | Required for the strict typecheck gate. Pinned `6.0.3` (not `^6.0.3`) because `typescript-eslint@8.62.1` requires `typescript >=4.8.4 <6.1.0` — a caret range risked a silent break the moment TS 6.1 ships.                                                                                                                                                                                                                                                                                                                                                      |
+| D3  | Build tooling         | **Vite 8.1.3 + vanilla TS** (no React)                                                                                                                                                                 | No app-wide UI state beyond the game itself; Phaser scenes own the canvas and game loop directly. Smallest dependency surface.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| D4  | Package manager       | **pnpm 11.10.0**                                                                                                                                                                                       | Strict dependency resolution (no phantom deps), fast, disk-efficient. Installed globally via `npm install -g pnpm@11.10.0` since Node 26 no longer bundles Corepack — documented as a required one-time global install in README Prerequisites.                                                                                                                                                                                                                                                                                                                   |
+| D5  | Hosting/deploy target | **None — source published to GitHub only**                                                                                                                                                             | `github.com/RandyNorthrup/orbital-descent` (public). No live deployment (no Pages/Vercel/Netlify) — the repository itself is the deliverable. No CI/CD either (Decision D9) — GitHub stores the code only; quality gates are run locally before each push.                                                                                                                                                                                                                                                                                                        |
+| D6  | Platform/input        | **Desktop keyboard only (v1)**                                                                                                                                                                         | Arrow keys / WASD, classic lunar-lander controls. Touch controls are a possible future milestone, not committed.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| D7  | Testing depth         | **Unit + integration + e2e**                                                                                                                                                                           | Vitest for pure-function and multi-module-orchestration logic; Playwright for real-browser verification. See Architecture Notes for why this split exists and what each tier actually covers.                                                                                                                                                                                                                                                                                                                                                                     |
+| D8  | Score persistence     | **`localStorage`, schema-validated**                                                                                                                                                                   | No backend. Deferred to Milestone 4 — not yet implemented.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| D9  | CI/CD                 | **None — GitHub is code storage only**                                                                                                                                                                 | `.github/workflows/ci.yml` existed briefly (two real pushes, both verified green — see §5's Lighthouse investigation, which happened precisely because that CI run existed) and was removed by explicit instruction between Milestones 1 and 2. Quality gates (`pnpm quality`, `pnpm quality:full`, `pnpm lighthouse`) are run locally, by whoever makes a change, before pushing — not automated.                                                                                                                                                                |
+| D10 | Project name          | **Orbital Descent** (was "Lunar Lander")                                                                                                                                                               | Renamed once the scope grew to multiple fictional worlds, ships, and combat — "Lunar Lander" implied a single-Moon physics-sim scope that no longer fit. Renamed everywhere in the same pass: GitHub repo (`gh repo rename`), `package.json`, `index.html`, all docs, and the `window.__ORBITAL_DESCENT_GAME__` e2e test hook. The local working directory (`lunar_lander/`) was deliberately left as-is — renaming it mid-session would have broken every subsequent absolute-path tool call; rename it yourself with `mv` if you want the folder name to match. |
+| D11 | Celestial bodies      | **Fictional worlds, not real planets**                                                                                                                                                                 | Explicit instruction: worlds are invented, not "Mars"/"Venus"/etc. Frees up gravity/atmosphere/hazard combinations from real planetary data and avoids any implied claim of scientific accuracy.                                                                                                                                                                                                                                                                                                                                                                  |
+| D12 | Combat scope          | **Landing + active combat**, weapons help with obstacles and local hostiles                                                                                                                            | Not open-ended combat — weapons exist to clear a landing path and defend against hostiles/enemy ships encountered while descending, not a standalone shooter. Scopes Milestones 10-11.                                                                                                                                                                                                                                                                                                                                                                            |
+| D13 | Ship roster           | **5 starter ships + unlockable ships**                                                                                                                                                                 | Ships differ in mass/thrust/fuel-capacity/handling, unlocked through progression (exact trigger tied to M6/M12 when built). Scopes Milestone 7.                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| D14 | Ship upgrades         | **Shields, weapons, longer boost/fuel, stronger engines, lighter materials — equipped weapons/utility items are slotted, cycled, and triggered, and every equipped item adds mass**                    | Concrete upgrade categories for Milestone 9, purchasable via Milestone 8's store. Equipment mass feeds thrust-to-weight (same relationship as ship class/world gravity) — deliberate: heavier loadouts trade thrust-to-weight for capability, so equipment choice must fit the target base.                                                                                                                                                                                                                                                                       |
+| D15 | Economy               | **Fictional currency, earned per completed mission, spent in a store**                                                                                                                                 | Placeholder name "Credits" until a better one is chosen — trivially renamed later, low-stakes. Scopes Milestone 8.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| D16 | Achievements          | **Achievement system + toast notifications**                                                                                                                                                           | Scopes Milestone 12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| D17 | World progression     | **Planetary browser/map: worlds are `discovered`/`locked`; bases within a world use the finer three-state machine `locked → discovered-unclaimed → established` (amended per Milestone 9.5's design)** | Scopes Milestone 6; depends on Milestone 5's per-world config and Milestone 3's menu system both existing first (matches the roadmap's own "M5, M3" dependency list for M6).                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ## 3. Open Questions
 
@@ -57,7 +57,7 @@ milestones depend on understanding _why_, not just _what_.
 ### Custom physics core, not Phaser Arcade Physics
 
 `src/game/physics/lander-physics.ts` and `src/game/flight/flight-state.ts`
-implement gravity, thrust, fuel burn, rotation, and world-bounds handling as
+implement gravity, thrust, fuel burn, rotation, and horizontal wrapping as
 plain, framework-free TypeScript — no Phaser `Arcade.Body` involved. Phaser is
 used purely for rendering (`Scene`, `GameObjects.Triangle`), input
 (`KeyboardPlugin`), and scene lifecycle.
@@ -399,14 +399,16 @@ and the game is actually playable end-to-end, if priorities differ.
 | M9.5 | Mission & Cargo Delivery System   | M6, M8, M9       | Missions become real objects (not "land safely" alone): cargo (troops/supplies) sharing M9's mass budget, three mission structures (single-trip, timed multi-trip, relay), two narrative flavors (establish presence / resupply) tied to M6's base progression and M12's achievements. |
 | M10  | Obstacles & Hazardous Conditions  | M5               | Static obstacles and per-world environmental conditions beyond atmosphere.                                                                                                                                                                                                             |
 | M11  | Weapons & Combat                  | M9, M10          | Firing weapons to clear obstacles and fight local hostile inhabitants/enemy ships (Decision D12 — landing + active combat, not open-ended).                                                                                                                                            |
-| M12  | Achievements & Notifications      | M4               | Achievement definitions + toast notifications (Decision D16).                                                                                                                                                                                                                          |
+| M12  | Achievements & Notifications      | M4, M9.5         | Achievement definitions + toast notifications (Decision D16), implementing the five triggers M9.5 already specifies.                                                                                                                                                                   |
 | M13  | Audio, Juice & Accessibility Pass | all of the above | Sound, particles, screen shake, full accessibility pass — deliberately last, since it polishes systems that need to exist first.                                                                                                                                                       |
 
 **Core gameplay loop, once M9-M11 land**: the pilot juggles three
 concurrent systems every mission — flight control (thrust/rotation/fuel,
 M1-M2), the weapon system (cycle + trigger, M9/M11), and the buff/utility
 system (cycle + trigger non-combat items, M9) — and every equipped
-weapon/buff adds mass that degrades handling (M9). Beating a given base
+weapon/buff adds mass that degrades thrust-to-weight (M9; a distinct
+handling axis, affected by specific handling-bonus items rather than mass
+directly — see §6b.1/§6b.2). Beating a given base
 means choosing a loadout that fits _that_ base's obstacles, hostiles, and
 environmental conditions (M10), then executing flight + combat together,
 not managing them as separate phases. This is the design goal that
@@ -482,14 +484,14 @@ because a heightmap spike can only raise the local floor, it cannot represent
 
 #### Combat axis (hostiles/enemy ships — fed by M11)
 
-| Archetype                        | Binding stat                                                                                                                                     | Losing trait                                                                              |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| **Swarm (throughput)**           | Kills-per-second vs. total incoming hostile count within the clear window                                                                        | High damage/slot but low fire rate — overkill per kill, not enough shots land in time     |
-| **Bruiser (penetration)**        | `damagePerHit − armorRating`; a weapon whose damage doesn't clear the armor floor deals **zero** effective damage, a hard fail, not a slow grind | Fast, weak weapons are mechanically incapable, not merely inefficient                     |
-| **Ace (survivability)**          | Ship's effective HP (hull + shield) vs. the hostile's alpha-strike damage; weapon choice is nearly irrelevant                                    | Zero shield + thin hull = certain death in one hit regardless of weapon                   |
-| **Mandatory-clear obstacle**     | Minimum damage/splash to clear at all, not DPS or timing                                                                                         | Overkill weapons waste mass for zero extra benefit — obstacles don't fight back           |
-| **Zero-combat trap**             | No hostiles, no mandatory-clear obstacle                                                                                                         | _Any_ equipped weapon/shield is pure dead mass — strictly worse handling for zero benefit |
-| **Positional / kinematic-match** | Projectile speed/range vs. a fast erratic mover's exposure window                                                                                | A high-damage, slow-projectile weapon simply can't lead the target                        |
+| Archetype                        | Binding stat                                                                                                                                     | Losing trait                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| **Swarm (throughput)**           | Kills-per-second vs. total incoming hostile count within the clear window                                                                        | High damage/slot but low fire rate — overkill per kill, not enough shots land in time             |
+| **Bruiser (penetration)**        | `damagePerHit − armorRating`; a weapon whose damage doesn't clear the armor floor deals **zero** effective damage, a hard fail, not a slow grind | Fast, weak weapons are mechanically incapable, not merely inefficient                             |
+| **Ace (survivability)**          | Ship's effective HP (hull + shield) vs. the hostile's alpha-strike damage; weapon choice is nearly irrelevant                                    | Zero shield + thin hull = certain death in one hit regardless of weapon                           |
+| **Mandatory-clear obstacle**     | Minimum damage/splash to clear at all, not DPS or timing                                                                                         | Overkill weapons waste mass for zero extra benefit — obstacles don't fight back                   |
+| **Zero-combat trap**             | No hostiles, no mandatory-clear obstacle                                                                                                         | _Any_ equipped weapon/shield is pure dead mass — strictly worse thrust-to-weight for zero benefit |
+| **Positional / kinematic-match** | Projectile speed/range vs. a fast erratic mover's exposure window                                                                                | A high-damage, slow-projectile weapon simply can't lead the target                                |
 
 #### Composite archetypes (only emerge once two+ axes combine)
 
@@ -538,7 +540,39 @@ why.
 
 import type { CelestialBody } from '../planets/celestial-body'; // M5
 import type { GenerateTerrainOptions, Terrain } from '../terrain/terrain-generator'; // M2, extended M10
-import type { EncounterSpec } from '../combat/encounter'; // M11 (empty until then)
+
+/**
+ * Defined here, not imported from M11's combat module — Base needs this
+ * type from M6's first line of code (the `encounters` field below), and a
+ * type-only import of a file that doesn't exist until M11 (roadmap
+ * position 10, four milestones after M6) is a real compile failure, not a
+ * "populate later" deferral (that pattern only works for *values*, e.g.
+ * `encounters: []`, not for the *type* of the field). M11's own
+ * `src/game/combat/encounter.ts`/`combatant.ts` import these types from
+ * here (a backward reference, since M11 is built after M6) and are where
+ * real `CombatantDefinition`/`EncounterSpec` *instances* get authored and
+ * where movement/attack/damage resolution actually runs — this file only
+ * owns the shape.
+ */
+export interface CombatantDefinition {
+  readonly id: string;
+  readonly health: number;
+  readonly armorRating: number; // effectiveDamage = max(0, hit.damage - armorRating)
+  readonly contactDamage: number;
+  readonly attack: { damagePerHit: number; cooldownMs: number; range: number } | null;
+  readonly movement:
+    | { kind: 'static' }
+    | { kind: 'homing'; speed: number; turnRateDegPerSec: number }
+    | { kind: 'diveStrafe'; speed: number; diveAltitude: number };
+}
+
+export interface EncounterSpec {
+  readonly id: string;
+  readonly combatants: readonly { definition: CombatantDefinition; count: number }[];
+  readonly clearWindowMs: number;
+  readonly triggerAltitude: number;
+  readonly seed: number;
+}
 
 export type LoadoutTag =
   | 'fuel-efficient'
@@ -696,30 +730,13 @@ already produces heights and pad index, strictly after pad placement — this
 is the only way to keep the existing "deterministic given a seed" guarantee
 extending cleanly to obstacles.
 
-**Encounter spec** (M11, `src/game/combat/encounter.ts` and
-`src/game/combat/combatant.ts`):
-
-```ts
-export interface CombatantDefinition {
-  readonly id: string;
-  readonly health: number;
-  readonly armorRating: number; // effectiveDamage = max(0, hit.damage - armorRating)
-  readonly contactDamage: number;
-  readonly attack: { damagePerHit: number; cooldownMs: number; range: number } | null;
-  readonly movement:
-    | { kind: 'static' }
-    | { kind: 'homing'; speed: number; turnRateDegPerSec: number }
-    | { kind: 'diveStrafe'; speed: number; diveAltitude: number };
-}
-
-export interface EncounterSpec {
-  readonly id: string;
-  readonly combatants: readonly { definition: CombatantDefinition; count: number }[];
-  readonly clearWindowMs: number;
-  readonly triggerAltitude: number;
-  readonly seed: number;
-}
-```
+**Encounter spec** — `CombatantDefinition` and `EncounterSpec` are defined
+above in `src/game/bases/base.ts` (M6), not here, precisely to avoid M6
+importing a type from a file M11 hasn't built yet (see the comment on
+those interfaces for the full reasoning). `src/game/combat/encounter.ts`
+and `src/game/combat/combatant.ts` (M11) import both types from
+`../bases/base` and are where real instances get authored and where
+movement/attack/damage resolution actually runs against them.
 
 **The three per-axis evaluators, composed behind one facade** — owned by
 **M9**, not M6 (its signature needs `ShipClass` from M7 and M9's own
@@ -850,6 +867,16 @@ when this is inserted):
 
 ### 6b.4 Soft-lock avoidance guarantee
 
+**Note on the reward arithmetic below**: this section (written before
+Milestone 9.5 existed) uses `Base.firstClearCredits` throughout — the
+pre-mission-system reward constant. Milestone 9.5 §9.5.5 introduces
+`missionReward`, which _replaces_ `firstClearCredits` once that milestone
+lands (see §9.5.5's own note on the relationship). The proof below is
+correct as pre-M9.5 arithmetic and demonstrates the soft-lock guarantee
+holds at that stage; it is not re-derived against `missionReward`'s larger
+cargo-inclusive figures, and a reader should expect §9.5.7's worked
+examples to show noticeably larger reward numbers for the same bases.
+
 **The rule:** a base's `requirements` must always be clearable by _some_
 combination of ships/equipment already unlocked (starter, purchased, or
 achievement-unlocked) at the point that base itself becomes reachable in the
@@ -926,11 +953,25 @@ today's certified M1/M2 constants exactly** (`baseThrustAccel = 46`,
 ship-class system is a strict generalization of what's already shipped, not a
 break from it:
 
-| Ship                                              | dryMass (mu) | baseThrustAccel (px/s²) | engineForce | fuelCapacity | burnRate | handling (deg/s) | equipmentSlots |
+| Ship                                              | dryMass (MU) | baseThrustAccel (px/s²) | engineForce | fuelCapacity | burnRate | handling (deg/s) | equipmentSlots |
 | ------------------------------------------------- | ------------ | ----------------------- | ----------- | ------------ | -------- | ---------------- | -------------- |
 | **Sparrow** (scout)                               | 70           | 62                      | 4340        | 70           | 14       | 220              | 2              |
 | **Falcon** (balanced — matches today's constants) | 100          | 46                      | 4600        | 100          | 18       | 150              | 3              |
 | **Hauler** (heavy)                                | 160          | 34                      | 5440        | 160          | 24       | 95               | 4              |
+
+**This roster is illustrative for this section's puzzle-difficulty math
+only — it is not the same roster as §9.5.7's**, which uses different
+numbers (§9.5.7's Hauler: `dryMass` 650 vs. 160 here) because it's
+illustrating a different thing (cargo/mass-budget/relay-fuel math, which
+needs `massBudget`/`cargoBayCapacity`/`fuelPerDistanceUnit` fields this
+table doesn't carry). Both are placeholder numbers for their own section's
+worked examples, not a canonical `ships.ts` — M7's actual implementation
+picks the real final roster, informed by but not bound to either table.
+(An earlier draft of this section claimed the two were "not a competing
+numeric universe" — that was true only in the narrow sense that both are
+calibrated against the same real `THRUST_ACCEL`/`MAX_FUEL`/etc. constants
+Falcon reproduces above; it did not mean the two tables agree with each
+other, and they don't.)
 
 `engineForce = baseThrustAccel × dryMass`, held fixed thereafter — bolting on
 equipment mass lowers realized acceleration without touching the engine
@@ -1238,10 +1279,15 @@ sound).
 
 **Acceptance criteria**: a full play session is reachable end-to-end from
 the browser: menu → start → fly → land or crash → result screen →
-restart-or-menu, with no dead ends.
+restart-or-menu, with no dead ends. Pausing mid-flight freezes the
+simulation and shows the settings stub; resuming continues exactly where
+play left off.
 
 **Required tests**: e2e test covering the full flow (menu → play →
-result → restart); unit tests for any new pure logic.
+result → restart); a pause/resume e2e test (pause freezes physics —
+lander position/velocity unchanged across the pause interval — and the
+settings stub renders; resume continues the same flight); unit tests for
+any new pure logic.
 
 **Required quality gates**: full gate list, must stay green.
 
@@ -1293,10 +1339,15 @@ planets.
 **Scope**:
 
 - `src/game/planets/celestial-body.ts` — the `CelestialBody` interface:
-  id, name, `gravityAccel`, `atmosphereDensity` (drag coefficient; 0 for
-  airless worlds), `hazard` (`{ type: 'corrosive'; fuelDrainRate: number }`
+  id, name, `gravityAccel`, `atmosphereDensity` (0 for airless worlds),
+  `hazard` (`{ type: 'corrosive'; fuelDrainRate: number }`
   \| `{ type: 'cold'; thrustEfficiency: number }` \| `null`), terrain
   palette, and a `distance` number (in fictional "Transit Units," TU).
+  **Naming note**: `atmosphereDensity` is the same quantity every call
+  site (below, and §6b) passes as the `dragCoefficient` parameter — the
+  field is named for what it models (a world property), the parameter for
+  how it's used (a drag-physics coefficient); same value, no conversion
+  between the two names.
   **Amendment (from Milestone 9.5's design pass)**: `distance`'s originally
   stated "unlock ordering" role is retired — M6's actual unlock mechanism
   (below) is a discrete `unlocks: string[]` graph keyed off base ids, which
@@ -1390,14 +1441,28 @@ discovered-unclaimed → established` (amended from a simpler discovered/
   one — flagged explicitly so an implementer doesn't look for a single
   "briefing" field that doesn't exist.
 
-**Acceptance criteria**: starting state has exactly one world, with its
-first base `discovered-unclaimed` (the opening mission — §9.5.4 — is
-itself an Establish Presence mission that flips it to `established`); a
-base's difficulty badges are computed from its real authored parameters,
-never hardcoded independent of the actual `Base` record; locked
-worlds/bases are visible but not selectable; unlock state survives a real
-page reload; completed (`established`) bases remain re-enterable, with a
-reduced but always-nonzero replay reward (Resupply missions, M9.5).
+**Acceptance criteria** (deliberately scoped to what M6 alone can certify —
+see the dependency note below): starting state has exactly one world, with
+its first base `discovered-unclaimed`; the `locked → discovered-unclaimed
+→ established` transition and `unlocks` propagation work correctly when
+driven directly (a test harness calling the state-transition function, not
+a played mission — M9.5 is what wires an actual mission outcome to trigger
+it, see §9.5.4); a base's difficulty badges are computed from its real
+authored parameters, never hardcoded independent of the actual `Base`
+record; locked worlds/bases are visible but not selectable; unlock state
+survives a real page reload. The full player-facing loop this enables —
+completing the opening Establish Presence mission to actually flip the
+state, established bases staying re-enterable for a Resupply reward — is
+M9.5's acceptance criteria to certify, not M6's; M6 only has to prove the
+state machine and persistence are correct in isolation.
+
+**Dependency note**: M6's own certification above depends only on M5 and
+M3 (below), same as the roadmap table. M9.5 (roadmap position 8) is what
+_drives_ this state machine end-to-end via real missions, and is
+correctly listed as depending on M6 — not the other way around. Earlier
+drafts of this section folded M9.5's not-yet-buildable mission mechanics
+into M6's own acceptance criteria, which would have made M6 impossible to
+certify on its own; the wording above is the fix.
 
 **Required tests**: unit tests for the unlock-state data model (initial
 state, the three-state transition graph, `unlocks` propagation,
@@ -1424,8 +1489,8 @@ items at once) but has less range (lower fuel efficiency or capacity
 relative to its mass). Slot _count_ is therefore a ship-class stat
 (Milestone 7), while each individual item's mass-vs-benefit tradeoff
 (Milestone 9) is separate — a heavy ship with many slots can still
-over-equip itself into poor handling if the player fills every slot
-regardless of the target base's demands. Additional ships beyond the 5
+over-equip itself into poor thrust-to-weight if the player fills every
+slot regardless of the target base's demands. Additional ships beyond the 5
 starters are acquired two ways, per-ship: **some are purchased** with
 M8's currency once that milestone exists, **some are unlocked** through
 progression (an achievement, M6 world/base completion, etc.) —
@@ -1435,9 +1500,12 @@ This same purchase-or-unlock model applies to equipment items in M9 too
 inconsistent acquisition rules).
 
 **Scope**: `src/game/ships/ship.ts` (a `ShipClass` config: id, name,
-class/archetype, `dryMass`, `baseThrustAccel`, fuel capacity, rotation
-speed, **equipment slot count** (consumed by M9), and an `acquisition`
-field — `{ type: 'starter' }` \| `{ type: 'purchase'; price: number }` \|
+class/archetype, `dryMass`, `baseThrustAccel`, `fuelCapacity`, `burnRate`
+(fuel consumed per second at full thrust — needed by §6b.1's
+fuel-efficient-ship archetype and every worked fuel-margin example in
+§6b.5/§9.5.7), `handling` (rotation rate in deg/s — named to match every
+consumer of this stat, §6b.2/§6b.5/§9.5, rather than "rotation speed"),
+**equipment slot count** (consumed by M9), and an `acquisition` field — `{ type: 'starter' }` \| `{ type: 'purchase'; price: number }` \|
 `{ type: 'unlock'; condition: ... }`). **Thrust model, made explicit**
 (resolves an ambiguity §6b.6 item 2 flagged in the original "mass or
 thrust multiplier" phrasing): `engineForce = baseThrustAccel × dryMass`,
@@ -1469,7 +1537,10 @@ acquisition method shown, but not selectable until purchased or unlocked.
 
 **Required tests**: unit tests for the ship registry (valid/distinct
 configs, every `acquisition` variant represented); integration test
-comparing two ship classes' handling under identical input.
+comparing two ship classes' handling under identical input; a
+selection-screen test (unit or e2e) asserting a locked ship's entry is
+rendered but its select action is a no-op/disabled until its
+`acquisition` condition is met.
 
 **Required quality gates**: full gate list, must stay green.
 
@@ -1484,9 +1555,12 @@ comparing two ship classes' handling under identical input.
 M4's scoring formula, and a store UI to spend it.
 
 **Scope**: `src/game/economy/currency.ts` (pure score-to-currency
-conversion, persisted balance via M4's pattern), a `StoreScene` listing
-purchasable upgrades (from M9) and their prices, gated by currency
-balance and ship-ownership from M7.
+conversion, persisted balance via M4's pattern), a `StoreScene` — a
+generic mechanism that sells anything with a price tag, gated by currency
+balance. At M8's own build time the only sellable catalog is M7's ships
+(purchasable ships from M7's `acquisition: { type: 'purchase' }` roster);
+M9 later registers its own equipment items into this same mechanism
+without M8 needing to change.
 
 **Acceptance criteria**: completing a mission credits currency
 proportional to its score; the store correctly gates purchases on
@@ -1520,10 +1594,12 @@ store (Decision D14):
    equipment item is acquired either by purchase (M8) or by unlock
    (progression) — same dual model, same reasoning: not everything
    should be a flat currency purchase. Heavier loadouts mean
-   worse thrust-to-weight (same mass-affects-handling relationship M5/M7
-   already establish for ship class and world gravity) — so clearing a
-   hostile-heavy base by loading up on weapons costs you handling, and the
-   player must weigh equipment choice against the specific base's demands.
+   worse thrust-to-weight (the same mass-vs-acceleration relationship M7's
+   `dryMass`/`baseThrustAccel` and world gravity already combine to
+   produce — see the M9 amendment below for the exact formula) — so
+   clearing a hostile-heavy base by loading up on weapons costs you
+   thrust-to-weight, and the player must weigh equipment choice against
+   the specific base's demands.
    This is the concrete mechanic behind the explicit design goal: "account
    for your equipment carefully to complete the desired base successfully."
    **Every item's definition is a pros-and-cons bundle, not a single
@@ -1587,9 +1663,20 @@ modification, each equipment item's paired benefit-stat + mass-cost
 application, and cycle/trigger-selection logic (all pure); integration
 test comparing upgraded-vs-base and light-loadout-vs-heavy-loadout ship
 performance across at least two different equipment tradeoffs (e.g.
-fuel-tank-vs-handling and shield-vs-handling).
+fuel-tank-vs-handling and shield-vs-handling); an e2e reload test
+(same pattern as M4/M8's persistence tests) asserting upgrades and the
+current loadout survive a real page reload.
 
 **Required quality gates**: full gate list, must stay green.
+
+**Scope-creep flag**: this milestone bundles six independently-testable
+subsystems (permanent stat upgrades, the equipment/mass system,
+`effectiveThrustAccel`, the `fit-check.ts` facade, cycle/trigger input,
+and the loadout screen). If implementation reveals any one of them is
+substantial enough to destabilize the others' review, split it into its
+own sub-milestone (M9a/M9b/...) rather than certifying all six at once —
+noted here so the split is a deliberate option, not a scope discovery
+made partway through a stalled PR.
 
 **Certification checklist**: not started. Depends on M8.
 
@@ -1608,7 +1695,7 @@ Two cargo types, deliberately built to behave differently:
 
 **One shared mass pool, not two.** Extending M9's amended formula:
 
-`totalCarriedMass = equipmentMass + cargoMass`, where `cargoMass = troopSquads × 10 + supplyUnits × 2`, and the single constraint is `totalCarriedMass ≤ shipClass.massBudget`. Every troop squad or supply crate loaded is mass that cannot go to a shield or weapon, and vice versa — this is the mechanical core of "cargo vs. weapons/shields vs. handling all draw from one pool."
+`totalCarriedMass = equipmentMass + cargoMass`, where `cargoMass = troopSquads × 10 + supplyUnits × 2`, and the single constraint is `totalCarriedMass ≤ shipClass.massBudget`. Every troop squad or supply crate loaded is mass that cannot go to a shield or weapon, and vice versa — this is the mechanical core of "cargo vs. weapons vs. shields all draw from one pool," with every unit of that shared mass costing thrust-to-weight (§9's `effectiveThrustAccel`) regardless of which of the three it was spent on.
 
 **`cargoBayCapacity` is a second, narrower ceiling — deliberately not a duplicate of `massBudget`.** It caps only the cargo _portion_ (`cargoMass ≤ shipClass.cargoBayCapacity`), independent of how much of `massBudget` is otherwise free. This is what lets a heavily-armed combat-archetype ship class have `cargoBayCapacity = 0` — physically no hold — even if its `massBudget` has headroom after equipping weapons; and what lets a hauler-class ship have a huge `cargoBayCapacity` relative to its `massBudget`, making it the natural choice for cargo-heavy missions. Both constraints are checked together; failing either blocks launch.
 
@@ -1645,7 +1732,7 @@ Cargo quantity per trip is **player-chosen at each launch's loadout screen** (no
 3. **`update()`'s existing two-branch structure barely changes.** The `outcome !== 'flying'` branch still freezes the scene on landing/crash exactly as it does today — the only change is _what happens after the brief result display_. With no `mission` in scene data: unchanged, `R` triggers `scene.restart()`, identical to certified M2 behavior. With `mission` present: after the outcome displays (safe landing or crash), the scene automatically transitions to the world-map/mission screen (`this.scene.start('WorldMap', { mission: updatedMissionState })`) instead of waiting on `R` — crediting cargo to `this.registry`'s `MissionState` first if the landing was safe and at the correct base/pad (§9.5.2's touchdown-only invariant). **This also eliminates the R-key-overload UX concern an earlier draft of this section flagged**: `R` never means two different things depending on mission state, because the mission-context path never uses `R` for progression at all.
 4. **The mission-wide timer / mid-flight-expiry edge case** still needs a deliberate resolution: if the mission-wide timer reaches zero while the ship is still airborne mid-descent, the in-progress trip is not artificially frozen or interrupted — physics and input continue exactly as before, and the trip resolves naturally to `'landed'`/`'crashed'` one or more frames later. A `missionTimerExpired` flag (set the instant the timer hits zero) suppresses cargo crediting for that trip regardless of which way it naturally resolves; the scene then transitions to the world map exactly as in point 3, carrying the finalized `missionStatus` (`'partial'`/`'failure'`, from the cumulative `delivered`-vs-`target` comparison).
 5. **Relay legs need no special-case scene bridging beyond what every other mission-context trip already does.** Under this corrected model, _every_ trip/leg (multi-trip or relay) already exits to the world-map/mission screen between attempts, so a relay's second leg is just another instance of that same pattern. A `TransitScene` (or an equivalent transit step folded into the world-map screen) is still needed to render the animated origin→destination transfer and deduct transit fuel (§9.5.6) — but it's reached via the exact same "scene exits to the mission/world-map flow" path every other trip uses, not a relay-only special case.
-6. **`MissionState` persistence** lives on `this.registry` (Phaser's game-global `DataManager`, which survives a `scene.start()` to a different scene key), since mission state must survive genuine scene changes between trips/legs, which `this.data` does not. The existing per-scene `this.data.set('outcome', ...)` contract (and its e2e test) is preserved exactly as today — scoped correctly to one `GameScene` instance's lifetime, since `tripOutcome` never needs to survive past its own trip's scene instance under this model.
+6. **`MissionState` persistence** lives on `this.registry` (Phaser's game-global `DataManager`, which survives a `scene.start()` to a different scene key), since mission state must survive genuine scene changes between trips/legs, which `this.data` does not. The existing per-scene `this.data.set('outcome', ...)` contract (and its e2e test) is preserved exactly as today — scoped correctly to one `GameScene` instance's lifetime, since `outcome` never needs to survive past its own trip's scene instance under this model.
 7. **Fuel resets to full at the start of every trip** (recommendation, not forced by any technical constraint) — "you refuel at base/menu between trips."
 8. **HUD additions are purely additive**: new text objects for delivered/target cargo and a countdown timer, added beside the existing `fuelText`/`outcomeText`, no deletion of existing HUD code.
 
@@ -1673,7 +1760,17 @@ Two flavors, orthogonal to the structure taxonomy above (a relay can carry eithe
 
 **Starting-state resolution** (amends M6's acceptance criterion): the game's opening mission _is_ an Establish Presence mission — the player founds their own home base. This teaches the mechanic immediately, hands the player the "first ever" achievement as their first toast, and after that mission the home base is `established` and all further home-base missions are Resupply.
 
-**Achievement hooks (extends M12's registry, no new infrastructure — same trigger-condition/display-text shape M12 already defines)**:
+**Achievement triggers this milestone emits, for M12 to consume later** —
+**M9.5 does not depend on M12** (M12 is roadmap position 11, three after
+M9.5 at position 8; M9.5's own Certification checklist correctly lists
+only M6/M8/M9). What M9.5 actually does is emit a `MissionOutcome` event
+with enough shape for M12 to eventually wire the five triggers below —
+firing the toast, checking "already unlocked," and persisting the
+unlocked-achievement set are entirely M12's job and M12's own acceptance
+criteria to certify, not this milestone's. This table exists so M12's
+implementer has the exact trigger list up front, the same
+forward-declare-the-shape-now pattern already used for `Base.encounters`
+(M6 declares the field, M11 populates it):
 
 | id                        | Display text                                                        | Trigger                                                              |
 | ------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -1683,7 +1780,12 @@ Two flavors, orthogonal to the structure taxonomy above (a relay can carry eithe
 | `resupply-streak-<tier>`  | "Lifeline" (5) / "Old Reliable" (10) / "Backbone of the Fleet" (25) | `resupplyCounts[baseId]` (or a global sum) crosses the threshold     |
 | `frontier-claimed`        | "Frontier Claimed"                                                  | Establish Presence completed at every critical-path base in the game |
 
-Data needed beyond what M6 already persists: `resupplyCounts: Record<string, number>` and `establishedAt: Record<string, number>` — both persisted via M4's existing validated-`localStorage` pattern, the same one M6/M8/M12 already share.
+Data this milestone does persist (via M4's existing validated-`localStorage`
+pattern, regardless of whether M12 has landed yet — M9.5 needs these
+counters for its own Resupply/critical-path logic independent of
+achievements): `resupplyCounts: Record<string, number>` and
+`establishedAt: Record<string, number>`. M12, once built, reads these same
+two records rather than inventing its own copies.
 
 #### 9.5.5 Reward formula (extends M4/M8, doesn't replace either)
 
@@ -1702,6 +1804,22 @@ missionReward     = MISSION_BASE_COMPLETION_REWARD                             /
 ```
 
 `missionCargoReward` for a crashed trip/leg is `0` — cargo is destroyed, not partially credited — this holds uniformly across all three structures (single-trip's one landing, each of multi-trip's trips independently, relay's one indivisible payload).
+
+**Relationship to `Base.firstClearCredits` (§6b.2)**: `missionReward`
+**replaces** `firstClearCredits` once this milestone lands — a base clear
+becomes a mission (this milestone's whole point), and a mission's reward
+is `missionReward`, not the flat per-base constant. `firstClearCredits` is
+the pre-M9.5-only value: it's what a base pays if a session ever needs to
+score a bare "land safely, no mission" clear before this milestone exists
+(exactly M2/M6's certified/certifiable scope, which has no cargo, no
+flavor, nothing for `missionReward`'s formula to compute over). §6b.4's
+soft-lock affordability proof, built before this milestone existed, uses
+`firstClearCredits` numbers throughout — that proof is correct as
+pre-M9.5 arithmetic and is not re-derived here, but a reader should not
+expect its reward figures to match this section's worked examples
+(§9.5.7), which use `missionReward` exclusively and are consistently
+10-20x larger for the same bases, reflecting cargo value the earlier
+proof's flat constants never accounted for.
 
 #### 9.5.6 Relay-specific mechanics
 
@@ -1740,14 +1858,14 @@ A relay may fail on cargo capacity alone, fuel range alone, both, or neither —
 - A relay mission: cargo loads only after a safe origin landing; total mass increases for the outbound leg (measurably worse `effectiveThrustAccel`, integration-tested); a crash on either leg or an under-fuel transit fails the mission and loses the cargo; a successful destination landing credits reward and, for Establish Presence, flips base status and unlock state correctly.
 - Establishing a base flips its status, opens every base in its `unlocks` list, and is a one-time-only bonus (a second attempt at an already-established base's site is simply not offered — Resupply is offered instead).
 - At least one relay mission in the shipped registry is genuinely infeasible for every ship class in the current roster, and the mission-select UI states why (cargo gate, fuel gate, or both) rather than silently hiding it.
-- Achievements in the table above fire exactly once each, on the correct trigger, and persist across a reload (M4's pattern).
+- Every state change the achievement table depends on (`resupplyCounts`, `establishedAt`, a base reaching `established`) is correctly tracked and persisted by this milestone — but _firing the achievement itself_ is M12's acceptance criteria to certify, not this milestone's; M9.5 only has to prove the underlying counters are right.
 - Every trip/leg, regardless of outcome, returns the player to the world-map/mission screen — never an in-place relaunch prompt (§9.5.3).
 
 **Required tests**:
 
 - Unit: cargo-mass/mass-budget/cargo-bay-capacity checks (pure); `MissionState`'s `recordDelivery`/`isTargetMet`/`resolveFinalStatus`/`isTimeExpired` (pure, Node-only, same philosophy as `flight-state.ts`); reward formula (`riskBonus`, `flavorMultiplier`, per-trip vs. cumulative summation); relay distance/fuel/feasibility functions (same-world vs. cross-world distance, fuel scaling with distance and mass, all four cargo/fuel-gate quadrants); base-status state-machine transitions (`locked→discovered-unclaimed→established`, `unlocks` propagation).
-- Integration: same ship, cargo-loaded vs. unloaded, measurably different descent time/fuel burn under identical input (same methodology as M5's body-variation and M7's ship-variation tests); a full multi-trip sequence (success, partial, and failure end states) driven through `MissionState` without Phaser, including a timer-expiry-mid-flight case verifying the trip resolves naturally and is uncredited either way; a full relay sequence (both legs, cargo mass change between legs, transit fuel deduction).
-- E2E: a full single-trip flow reproduces existing M2 behavior; a multi-trip mission's first trip ends at the world-map screen (not an in-place relaunch prompt), and launching a second trip to the same base from there continues the same mission; the `outcome`/`missionStatus` data-manager keys both observable and correctly separated.
+- Integration: same ship, cargo-loaded vs. unloaded, measurably different descent time/fuel burn under identical input (same methodology as M5's body-variation and M7's ship-variation tests); a full multi-trip sequence (success, partial, and failure end states) driven through `MissionState` without Phaser, including a timer-expiry-mid-flight case verifying the trip resolves naturally and is uncredited either way; a full relay sequence (both legs, cargo mass change between legs, transit fuel deduction) covering **both** the success path **and** the two failure paths: a crash on either leg (cargo lost, mission ends immediately) and an under-fuel "stranded" failure (fuel remaining after the origin leg is less than the computed transit cost, checked before cruise begins — a distinct failure mode from a crash per §9.5.2, not merged into the same test case).
+- E2E: a full single-trip flow reproduces existing M2 behavior; a multi-trip mission's first trip ends at the world-map screen (not an in-place relaunch prompt), and launching a second trip to the same base from there continues the same mission; the `outcome`/`missionStatus` data-manager keys both observable and correctly separated; the mission-select screen actually renders the "infeasible, here's why" message (cargo gate, fuel gate, or both) for the roster's known-infeasible relay mission (§9.5.7 Example F) — a UI-rendering assertion, not just the underlying `relayFeasibility` unit test.
 
 **Required quality gates**: full gate list, must stay green.
 
@@ -1847,15 +1965,24 @@ obstacles. Colliding with an obstacle is a crash unless cleared by a
 weapon (M11); populates `Base.difficulty.axes.spatial` (§6b.2) for bases
 with real obstacle layouts.
 
-**Acceptance criteria**: obstacles are deterministic given a seed and
-never overlap the landing pad; colliding with an uncleared obstacle
-crashes the ship; a cleared obstacle no longer blocks flight.
+**Acceptance criteria** (scoped to what M10 alone can certify — M10 is
+built and certified before M11 exists, so nothing below depends on
+clearing): obstacles are deterministic given a seed and never overlap the
+landing pad; colliding with _any_ obstacle crashes the ship (every
+obstacle M10 ships is, by construction, uncleared — `armorRating`/
+`cleared` are optional fields M11 populates later, per §6b.2, and are
+simply absent on every obstacle M10 itself authors); obstacles are
+represented on `Base.terrainOptions.obstacles` and contribute to
+`Base.difficulty.axes.spatial`. "A cleared obstacle no longer blocks
+flight" is **M11's** acceptance criterion to certify, on M10's data — not
+restated here, since M10 can't test a clearing mechanic that doesn't
+exist yet at its own certification point.
 
 **Required tests**: unit tests for obstacle placement (determinism,
-non-overlap with the pad); e2e/integration coverage for obstacle
-collision (full clearing behavior lands once M11's weapons exist — this
-milestone can ship obstacles as pure hazards first if sequenced before
-M11, acceptance criteria adjusted accordingly at implementation time).
+non-overlap with the pad) and for `isCollidingWithObstacle` against
+always-uncleared obstacles; e2e/integration coverage confirming collision
+crashes the ship. (Clearing behavior is M11's required tests, against
+M10's data — see M11's own section.)
 
 **Required quality gates**: full gate list, must stay green.
 
@@ -1912,19 +2039,25 @@ toast notifications on unlock.
 
 **Scope**: `src/game/achievements/` — achievement registry (id, trigger
 condition, display text), a toast-notification UI component, persisted
-unlocked-achievement state (M4's pattern).
+unlocked-achievement state (M4's pattern). Implements the five triggers
+M9.5 §9.5.4 already specified (`first-presence`, `world-pioneer-<id>`,
+`full-claim-<id>`, `resupply-streak-<tier>`, `frontier-claimed`), reading
+the `resupplyCounts`/`establishedAt` records M9.5 already persists rather
+than inventing new counters — this milestone is the consumer of that
+table, not its author.
 
-**Acceptance criteria**: completing a defined trigger shows a toast and
-persists the unlock; an already-unlocked achievement doesn't re-trigger
-its toast.
+**Acceptance criteria**: completing a defined trigger (including all five
+from M9.5's table) shows a toast and persists the unlock; an
+already-unlocked achievement doesn't re-trigger its toast.
 
-**Required tests**: unit tests for trigger evaluation and persistence;
-e2e test triggering at least one achievement and confirming the toast
-appears.
+**Required tests**: unit tests for trigger evaluation (including each of
+M9.5's five triggers against its real `resupplyCounts`/`establishedAt`
+shape) and persistence; e2e test triggering at least one achievement and
+confirming the toast appears.
 
 **Required quality gates**: full gate list, must stay green.
 
-**Certification checklist**: not started. Depends on M4.
+**Certification checklist**: not started. Depends on M4 and M9.5.
 
 ---
 
@@ -1939,9 +2072,21 @@ focus-visible menus/store/world-map).
 **Scope**: audio asset loading (`BootScene`'s first real use as a
 loader), particle/juice effects across `GameScene`/combat/UI.
 
-**Acceptance criteria**: audio plays without blocking boot (respects
-browser autoplay policy); Lighthouse accessibility stays at or above the
-Milestone 1 baseline (1.00) across all new UI.
+**Acceptance criteria**: audio boot does not throw or produce an
+unhandled rejection when the browser's autoplay policy blocks sound
+(concretely assertable — see Required tests below; "respects autoplay
+policy" alone isn't something any tool in this project's gates can check
+pass/fail, so the criterion is stated as the observable behavior instead);
+audio initializes on first user interaction if blocked at boot; Lighthouse
+accessibility stays at or above the Milestone 1 baseline (1.00) across
+all new UI.
+
+**Required tests**: e2e test asserting zero console errors/unhandled
+rejections through boot and first interaction with audio present (extends
+the existing console-error assertion pattern from `e2e/game-boot.spec.ts`);
+unit test on the audio loader's blocked-autoplay fallback branch (does it
+correctly defer to first-interaction rather than throwing); unit tests for
+any new particle/juice pure-logic parameters that become configurable.
 
 **Required quality gates**: full gate list, must stay green, including a
 fresh Lighthouse accessibility run.
