@@ -36,6 +36,7 @@ import {
   TERRAIN_SHADOW_LAYER_DEPTH,
   LANDING_PAD_SEGMENT_COUNT,
   THRUST_ACCEL,
+  WORLD_WIDTH,
 } from '../constants';
 import { FlightState } from '../flight/flight-state';
 import { degreesToRadians } from '../physics/lander-physics';
@@ -93,7 +94,7 @@ export class GameScene extends Phaser.Scene {
 
     this.terrain = generateTerrain({
       seed: Date.now(),
-      width: GAME_WIDTH,
+      width: WORLD_WIDTH,
       height: GAME_HEIGHT,
       segments: TERRAIN_SEGMENTS,
       minHeightFraction: TERRAIN_MIN_HEIGHT_FRACTION,
@@ -110,7 +111,6 @@ export class GameScene extends Phaser.Scene {
         rotationRadians: 0,
         fuel: MAX_FUEL,
       },
-      worldWidth: GAME_WIDTH,
       gravityAccel: GRAVITY_ACCEL,
       thrustAccel: THRUST_ACCEL,
       rotationSpeedRadPerSec: degreesToRadians(ROTATION_SPEED_DEG),
@@ -149,6 +149,17 @@ export class GameScene extends Phaser.Scene {
     );
     this.lander.container.addAt(engineGlow, 1);
 
+    // Camera follows the lander across the full WORLD_WIDTH (Milestone
+    // 2.5) instead of the whole world always being exactly one static
+    // screen. roundPixels avoids sub-pixel texture shimmer; no deadzone/
+    // lerp smoothing — a lander game needs the camera locked precisely to
+    // the ship for landing judgment, not a cinematic lag.
+    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
+    this.cameras.main.startFollow(this.lander.container, true);
+
+    // HUD text needs setScrollFactor(0) now that the camera moves — every
+    // other GameObject in the scene moves with the world (the default),
+    // but HUD must stay fixed on screen regardless of camera position.
     this.add
       .text(GAME_WIDTH / 2, HUD_MARGIN, 'ORBITAL DESCENT', {
         fontFamily: 'monospace',
@@ -156,7 +167,8 @@ export class GameScene extends Phaser.Scene {
         color: '#e0e0e0',
       })
       .setOrigin(ORIGIN_CENTER, 0)
-      .setDepth(HUD_LAYER_DEPTH);
+      .setDepth(HUD_LAYER_DEPTH)
+      .setScrollFactor(0);
 
     this.add
       .text(
@@ -170,7 +182,8 @@ export class GameScene extends Phaser.Scene {
         },
       )
       .setOrigin(ORIGIN_CENTER, 0)
-      .setDepth(HUD_LAYER_DEPTH);
+      .setDepth(HUD_LAYER_DEPTH)
+      .setScrollFactor(0);
 
     this.fuelText = this.add
       .text(HUD_MARGIN, HUD_MARGIN, '', {
@@ -178,7 +191,8 @@ export class GameScene extends Phaser.Scene {
         fontSize: '16px',
         color: '#e0e0e0',
       })
-      .setDepth(HUD_LAYER_DEPTH);
+      .setDepth(HUD_LAYER_DEPTH)
+      .setScrollFactor(0);
     this.updateFuelText(MAX_FUEL);
 
     this.outcomeText = this.add
@@ -188,7 +202,8 @@ export class GameScene extends Phaser.Scene {
         color: '#e0e0e0',
       })
       .setOrigin(ORIGIN_CENTER, ORIGIN_CENTER)
-      .setDepth(HUD_LAYER_DEPTH);
+      .setDepth(HUD_LAYER_DEPTH)
+      .setScrollFactor(0);
   }
 
   override update(_time: number, deltaMs: number): void {
@@ -239,7 +254,7 @@ export class GameScene extends Phaser.Scene {
   private buildTerrainVisual(): void {
     const groundPoints = [
       ...this.terrain.points,
-      { x: GAME_WIDTH, y: GAME_HEIGHT },
+      { x: WORLD_WIDTH, y: GAME_HEIGHT },
       { x: 0, y: GAME_HEIGHT },
     ];
     const ground = createPaperShape(this, {

@@ -51,13 +51,6 @@ export function consumeFuel(currentFuel: number, burnRate: number, dtSeconds: nu
   return Math.max(0, currentFuel - burnRate * dtSeconds);
 }
 
-/** Arcade-style horizontal screen wrap. Vertical movement is unbounded here —
- * ground contact is a terrain-collision concern (see src/game/terrain/),
- * not a flight-physics one. */
-export function wrapHorizontal(x: number, worldWidth: number): number {
-  return ((x % worldWidth) + worldWidth) % worldWidth;
-}
-
 /** Wraps radians into (-PI, PI], so accumulated rotation from many spins can
  * still be compared meaningfully against a small "how upright is this"
  * tolerance for landing safety. */

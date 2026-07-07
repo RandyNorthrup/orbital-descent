@@ -8,6 +8,49 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 2.5 — World Scrolling & Parallax Depth (Decision D19),
+  certified**: replaced the single-screen world model (world width ==
+  viewport width) with a real scrolling world — a Phaser camera follows
+  the lander over a world 3x the viewport width, every Decision D18
+  background layer now scrolls at its own parallax speed
+  (`SKY_SCROLL_FACTOR`/`FAR_RIDGE_SCROLL_FACTOR`/`MID_RIDGE_SCROLL_FACTOR`),
+  and a new midground ridge layer fills the depth gap between the far
+  ridge and the gameplay terrain (the "not enough depth" note from D18's
+  review). HUD text gained `.setScrollFactor(0)` so it stays screen-fixed
+  now that the camera moves.
+  **Horizontal wraparound removed**, found during this milestone's own
+  review, not planned at the start: pairing the existing `wrapHorizontal`
+  wrap with a zero-lerp follow camera meant every wrap instantly
+  teleported the camera too, cutting the whole visible world to an
+  unrelated section with no panning in between. `wrapHorizontal` was
+  deleted from `lander-physics.ts` (with its unit tests), and
+  `FlightState`'s `worldWidth` option was removed entirely (nothing calls
+  `wrapHorizontal` anymore) — horizontal position is now unbounded,
+  symmetric with vertical (already unbounded since Milestone 2).
+  New: `constants.test.ts` (pins the new derived multiplier-scaled
+  constants against hand-computed values), `e2e/world-scrolling.spec.ts`
+  (4 tests: camera bounds/centering + terrain width, per-layer parallax
+  factors, HUD fixedness, continuous camera-tracking via a position-
+  derived invariant rather than a timing-dependent threshold — the
+  threshold version was tried first and proved flaky under parallel
+  test-worker contention).
+- **Verified this release**: format/lint/typecheck all clean;
+  unit+integration 68 tests (63 after removing 4 wraparound-specific
+  tests, +5 new `constants.test.ts` tests); coverage 98.9%/87.87%/100%/
+  98.82% (thresholds 90/85/90/90, all met); `pnpm deadcode`/
+  `security:audit`/`security:secrets` clean; `pnpm build` succeeds;
+  `pnpm test:e2e` 18/18 across Chromium/Firefox/WebKit, confirmed stable
+  across 3 consecutive full runs; real Playwright verification of the
+  wraparound fix specifically (sustained one-directional flight to
+  ~4000px past spawn: camera pans smoothly and pins at its bound, lander
+  keeps climbing with no teleport, matching the fix's intent exactly).
+  An adversarial code review (3 independent dimensions, every finding
+  re-verified before acceptance) caught the camera-teleport bug above
+  plus two documentation-discipline gaps (this entry and Milestone 2.5's
+  certification are the fix) and three test-coverage gaps (per-layer
+  parallax factors, continuous camera-tracking, and the derived-constants
+  pin, all closed above).
+
 - Art direction (Decision D18): reworked the Milestone 1/2 paper-cutout
   rendering from flat-tinted fills to gradient-shaded fills, and added a
   new layered background (sky gradient, glowing moon, seeded crisp

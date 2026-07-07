@@ -4,7 +4,6 @@ import {
   integrate,
   integrateRotation,
   thrustVector,
-  wrapHorizontal,
   ZERO_VECTOR,
   type Vector2,
 } from '../physics/lander-physics';
@@ -23,7 +22,6 @@ export interface FlightSnapshot {
 
 export interface FlightStateOptions {
   readonly initial: FlightSnapshot;
-  readonly worldWidth: number;
   readonly gravityAccel: number;
   readonly thrustAccel: number;
   readonly rotationSpeedRadPerSec: number;
@@ -39,7 +37,6 @@ export interface FlightStateOptions {
  */
 export class FlightState {
   private currentSnapshot: FlightSnapshot;
-  private readonly worldWidth: number;
   private readonly gravityAccel: number;
   private readonly thrustAccel: number;
   private readonly rotationSpeedRadPerSec: number;
@@ -47,7 +44,6 @@ export class FlightState {
 
   constructor(options: FlightStateOptions) {
     this.currentSnapshot = options.initial;
-    this.worldWidth = options.worldWidth;
     this.gravityAccel = options.gravityAccel;
     this.thrustAccel = options.thrustAccel;
     this.rotationSpeedRadPerSec = options.rotationSpeedRadPerSec;
@@ -81,7 +77,7 @@ export class FlightState {
       : current.fuel;
 
     this.currentSnapshot = {
-      position: { x: wrapHorizontal(rawPosition.x, this.worldWidth), y: rawPosition.y },
+      position: rawPosition,
       velocity,
       rotationRadians,
       fuel,

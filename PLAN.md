@@ -45,7 +45,7 @@ milestones depend on understanding _why_, not just _what_.
 | D16 | Achievements           | **Achievement system + toast notifications**                                                                                                                                                                                                                                                            | Scopes Milestone 12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | D17 | World progression      | **Planetary browser/map: worlds are `discovered`/`locked`; bases within a world use the finer three-state machine `locked → discovered-unclaimed → established` (amended per Milestone 9.5's design)**                                                                                                  | Scopes Milestone 6; depends on Milestone 5's per-world config and Milestone 3's menu system both existing first (matches the roadmap's own "M5, M3" dependency list for M6).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | D18 | Art direction          | **"Ship-Forward / Atmospheric Depth"**: gradient-shaded (not flat) paper fills, a layered background (glowing moon/sun, crisp seeded starfield, blurred/desaturated far parallax ridge), a static engine-glow accent on the ship — retains the existing crisp outline + hard shadow + paper-grain rules | Superseded the original flat-fill "paper-cutout" rules (§4) after two rejected A/B rounds against user-supplied reference art (layered papercraft dioramas). Chosen over two other independently-prototyped candidates ("Deep Parallax Bands," "Warm Jewel Diorama") specifically because its ships read as the clearest, most distinct ally/hostile silhouettes — the property that matters most once M7/M11 add real ship variety. Starfield treatment pulled from the other two candidates per explicit feedback (crisp small dots, not soft/blurred). Retrofitted into the certified Milestone 1/2 lander+terrain rendering; all quality gates re-verified green. Every future planet/moon/ship/enemy art asset still gets its own approval pass before being treated as final — this is a technique pick, not a one-time blanket sign-off.                                                                                                                          |
-| D19 | World scrolling        | **Not yet resolved as code — planned**: worlds/bases will support side-scrolling (a world wider than the 960×640 viewport, camera-follow) rather than the current single-screen wraparound model                                                                                                        | Flagged during the D18 art-direction work: the current model has `wrapHorizontal` wrap at the _screen_ edge because world width == viewport width (Milestone 2). Real base layouts (§6b) squeezed onto one static screen limits puzzle/difficulty design space. Scoped as its own dedicated follow-up (not bundled into the D18 rendering change) since it touches certified M1/M2 physics semantics (`wrapHorizontal`, `FlightState`'s `worldWidth`) and requires parallax `scrollFactor` treatment for every D18 background layer (sky/moon/stars/far ridge scroll slower than gameplay terrain/lander) — see Milestone 2 amendment below.                                                                                                                                                                                                                                                                                                                             |
+| D19 | World scrolling        | **Worlds/bases support side-scrolling**: a world wider than the 960×640 viewport, camera-follow, real parallax — implemented, Milestone 2.5                                                                                                                                                             | Flagged during the D18 art-direction work: the old model had `wrapHorizontal` wrap at the _screen_ edge because world width == viewport width (Milestone 2). Real base layouts (§6b) squeezed onto one static screen limits puzzle/difficulty design space. Scoped as its own milestone (M2.5, not bundled into the D18 rendering change) since it touched certified M1/M2 physics-adjacent wiring. Resolved differently than originally planned: reviewing the interaction between wraparound and a zero-lerp follow camera found that wrapping the lander's position also instantly teleported the camera, cutting the whole visible world to an unrelated section with no panning — `wrapHorizontal` was removed entirely rather than merely retargeted to the world edge (see Milestone 2.5's amendment for the full reasoning). Horizontal position is now unbounded, symmetric with vertical.                                                                      |
 | D20 | Content scale & gating | **Minimum 12 unique fictional worlds/moons, each with 1-3 landing bases (puzzles); progression is gated by _both_ mission completions (M9.5's `unlocks` graph, D17) _and_ ship/equipment upgrade tier (per-base `requirements`, §6b.2's `evaluateBaseFit`), not either alone**                          | Explicit content-scale instruction. Raises M5's starter-registry minimum from 4 to 12 worlds (see M5 below). The dual-gate model isn't new machinery — M9.5's `unlocks: string[]` graph (mission-gated) and §6b.2's `BaseRequirements` (`minTWR`/`handling`/`combat.*`, upgrade-gated) already exist independently; D20 makes explicit that a real base can, and at least some must, require _both_ at once (a story-gated base that's also mechanically out of reach without upgrades), so neither gate alone trivializes progression. **Storyline**: 12 worlds implies an actual narrative throughline ("why the player is going to each one"), not just a mechanical unlock graph — flagged as content to author during M5/M6 implementation, not fabricated speculatively in this planning pass; the existing named worked examples (Kessel's Reach, Verdalis, Pyrrhine Expanse, Glacian Drift, §9.5.7) remain valid as a subset, not a replacement for the full 12. |
 
 ## 3. Open Questions
@@ -54,14 +54,28 @@ milestones depend on understanding _why_, not just _what_.
   touch devices in practice. Note this also means Lighthouse is deliberately
   run with the `desktop` preset (§5) — testing this app under Lighthouse's
   default mobile emulation would be testing a platform it doesn't target.
+- **Flying far past the world's horizontal edge ends the flight off-camera**
+  (Milestone 2.5): horizontal position is unbounded and the camera pins at
+  its bounds-clamped scroll extreme once the lander passes the world edge,
+  so a lander that keeps flying past that point (there's nothing stopping
+  it) can eventually contact `getTerrainHeightAt`'s clamped-to-last-point
+  terrain height entirely outside the visible camera view — landed/crashed
+  with no on-screen feedback until the result text (fixed to the camera,
+  not the world) appears. Rare in normal play (requires sustained one-
+  directional thrust well past the last generated terrain point) and not
+  a crash/error, just a poor look. Revisit once a real reason exists to
+  design world-edge behavior on purpose (a hard wall, a mission boundary,
+  M6's base-to-base travel model) rather than speculatively now.
 
 ## 4. Architecture Notes
 
 ### Custom physics core, not Phaser Arcade Physics
 
 `src/game/physics/lander-physics.ts` and `src/game/flight/flight-state.ts`
-implement gravity, thrust, fuel burn, rotation, and horizontal wrapping as
-plain, framework-free TypeScript — no Phaser `Arcade.Body` involved. Phaser is
+implement gravity, thrust, fuel burn, and rotation as plain, framework-free
+TypeScript — no Phaser `Arcade.Body` involved (horizontal wraparound was
+part of this list from Milestone 2 through Milestone 2.5, then removed;
+see Milestone 2.5's amendment for why). Phaser is
 used purely for rendering (`Scene`, `GameObjects.Triangle`), input
 (`KeyboardPlugin`), and scene lifecycle.
 
@@ -399,33 +413,154 @@ re-run after the change: format/lint/typecheck/test/coverage (65 tests,
 98.92% stmts / 87.87% branches / 100% funcs / 98.85% lines) /deadcode/
 security/build/e2e (6/6, three browsers) all green.
 
-**Amendment (Decision D19, world scrolling — planned, not yet built)**:
-flagged during the D18 work that the current model has no camera/world-
-scrolling concept at all — `FlightState`'s `worldWidth` and the viewport's
-`GAME_WIDTH` are the same number, so `wrapHorizontal` wraps at the _screen_
-edge. Squeezing every future base layout (§6b) onto one static 960×640
-screen limits puzzle/difficulty design space. The planned shape of the
-fix, to be implemented as its own dedicated follow-up (not bundled into
-the D18 rendering change, since it touches certified physics semantics):
+**Amendment (Decision D19, world scrolling)**: flagged during the D18 work
+that the current model has no camera/world-scrolling concept at all —
+`FlightState`'s `worldWidth` and the viewport's `GAME_WIDTH` are the same
+number, so `wrapHorizontal` wraps at the _screen_ edge. Squeezing every
+future base layout (§6b) onto one static 960×640 screen limits puzzle/
+difficulty design space. Scoped as its own milestone rather than bundled
+into the D18 rendering change, since it touches certified physics-adjacent
+wiring — see Milestone 2.5 below.
 
-- `FlightState`'s `worldWidth` becomes a multiple of the viewport's
-  `GAME_WIDTH` (exact ratio TBD per base, likely base-specific rather than
-  one global constant, since §6b already treats each base as an
-  individually-tuned puzzle).
-- A `Phaser.Cameras.Scene2D.Camera#startFollow` on the lander, with a
-  deadzone, replaces "the whole world is always fully visible."
-- `wrapHorizontal` semantics move from "wrap at screen edge" to "wrap at
-  world edge" — `TERRAIN_SEGMENTS` and terrain generation scale with the
-  new world width, not the fixed viewport width.
-- Every D18 background layer (sky, moon, starfield, far ridge) needs an
-  explicit `setScrollFactor()` below 1 so it scrolls slower than the
-  gameplay terrain/lander (`scrollFactor` 1) — real parallax motion, not
-  just a static layered look. Currently every background layer implicitly
-  has `scrollFactor` 1 (Phaser's default) since there's no camera movement
-  yet for a lower factor to matter.
+**Amendment (Milestone 2.5 certification)**: `wrapHorizontal` — introduced
+in this milestone's own certified scope above, replacing `applyWorldBounds`
+— was **removed entirely** in Milestone 2.5, not merely retargeted to wrap
+at the world edge as originally planned. Pairing wraparound with a real
+follow camera surfaced a genuine bug: the instant a wrap fired, the camera
+(correctly tracking the lander's now-teleported position) cut the whole
+visible world to an unrelated section with no panning in between. Horizontal
+position is now unbounded, matching vertical (already unbounded since this
+milestone). `FlightState`'s `worldWidth` constructor option was removed
+along with it, since nothing calls `wrapHorizontal` anymore. This is a
+correction to this milestone's own historical record, not a new decision —
+recorded here rather than silently editing the certified scope above, per
+this file's own policy (line 3-5) that stale entries are corrected, not
+left to rot.
 
-Not yet implemented; tracked here so the D18 background system's
-eventual parallax wiring isn't a surprise retrofit.
+---
+
+### Milestone 2.5 — World Scrolling & Parallax Depth
+
+**Status: CERTIFIED** (2026-07-06).
+
+**Goal**: Replace the single-screen world model (world width == viewport
+width) with a real scrolling world: a camera that follows the lander over
+a world several screens wide, with every D18 background layer moving at
+its own parallax speed — motion depth, not just the static layered/blurred
+depth D18 shipped. Also directly answers the "not enough depth" review
+note on D18's real screenshots: a new midground ridge layer fills the gap
+between the far ridge and the gameplay terrain.
+
+**Why this order, before M3 (Start Screen & Game Flow)**: M3 builds the
+pause/result-screen flow around `GameScene`; doing that against a camera
+that doesn't yet move (and would need retrofitting once M2.5 lands) risks
+the same kind of retrofit D18 already had to do once for the art style.
+
+**Scope delivered**:
+
+- `src/game/constants.ts` — `WORLD_WIDTH_MULTIPLIER` (module-private, a
+  single global ratio for now; §6b/M6 may later want a per-base world
+  width once real base layouts exist, but that's a future refinement, not
+  blocked by this milestone's global default) and `WORLD_WIDTH = GAME_WIDTH
+  - WORLD_WIDTH_MULTIPLIER`. `TERRAIN_SEGMENTS`/`STAR_COUNT`/
+`FAR_RIDGE_SEGMENTS`each rewritten as a`_\_PER_SCREEN`base constant
+times the multiplier (a bare literal inside a multiplication trips this
+project's`no-magic-numbers`ESLint rule differently than a lone literal
+assignment does — every base needed its own name), pinned by a new`constants.test.ts`against silent operator typos (e.g.`+`instead of`_`). New `MID_RIDGE__`constants (same shape as`FAR_RIDGE__`) and
+`SKY_SCROLL_FACTOR`/`FAR_RIDGE_SCROLL_FACTOR`/`MID_RIDGE_SCROLL_FACTOR`,
+each strictly less than 1 and strictly greater than the plane behind it.
+`LANDER_START_X`moved from`GAME_WIDTH / 2`to`WORLD_WIDTH / 2` — the
+    lander spawns at the world's center, not the initial viewport's.
+- `src/game/scenes/game-scene.ts` — `generateTerrain` called with
+  `WORLD_WIDTH` instead of `GAME_WIDTH`; `this.cameras.main.setBounds(0, 0,
+WORLD_WIDTH, GAME_HEIGHT)` and `.startFollow(this.lander.container,
+true)` (roundPixels, to avoid sub-pixel texture shimmer — no deadzone/
+  lerp smoothing, since a lander game needs the camera locked precisely
+  to the ship for landing judgment, not a cinematic lag). Every HUD text
+  element gets `.setScrollFactor(0)` — previously irrelevant since the
+  camera never moved, now required so HUD stays screen-fixed instead of
+  scrolling off with the world.
+- `src/game/rendering/background.ts` — every layer's texture widened to
+  `WORLD_WIDTH` (positioned from world x=0) instead of `GAME_WIDTH`, so
+  parallax scrolling never runs off the end of a too-narrow background;
+  the moon and starfield are the deliberate exception — the moon (a single
+  discrete feature) stays positioned relative to `GAME_WIDTH` so it sits
+  in view from the start and drifts only slightly via its own low scroll
+  factor, while the starfield's generation width did move to `WORLD_WIDTH`
+  since stars are scattered across the whole world, not a single feature.
+  Each layer gets its own `setScrollFactor()`: sky/moon/stars slowest
+  (nearly static — the most distant plane), far ridge faster, new mid
+  ridge faster still, gameplay terrain/lander/pad unchanged at the
+  implicit default (`scrollFactor` 1 — no named constant needed for a
+  value that's just "the default, unmodified"). A shared `buildRidgeLayer`
+  helper replaced two near-duplicate bake-and-place blocks once the mid
+  ridge layer existed alongside the far ridge.
+- **New midground ridge layer**: a second parallax silhouette between the
+  existing far ridge and the gameplay terrain — less blurred, higher
+  contrast/saturation than the far ridge, closer to the terrain's own
+  palette, generated the same way as the far ridge (`generateRidgeline`
+  with its own seed/height-band constants).
+- **Horizontal wraparound removed** (found by adversarial review, not
+  planned at milestone start): the original plan was to keep
+  `wrapHorizontal` and just retarget it to wrap at the true `WORLD_WIDTH`
+  edge instead of the old screen edge. Reviewing the actual interaction
+  with the new zero-lerp follow camera surfaced a real bug — the instant
+  a wrap fired, the lander's position (and therefore the camera, which
+  tracks it exactly) would jump the full bounds-clamped distance in a
+  single frame, cutting the entire visible world to a totally different,
+  unrelated section with no panning in between. Camera-smoothing the cut
+  would be dishonest (the ship genuinely isn't between those two points,
+  there's nothing real to interpolate through) — the actual fix is that
+  wrapping itself stopped making sense once the world is wider than one
+  screen. Resolved: `wrapHorizontal` deleted from `lander-physics.ts`
+  (and its dedicated unit tests), `FlightState`'s `worldWidth` option
+  removed entirely (it had no remaining purpose once nothing calls
+  `wrapHorizontal`), `game-scene.ts`'s `FlightState` construction updated
+  to match. Horizontal position is now unbounded, symmetric with vertical
+  (already unbounded since Milestone 2) — the camera stays pinned at its
+  bounds-clamped scroll extreme while the ship can keep flying past the
+  edge, landing on `getTerrainHeightAt`'s existing clamp-to-last-point
+  behavior rather than a hard wall. See §3 Open Questions for the one
+  known rough edge this leaves (a ship that flies far enough past the
+  edge can end its flight off-camera).
+
+**Acceptance criteria**: met — the lander can travel arbitrarily far
+past the old single-screen width with no wraparound (verified: e2e and
+integration tests confirm position keeps climbing past `GAME_WIDTH`, and
+manual flight to ~4000px past spawn showed smooth camera pinning at the
+bounds, not a teleport); the camera is bounded to and centered on the
+lander from the first frame (e2e-verified deterministically, not via
+timing-dependent simulated flight — see Required tests) and continues to
+track it exactly during flight (e2e-verified via a position-derived
+invariant check, not a lerp-tolerant threshold); every background layer
+scrolls at its own named factor, strictly ordered by depth (e2e-verified
+against the actual constants, not just "some factor less than 1"); HUD
+text stays fixed on screen regardless of camera position (e2e-verified).
+
+**Required tests**: `constants.test.ts` (new) pins the derived
+`WORLD_WIDTH`/`TERRAIN_SEGMENTS`/`STAR_COUNT`/`FAR_RIDGE_SEGMENTS`/
+`MID_RIDGE_SEGMENTS` values against hand-computed expectations.
+`e2e/world-scrolling.spec.ts` (new, 4 tests): camera bounds/centering +
+terrain spans the true world width (deterministic, boot-time only); every
+background layer's `scrollFactorX` matches its named constant, strictly
+ordered by depth; HUD `scrollFactorX/Y` are exactly 0; camera continuously
+tracks the lander during real flight via a position-derived invariant
+sampled after a fixed wait, not a "wait until scrollX changes by N"
+threshold — the threshold-based version was tried first and proved flaky
+under parallel test-worker contention (Chromium and Firefox each failed a
+run of it at different times, even at a 30s timeout, pointing to
+environmental delta-time variance under load rather than a logic bug).
+`flight-state.integration.test.ts`'s wraparound test replaced with one
+confirming sustained unbounded horizontal drift instead.
+
+**Required quality gates**: full gate list — green (68 unit/integration
+tests, up from 63 after removing 4 wraparound-specific tests and adding
+`constants.test.ts`'s 5; e2e 18/18 across Chromium/Firefox/WebKit,
+confirmed stable across 3 consecutive full runs).
+
+**Required documentation updates**: this file, `CHANGELOG.md`.
+
+**Certification checklist**: certified. Depended on Milestone 2.
 
 ---
 
@@ -472,9 +607,10 @@ and the game is actually playable end-to-end, if priorities differ.
 
 | #    | Milestone                         | Depends on       | One-line goal                                                                                                                                                                                                                                                                          |
 | ---- | --------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M3   | Start Screen & Game Flow          | M2               | Menu, start button, settings stub, pause, landed/crashed result screen, restart — replaces M2's placeholder restart-on-R.                                                                                                                                                              |
+| M2.5 | World Scrolling & Parallax Depth  | M2               | Camera-follow over a world wider than the viewport (Decision D19); real motion-parallax scroll factors on every D18 background layer, plus a new midground ridge layer for a fuller depth stack.                                                                                       |
+| M3   | Start Screen & Game Flow          | M2.5             | Menu, start button, settings stub, pause, landed/crashed result screen, restart — replaces M2's placeholder restart-on-R.                                                                                                                                                              |
 | M4   | Scoring & High Scores             | M3               | Score formula + `localStorage` high scores (Decision D8).                                                                                                                                                                                                                              |
-| M5   | Fictional Celestial Bodies        | M2               | Generalize gravity/terrain into a per-world config; first multi-world variation (Decision D11: gravity, atmosphere drag, one hazard type per world).                                                                                                                                   |
+| M5   | Fictional Celestial Bodies        | M2.5             | Generalize gravity/terrain into a per-world config; first multi-world variation (Decision D11: gravity, atmosphere drag, one hazard type per world).                                                                                                                                   |
 | M6   | Planetary Browser (World Map)     | M5, M3           | Discovered vs. locked worlds, per-world multiple landing bases, progression unlocks farther worlds/bases (Decision D17).                                                                                                                                                               |
 | M7   | Ship Roster                       | M3               | 5 starter ships + unlockable ships (Decision D13), each with distinct mass/thrust/fuel-capacity/handling.                                                                                                                                                                              |
 | M8   | Economy & Store                   | M4, M7           | Fictional currency earned per completed mission; store UI to spend it (Decision D15).                                                                                                                                                                                                  |

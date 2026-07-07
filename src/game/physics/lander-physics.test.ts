@@ -7,7 +7,6 @@ import {
   integrateRotation,
   normalizeAngle,
   thrustVector,
-  wrapHorizontal,
   ZERO_VECTOR,
 } from './lander-physics';
 
@@ -84,24 +83,6 @@ describe('consumeFuel', () => {
 
   it('never goes negative', () => {
     expect(consumeFuel(5, 10, 2)).toBe(0);
-  });
-});
-
-describe('wrapHorizontal', () => {
-  it('leaves an in-bounds x untouched', () => {
-    expect(wrapHorizontal(50, 100)).toBe(50);
-  });
-
-  it('wraps past the right edge back around to near zero', () => {
-    expect(wrapHorizontal(110, 100)).toBeCloseTo(10);
-  });
-
-  it('wraps past the left edge back around to near the width', () => {
-    expect(wrapHorizontal(-10, 100)).toBeCloseTo(90);
-  });
-
-  it('treats exactly the width as wrapping to zero', () => {
-    expect(wrapHorizontal(100, 100)).toBe(0);
   });
 });
 
