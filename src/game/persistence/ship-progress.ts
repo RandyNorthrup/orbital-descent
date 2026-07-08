@@ -10,11 +10,8 @@ export interface ShipProgressState {
    * reads this directly rather than every caller threading a `shipId`
    * through their own scene data). */
   readonly selectedShipId: string;
-  /** Ship ids acquired via Milestone 8's purchase transaction. Always
-   * empty until that milestone exists to populate it — exists now so M8
-   * doesn't need a storage-schema migration to add it later (same
-   * "cheaper to bake in now" reasoning as `BaseProgress.resupplyCounts`,
-   * Milestone 6). */
+  /** Ship ids acquired via Milestone 8's purchase transaction
+   * (`purchaseShip` below). */
   readonly purchasedShipIds: readonly string[];
 }
 
@@ -116,12 +113,29 @@ export function selectShip(
 }
 
 /**
- * Read-only availability check (this milestone's own scope — wiring a real
- * purchase transaction is Milestone 8's job). `'starter'` ships are always
- * available; `'purchase'` ships are available only once Milestone 8 adds
- * their id to `purchasedShipIds` (never true today); `'unlock'` ships are
- * available once their `requiredBaseId` reaches `'established'` in the live
- * `BaseProgressMap`.
+ * Pure state transition: records `shipId` as purchased, without mutating
+ * `progress`. Idempotent — buying an already-owned ship (shouldn't be
+ * reachable through the store's own UI, which stops offering a `'owned'`
+ * listing as buyable) returns `progress` with an unchanged
+ * `purchasedShipIds` rather than a duplicate entry. Does not touch
+ * `selectedShipId` — buying a ship doesn't equip it; a player still visits
+ * the ship-select screen to do that, keeping "own it" and "fly it" as
+ * separate, unsurprising actions. Balance deduction is the store's own
+ * job (`persistence/currency-progress.ts`'s `spendCurrency`), not this
+ * function's.
+ */
+export function purchaseShip(progress: ShipProgressState, shipId: string): ShipProgressState {
+  if (progress.purchasedShipIds.includes(shipId)) {
+    return progress;
+  }
+  return { ...progress, purchasedShipIds: [...progress.purchasedShipIds, shipId] };
+}
+
+/**
+ * Read-only availability check. `'starter'` ships are always available;
+ * `'purchase'` ships are available once `purchaseShip` has recorded their
+ * id in `purchasedShipIds`; `'unlock'` ships are available once their
+ * `requiredBaseId` reaches `'established'` in the live `BaseProgressMap`.
  */
 export function isShipAvailable(
   ship: ShipClass,

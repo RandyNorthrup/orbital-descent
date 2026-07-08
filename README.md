@@ -8,25 +8,29 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 7 (Ship Roster) certified — a new SHIP
-SELECT screen lets you browse and equip any of 7 ships (5 starters, plus
-a purchase- and an unlock-gated ship), each with its own thrust/fuel/
-handling stats shown at a glance; equipping a ship is a persistent
-loadout choice that carries into every flight, free or curated. On top
-of: a WORLD MAP screen for picking a curated base from a starter roster
-across 4 fictional worlds, gated by a persisted three-state unlock
-machine (locked → discovered-unclaimed → established) with a computed
-difficulty badge per base (Milestone 6); 12 fictional worlds with their
-own gravity/atmosphere/hazard and terrain material (Milestone 5); a safe
-landing scores (fuel remaining, time taken, landing precision) with the
-top scores persisted across reloads, shown on both the menu ("BEST") and
-result screen ("SCORE"/"BEST") (Milestone 4); the full menu → start →
-fly → land or crash → result screen → restart-or-menu loop with a
-pause/settings overlay mid-flight (Milestone 3); gravity, thrust, fuel,
-rotation, procedurally generated terrain, and a scrolling parallax world
-(Milestones 2/2.5) in the paper-cutout art style. See `PLAN.md` §6 for
-the full roadmap (upgrades, weapons, obstacles/hostiles, missions, and
-more).
+**Current status**: Milestone 8 (Economy & Store) certified — completing
+a flight now earns "Credits" proportional to your landing score (shown on
+the menu as "BALANCE"), and a new STORE screen lets you spend them —
+currently on Vanguard, a purchasable ship, with more purchasable items
+arriving as later milestones add their own catalog to the same store. On
+top of: a SHIP SELECT screen for browsing and equipping any of 7 ships (5
+starters, plus a purchase- and an unlock-gated ship), each with its own
+thrust/fuel/handling stats shown at a glance — equipping a ship is a
+persistent loadout choice that carries into every flight, free or curated
+(Milestone 7); a WORLD MAP screen for picking a curated base from a
+starter roster across 4 fictional worlds, gated by a persisted
+three-state unlock machine (locked → discovered-unclaimed → established)
+with a computed difficulty badge per base (Milestone 6); 12 fictional
+worlds with their own gravity/atmosphere/hazard and terrain material
+(Milestone 5); a safe landing scores (fuel remaining, time taken, landing
+precision) with the top scores persisted across reloads, shown on both
+the menu ("BEST") and result screen ("SCORE"/"BEST") (Milestone 4); the
+full menu → start → fly → land or crash → result screen →
+restart-or-menu loop with a pause/settings overlay mid-flight (Milestone
+3); gravity, thrust, fuel, rotation, procedurally generated terrain, and
+a scrolling parallax world (Milestones 2/2.5) in the paper-cutout art
+style. See `PLAN.md` §6 for the full roadmap (upgrades, weapons,
+obstacles/hostiles, missions, and more).
 
 ## Stack
 
@@ -75,7 +79,9 @@ main menu, **Enter** or the START button begins a generic free flight
 (random terrain, the default world); WORLD MAP instead lets you pick a
 curated base from the worlds/bases unlocked so far; SHIP SELECT lets you
 browse and equip any available ship — your choice persists and applies
-to every flight until you change it again. In flight: **W** or
+to every flight until you change it again; STORE lets you spend Credits
+(earned automatically from your landing score on every safe touchdown)
+on any purchasable ship you can currently afford. In flight: **W** or
 **↑** to thrust, **A**/**D** or **←**/**→** to rotate, **Escape** to
 pause (opens a settings overlay; Escape or BACK resumes exactly where
 play left off). On landing or crashing, a result screen offers **R** or
@@ -148,13 +154,14 @@ documented here and in `.env.example` when it happens.
 │   │   ├── random/               # seeded PRNG + bounded random walk
 │   │   ├── scoring/              # the landing-score formula
 │   │   ├── persistence/          # validated localStorage (high scores, base
-│   │   │                         # progress, ship progress)
+│   │   │                         # progress, ship progress, currency)
 │   │   ├── planets/              # CelestialBody registry (Milestone 5)
 │   │   ├── bases/                # Base schema/registry/difficulty formula (Milestone 6)
 │   │   ├── ships/                # ShipClass schema/registry (Milestone 7)
+│   │   ├── economy/              # currency conversion, store listings (Milestone 8)
 │   │   ├── rendering/             # background/terrain rendering, UI button helper
 │   │   └── scenes/               # Phaser Scene classes (Boot, Menu, Game, Result,
-│   │                             # Settings, WorldMap, ShipSelect)
+│   │                             # Settings, WorldMap, ShipSelect, Store)
 │   ├── main.ts                   # Phaser.Game bootstrap
 │   ├── style.css
 │   └── vite-env.d.ts

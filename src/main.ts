@@ -7,6 +7,7 @@ import { ResultScene } from './game/scenes/result-scene';
 import { SettingsScene } from './game/scenes/settings-scene';
 import { WorldMapScene } from './game/scenes/world-map-scene';
 import { ShipSelectScene } from './game/scenes/ship-select-scene';
+import { StoreScene } from './game/scenes/store-scene';
 import './style.css';
 
 const APP_PARENT_ELEMENT_ID = 'app';
@@ -25,6 +26,7 @@ const config: Phaser.Types.Core.GameConfig = {
     SettingsScene,
     WorldMapScene,
     ShipSelectScene,
+    StoreScene,
   ],
 };
 

@@ -6,3 +6,4 @@ export const SCENE_KEY_RESULT = 'Result';
 export const SCENE_KEY_SETTINGS = 'Settings';
 export const SCENE_KEY_WORLD_MAP = 'WorldMap';
 export const SCENE_KEY_SHIP_SELECT = 'ShipSelect';
+export const SCENE_KEY_STORE = 'Store';

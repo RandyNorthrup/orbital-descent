@@ -166,8 +166,13 @@ export interface Base {
   readonly requirements: BaseRequirements;
   readonly difficulty: BaseDifficultyProfile;
 
-  /** First-clear reward (Milestone 8). Replay reward is a separate,
-   * always-nonzero derived value, not modeled on this record. */
+  /** First-clear reward — the pre-Milestone-9.5 placeholder value for a
+   * bare "land safely, no mission" base clear. Milestone 8 deliberately
+   * left this field unwired (a base visit already earns currency via its
+   * M4 landing score, same as any free flight); see PLAN.md §9.5.5's note
+   * on `missionReward`, which replaces this field once Milestone 9.5
+   * lands. Replay reward is a separate, always-nonzero derived value, not
+   * modeled on this record. */
   readonly firstClearCredits: number;
 
   /** This base's status for a brand-new save — NOT the live, current

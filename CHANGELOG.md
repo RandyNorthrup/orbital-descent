@@ -8,6 +8,68 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 8 — Economy & Store (Decision D15), certified**: a
+  fictional currency ("Credits") earned per
+  completed mission, spent in a new store screen. Pure layer:
+  `src/game/economy/currency.ts` (`scoreToCurrency`, pinned 1:1 to M4's
+  landing score per §9.5.5's reward formula), `src/game/economy/store.ts`
+  (`shipListings`/`canAfford`/`listingStatus` — a generic, domain-agnostic
+  listing mechanism M9 will register equipment into without this
+  mechanism needing to change), `src/game/persistence/
+currency-progress.ts` (validated-`localStorage` `CurrencyState`,
+  mirroring `ship-progress.ts`'s exact pattern), and a new
+  `purchaseShip` transition on `ship-progress.ts` (idempotent, doesn't
+  touch `selectedShipId` — buying a ship doesn't equip it). Scene layer:
+  a new `StoreScene` following `ShipSelectScene`'s established
+  conventions exactly (`track()`/`renderView()` teardown-rebuild,
+  `ArmedKeyGuard` ESC handling, `createUiButton`, accumulating-y-position
+  rows) — an always-visible `BALANCE: <n> CREDITS` line (0 is a normal
+  state here, unlike MenuScene's conditionally-hidden BEST), then one row
+  per listing (owned/affordable/too-expensive, an affordable listing's
+  button label staying a bare, un-suffixed `<NAME>` for e2e-click-target
+  stability with the price shown on a separate muted reason line below,
+  matching `ship-select-scene.ts`'s own `lockedReasonText` wording).
+  Purchasing spends currency, records ownership, persists both, and
+  re-renders in place with no scene transition and no auto-equip — the
+  player still visits `ShipSelectScene` to equip a purchased ship, same
+  as ships already work. `MenuScene` gained an additive "STORE" button
+  (5th entry in its existing data-driven button array) and an
+  always-visible `BALANCE: <n> CREDITS` line (nudged
+  `BEST_SCORE_Y_FRACTION`/`START_BUTTON_Y_FRACTION` slightly to make
+  room, verified against real screenshots, not just hand arithmetic).
+  `GameScene`'s safe-landing branch now credits currency right after
+  computing the M4 score, reusing the same `storage` handle already
+  fetched for the high-score write. One minimal pure-layer fix along the
+  way: added the `@public` JSDoc annotation `ships/ship.ts`'s
+  `ShipArchetype` already uses for an identically-shaped situation
+  (an exported type satisfied only structurally, no by-name importer
+  yet) to `store.ts`'s `StoreListingKind`, which was otherwise failing
+  `pnpm deadcode` — a one-line documentation fix, not a behavior change.
+  `e2e/store.spec.ts` (new, 3 tests): purchase gating (a locked Vanguard
+  is real-click-inert, buying it once affordable deducts its price and
+  marks it owned, surviving a real `page.reload()`), currency crediting
+  on a real free-flight landing (asserting the right outcome for either a
+  landing or a crash), and MenuScene's BALANCE line reflecting a seeded
+  balance.
+- **Independent review before certifying** caught and fixed two real
+  defects: `StoreScene`'s "affordable" row's price line visually
+  overlapped its own button (a reused offset constant had only ever been
+  validated under plain backgroundless text, never under a real
+  `createUiButton`'s background box — fixed with a dedicated, derived
+  `BUTTON_REASON_LINE_OFFSET_PX`, re-verified against a real screenshot);
+  and `e2e/store.spec.ts`'s currency-crediting test copied
+  `landing.spec.ts`'s timeout ceiling verbatim without accounting for its
+  own file's added sibling-test contention (reproduced a real 45-53s
+  completion time against the old 60000ms ceiling; widened to
+  35000ms/90000ms, matching `high-scores.spec.ts`'s own precedent for the
+  identical problem). Full details in `PLAN.md`'s Milestone 8 section.
+- **Verified this session, certified**: `pnpm quality:full` (format:check/
+  lint/typecheck/test:coverage/build/deadcode/security:secrets/
+  security:audit/test:e2e) all clean (214 unit/integration tests, coverage
+  98.29%/93.1%/100%/98.22%, thresholds 90/85/90/90 all met; 57 e2e tests
+  passing 57/57 in a clean full run, plus `e2e/store.spec.ts` alone
+  re-run clean 4 further times in isolation across the two fixes above).
+
 - **Milestone 7 — Ship Roster (Decision D13), certified**: a new
   `ShipClass` data model (`src/game/ships/ship.ts`) and a 7-ship registry
   (`ships.ts`) — 5 starters (Falcon, Scout, Courier, Sentinel, Hauler), 1

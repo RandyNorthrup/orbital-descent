@@ -2238,7 +2238,9 @@ lesson.
 
 ---
 
-### Milestone 8 — Economy & Store (not started)
+### Milestone 8 — Economy & Store (certified)
+
+**Status: CERTIFIED** (2026-07-07).
 
 **Goal**: A fictional currency (Decision D15 — placeholder name
 "Credits", trivially renamed later) earned per completed mission based on
@@ -2252,18 +2254,155 @@ balance. At M8's own build time the only sellable catalog is M7's ships
 M9 later registers its own equipment items into this same mechanism
 without M8 needing to change.
 
-**Acceptance criteria**: completing a mission credits currency
-proportional to its score; the store correctly gates purchases on
-sufficient balance; a purchase persists and survives a reload.
+**Scope delivered**:
+
+- `src/game/economy/currency.ts` (new) — `scoreToCurrency`, pinned 1:1 to
+  M4's landing score (per §9.5.5's own reward formula summing
+  `m4ScoreBonus` directly with no separate scaling factor).
+- `src/game/economy/store.ts` (new) — `StoreListingKind` (`'ship'` today),
+  `StoreListing`, `shipListings` (projects every `'purchase'`-type ship in
+  a registry down to a listing — one match today, Vanguard at 750cr),
+  `canAfford`, `ListingStatus` (`'owned' | 'affordable' | 'too-expensive'`),
+  `listingStatus`.
+- `src/game/persistence/currency-progress.ts` (new) — `CurrencyState`
+  (`{balance}`), validated-`localStorage` `initialCurrencyState`/
+  `loadCurrencyState`/`saveCurrencyState` mirroring `ship-progress.ts`'s
+  exact pattern, and pure `creditCurrency`/`spendCurrency` transitions
+  (`spendCurrency` throws on insufficient balance — the store UI only
+  ever calls it after `canAfford` has already gated the purchase, same
+  "UI gates it, function trusts the gate" convention as `selectShip`).
+- `src/game/persistence/ship-progress.ts` gained `purchaseShip` — pure,
+  idempotent, adds a ship id to `purchasedShipIds` without touching
+  `selectedShipId` (buying doesn't equip; equipping stays
+  `ShipSelectScene`'s own separate action).
+- `src/game/scenes/store-scene.ts` (new) — a `StoreScene` following
+  `ShipSelectScene`'s exact conventions (`track()`/`renderView()`
+  teardown-rebuild, `ArmedKeyGuard`/`requireKeyboard` for ESC,
+  `createUiButton`, accumulating-y-position row layout). Shows STORE
+  title, an always-visible `BALANCE: <n> CREDITS` line (unlike MenuScene's
+  BEST, 0 is a normal state here, not hidden), then one row per listing —
+  owned (plain muted text, no button), affordable (a real button labeled
+  bare `<NAME>` for e2e-click-target stability, plus a muted `PRICE: <n>
+CREDITS` reason line below), or too-expensive (muted `<NAME> (LOCKED)`
+  plus the same reason line) — then BACK. Clicking an affordable listing
+  spends currency, records the purchase, persists both, and re-renders in
+  place with no scene transition and no auto-equip.
+- `MenuScene` gained an additive "STORE" button (5th entry in the
+  existing data-driven button array) and an always-visible
+  `BALANCE: <n> CREDITS` line (`BEST_SCORE_Y_FRACTION` nudged 0.42→0.4,
+  `START_BUTTON_Y_FRACTION` nudged 0.55→0.56, to open room for the new
+  `BALANCE_Y_FRACTION` 0.47 line without colliding with the now-5-button
+  stack — verified with real Playwright screenshots, not just hand
+  arithmetic, per this project's own established burn-once-already
+  caution around unverified layout math).
+- `GameScene`'s safe-landing branch now also credits currency
+  (`creditCurrency(loadCurrencyState(storage), scoreToCurrency(score))`,
+  persisted via `saveCurrencyState`) immediately after computing the M4
+  score, reusing the same `storage` handle already fetched for the
+  high-score write rather than a second `getSafeLocalStorage()` call.
+- One minimal pure-layer fix: `economy/store.ts`'s `StoreListingKind` had
+  no by-name importer anywhere yet (only one member, `'ship'`, satisfied
+  structurally by every `StoreListing` literal) and was failing
+  `pnpm deadcode` as a result. Added the same `@public` JSDoc annotation
+  `ships/ship.ts`'s `ShipArchetype` already uses for this identical
+  situation (see that type's own doc comment) — a one-line documentation
+  fix, not a behavior change.
+- `e2e/store.spec.ts` (new) — 3 tests: purchase gating (a locked
+  Vanguard is real-click-inert below price, buying it once affordable
+  deducts exactly its price and marks it owned, all surviving a real
+  `page.reload()`), currency crediting on a real free-flight landing
+  (gravity alone decides landed vs. crashed, asserting the right thing
+  for either outcome — a landed balance equals the exact score, a crash
+  leaves the balance untouched — rather than piloting to a specific
+  curated base), and MenuScene's BALANCE line reflecting a seeded
+  balance on load.
+
+**Independent review before certifying**: an adversarial standards review
+caught and fixed two real defects before this milestone could be trusted:
+
+1. `StoreScene`'s "affordable" row visually overlapped its own button.
+   `REASON_LINE_OFFSET_PX` (24px) was reused under a real
+   `createUiButton` (which paints a ~42px-tall background box) — a
+   context it was never validated against; `ShipSelectScene`'s identical
+   constant only ever sits under plain backgroundless text. A real
+   screenshot confirmed the "PRICE: 750 CREDITS" line's top edge
+   touching the VANGUARD button's own background with ~0px clearance,
+   directly contradicting this file's own prior "no visual collision at
+   any state" claim (that screenshot pass had covered the too-expensive/
+   owned states but not the affordable-with-button one). Fixed with a
+   dedicated `BUTTON_REASON_LINE_OFFSET_PX` (37px, derived from
+   `UI_BUTTON_FONT_SIZE_PX`/`UI_BUTTON_PADDING_Y`/`UI_BODY_FONT_SIZE_PX`
+   the same way `UI_BUTTON_ROW_HEIGHT_PX` derives its own value) and a
+   matching `AFFORDABLE_ROW_HEIGHT_PX`, leaving the too-expensive row's
+   `REASON_LINE_OFFSET_PX` (24px) untouched — that row really is
+   text-under-text, identical geometry to `ShipSelectScene`'s own.
+   Re-verified against a real screenshot after the fix (~7.5px real
+   clearance).
+2. `e2e/store.spec.ts`'s currency-crediting test copied
+   `landing.spec.ts`'s exact timeout ceiling (25000ms/60000ms) verbatim,
+   without accounting for its own file's two sibling tests (one
+   reload-heavy) sharing the same worker pool — unlike `landing.spec.ts`,
+   which is the sole test in its file. A real isolated rerun during this
+   review reproduced this test completing in 45-53s against the old
+   60000ms ceiling — real margin eroded, not a hypothetical risk.
+   Widened to 35000ms/90000ms, matching `high-scores.spec.ts`'s own
+   identical widening after an identical real-timeout finding.
+
+This review also independently checked, and found no issue with:
+`economy/currency.ts`/`economy/store.ts` staying Phaser/`constants.ts`-
+free; `store.ts`'s direct `ShipClass` import (a normal forward
+dependency, M8 depends on M7, matching `bases/bases.ts`'s own
+`findShipById` import in the identical direction); `StoreListingKind`'s
+`@public` JSDoc correctly mirroring `ships/ship.ts`'s `ShipArchetype`
+precedent; `purchaseShip`'s purity/immutability/idempotence; `MenuScene`'s
+Y-fraction arithmetic (collision-free against a real screenshot); and
+`Base.firstClearCredits` being left unwired — no scene establishes a
+base at all yet (`establishBase` has no live call site anywhere), so
+that's real M9.5/mission-system scope, not something M8 skipped (its
+doc comment was clarified to say so explicitly, a documentation-only
+change).
+
+**Acceptance criteria**: met — completing a mission credits currency
+proportional to score, the store correctly shows
+owned/affordable/too-expensive per listing and gates the buy button
+accordingly, and a purchase (balance deducted, ship marked owned, ship
+NOT auto-equipped) survives a real full-page reload. Verified twice:
+once via a manual Playwright script against a production preview build
+during this milestone's implementation session, and again via the
+checked-in `e2e/store.spec.ts` above.
 
 **Required tests**: unit tests for the score-to-currency formula and
-balance persistence (including corrupted-data handling); e2e test
-completing a mission, checking the balance increased, then buying
-something in the store.
+balance persistence (including corrupted-data handling) — done
+(`currency.test.ts`, `currency-progress.test.ts`, `store.test.ts`,
+`ship-progress.test.ts`'s new `purchaseShip` cases). e2e test completing
+a mission, checking the balance increased, then buying something in the
+store — done (`e2e/store.spec.ts`, see above).
 
-**Required quality gates**: full gate list, must stay green.
+**Required quality gates**: `pnpm quality:full` (format/lint/typecheck/
+test:coverage/build/deadcode/security:secrets/security:audit/test:e2e) —
+green, see "Verified this session" below.
 
-**Certification checklist**: not started. Depends on M4 and M7.
+**Verified this session** (2026-07-07): `pnpm format:check`/`lint`/
+`typecheck` clean; `pnpm test:coverage` 214 tests passing, 98.29%/93.1%/
+100%/98.22% (thresholds 90/85/90/90 all met); `pnpm build` succeeds;
+`pnpm deadcode` clean; `pnpm security:secrets` clean; `pnpm security:audit`
+"No known vulnerabilities found". `pnpm test:e2e` (57 tests, 3 browsers):
+one full run under this sandbox's own real concurrent-process CPU
+contention showed 4 failures (`landing.spec.ts`, `ship-select.spec.ts`,
+and 2 of `store.spec.ts`'s own tests) — every one a `waitForBooted`
+boot-level timeout, not the ground-contact/flight timeouts this session's
+fix above widened, and every failing file passes cleanly in isolation
+(re-confirmed by rerunning each on its own), matching Milestones 6/7's
+own already-documented "environmental contention, not a regression"
+pattern for this exact sandbox. A second full run immediately after, with
+that contention gone, passed 57/57 clean in 1.8 minutes.
+`e2e/store.spec.ts` alone was additionally run 4 further times in
+isolation (9/9 every time) across the two fixes above.
+
+**Required documentation updates**: this file, `CHANGELOG.md` — done.
+
+**Certification checklist**: certified. Depends on M4 and M7 (both
+certified).
 
 ---
 

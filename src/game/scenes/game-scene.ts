@@ -47,6 +47,12 @@ import { degreesToRadians } from '../physics/lander-physics';
 import { recordHighScore } from '../persistence/high-scores';
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
 import { loadShipProgress } from '../persistence/ship-progress';
+import {
+  creditCurrency,
+  loadCurrencyState,
+  saveCurrencyState,
+} from '../persistence/currency-progress';
+import { scoreToCurrency } from '../economy/currency';
 import type { Base } from '../bases/base';
 import { BODIES } from '../planets/bodies';
 import { findBodyById } from '../bases/bases';
@@ -372,6 +378,18 @@ export class GameScene extends Phaser.Scene {
           : recordHighScore(storage, score, Date.now(), HIGH_SCORE_LIST_MAX_ENTRIES);
       const bestScore = highScores[0]?.score ?? score;
       this.data.set('score', score);
+
+      // Milestone 8/Decision D15: a completed mission credits currency
+      // proportional to its score. Reuses the same `storage` handle already
+      // fetched above for the high-score write rather than calling
+      // getSafeLocalStorage() a second time; degrades the same way -- the
+      // landing still scores and transitions to ResultScene normally when
+      // storage is blocked, it just can't persist the credited balance.
+      if (storage !== null) {
+        const currencyState = creditCurrency(loadCurrencyState(storage), scoreToCurrency(score));
+        saveCurrencyState(storage, currencyState);
+      }
+
       resultData = { outcome, score, bestScore };
     }
 

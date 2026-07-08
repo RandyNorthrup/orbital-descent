@@ -6,6 +6,7 @@ import {
   initialShipProgress,
   isShipAvailable,
   loadShipProgress,
+  purchaseShip,
   saveShipProgress,
   selectShip,
   type ShipProgressState,
@@ -162,6 +163,34 @@ describe('selectShip', () => {
   it('throws when called with an unknown ship id', () => {
     const initial = initialShipProgress(SHIPS);
     expect(() => selectShip(SHIPS, initial, 'no-such-ship')).toThrow();
+  });
+});
+
+describe('purchaseShip', () => {
+  it('adds the id to purchasedShipIds, leaving selectedShipId untouched', () => {
+    const initial = initialShipProgress(SHIPS);
+    const updated = purchaseShip(initial, 'ship-purchase');
+    expect(updated).toEqual({
+      selectedShipId: 'ship-starter',
+      purchasedShipIds: ['ship-purchase'],
+    });
+  });
+
+  it('does not mutate the progress object passed in', () => {
+    const initial = initialShipProgress(SHIPS);
+    const before = { ...initial };
+    purchaseShip(initial, 'ship-purchase');
+    expect(initial).toEqual(before);
+  });
+
+  it('is idempotent: purchasing an already-owned ship does not duplicate its id', () => {
+    const owned: ShipProgressState = {
+      selectedShipId: 'ship-starter',
+      purchasedShipIds: ['ship-purchase'],
+    };
+    const updated = purchaseShip(owned, 'ship-purchase');
+    expect(updated).toEqual(owned);
+    expect(updated.purchasedShipIds).toEqual(['ship-purchase']);
   });
 });
 
