@@ -8,10 +8,16 @@ import {
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
 } from '../constants';
-import { getSafeLocalStorage, loadHighScores } from '../persistence/high-scores';
+import { loadHighScores } from '../persistence/high-scores';
+import { getSafeLocalStorage } from '../persistence/safe-local-storage';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createUiButton } from '../rendering/ui-button';
-import { SCENE_KEY_GAME, SCENE_KEY_MENU, SCENE_KEY_SETTINGS } from './scene-keys';
+import {
+  SCENE_KEY_GAME,
+  SCENE_KEY_MENU,
+  SCENE_KEY_SETTINGS,
+  SCENE_KEY_WORLD_MAP,
+} from './scene-keys';
 import { ArmedKeyGuard, requireKeyboard } from './scene-utils';
 import type { SettingsSceneData } from './settings-scene';
 
@@ -77,6 +83,14 @@ export class MenuScene extends Phaser.Scene {
     createUiButton(this, {
       x: GAME_WIDTH / 2,
       y: startY + UI_BUTTON_ROW_HEIGHT_PX,
+      label: 'WORLD MAP',
+      onClick: () => {
+        this.openWorldMap();
+      },
+    });
+    createUiButton(this, {
+      x: GAME_WIDTH / 2,
+      y: startY + UI_BUTTON_ROW_HEIGHT_PX * 2,
       label: 'SETTINGS',
       onClick: () => {
         this.openSettings();
@@ -92,6 +106,10 @@ export class MenuScene extends Phaser.Scene {
 
   private startFlight(): void {
     this.scene.start(SCENE_KEY_GAME);
+  }
+
+  private openWorldMap(): void {
+    this.scene.start(SCENE_KEY_WORLD_MAP);
   }
 
   private openSettings(): void {

@@ -8,17 +8,22 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 4 (Scoring & High Scores) certified — a safe
-landing now scores (fuel remaining, time taken, landing precision) and the
-top scores persist across reloads in schema-validated `localStorage`,
-shown on both the menu ("BEST") and result screen ("SCORE"/"BEST"), on top
-of Milestone 3's full menu → start → fly → land or crash → result screen →
-restart-or-menu loop (with a pause/settings overlay mid-flight), Milestone
-2's gravity, thrust, fuel, rotation, procedurally generated terrain, and a
-scrolling parallax world (Milestone 2.5) in the paper-cutout art style.
-Single ship, single world so far — see `PLAN.md` §6 for the full roadmap
-(multiple fictional worlds, ships, upgrades, weapons, obstacles/hostiles,
-and more).
+**Current status**: Milestone 6 (Planetary Browser / World Map) certified
+— a new WORLD MAP screen lets you pick from a starter roster of curated
+bases across 4 fictional worlds, gated by a persisted three-state unlock
+machine (locked → discovered-unclaimed → established); each base shows a
+computed difficulty badge (mechanical/spatial demand). On top of: 12
+fictional worlds with their own gravity/atmosphere/hazard and terrain
+material (Milestone 5); a safe landing scores (fuel remaining, time
+taken, landing precision) with the top scores persisted across reloads,
+shown on both the menu ("BEST") and result screen ("SCORE"/"BEST")
+(Milestone 4); the full menu → start → fly → land or crash → result
+screen → restart-or-menu loop with a pause/settings overlay mid-flight
+(Milestone 3); gravity, thrust, fuel, rotation, procedurally generated
+terrain, and a scrolling parallax world (Milestones 2/2.5) in the
+paper-cutout art style. Single ship so far — see `PLAN.md` §6 for the
+full roadmap (ships, upgrades, weapons, obstacles/hostiles, missions, and
+more).
 
 ## Stack
 
@@ -63,9 +68,11 @@ pnpm dev
 ```
 
 Opens the Vite dev server (default `http://localhost:5173`). From the
-main menu, **Enter** or the START button begins a flight. In flight:
-**W** or **↑** to thrust, **A**/**D** or **←**/**→** to rotate, **Escape**
-to pause (opens a settings overlay; Escape or BACK resumes exactly where
+main menu, **Enter** or the START button begins a generic free flight
+(random terrain, the default world); WORLD MAP instead lets you pick a
+curated base from the worlds/bases unlocked so far. In flight: **W** or
+**↑** to thrust, **A**/**D** or **←**/**→** to rotate, **Escape** to
+pause (opens a settings overlay; Escape or BACK resumes exactly where
 play left off). On landing or crashing, a result screen offers **R** or
 RESTART for a fresh flight, and **Escape** or MAIN MENU to return to the
 menu.
@@ -132,8 +139,15 @@ documented here and in `.env.example` when it happens.
 │   │   ├── physics/              # pure vector/physics functions (unit-tested)
 │   │   ├── flight/               # FlightState — orchestrates physics into a
 │   │   │                         # frame-by-frame simulation (integration-tested)
+│   │   ├── terrain/              # procedural terrain + landing-pad rules
+│   │   ├── random/               # seeded PRNG + bounded random walk
+│   │   ├── scoring/              # the landing-score formula
+│   │   ├── persistence/          # validated localStorage (high scores, base progress)
+│   │   ├── planets/              # CelestialBody registry (Milestone 5)
+│   │   ├── bases/                # Base schema/registry/difficulty formula (Milestone 6)
 │   │   ├── rendering/             # background/terrain rendering, UI button helper
-│   │   └── scenes/               # Phaser Scene classes (Boot, Menu, Game, Result, Settings)
+│   │   └── scenes/               # Phaser Scene classes (Boot, Menu, Game, Result,
+│   │                             # Settings, WorldMap)
 │   ├── main.ts                   # Phaser.Game bootstrap
 │   ├── style.css
 │   └── vite-env.d.ts

@@ -1865,7 +1865,9 @@ Notes below for the final interface shape.
 
 ---
 
-### Milestone 6 — Planetary Browser (World Map) (not started)
+### Milestone 6 — Planetary Browser (World Map) (certified)
+
+**Status: CERTIFIED** (2026-07-07).
 
 **Goal**: A world-select screen (extends M3's menu system) per Decision
 D17: discovered worlds are selectable, locked worlds are visible but
@@ -1880,78 +1882,154 @@ story-locked (not yet discovered) and mechanically out of reach (ship/
 loadout too weak) at once, and at least some of the 12 worlds' bases
 must actually combine both, not just one or the other, per D20.
 
-**Scope**:
+**Scope delivered**:
 
-- `src/game/bases/base.ts`, `bases.ts`, `difficulty.ts` — the `Base`
-  record (§6b.2: `terrainOptions`, `encounters` — empty array until M11,
-  `requirements`, `difficulty`, `firstClearCredits`) and a starter registry
-  of curated bases per world. **Schema and registry only** —
-  `evaluateBaseFit` (`fit-check.ts`) is **not** built here; it's M9's (see
-  §6b.3 point 4 and the M9 amendment below), since its signature needs
-  `ShipClass` (M7) and `PermanentUpgrade`/`EquipmentItem` (M9) types that
-  don't exist yet at M6's point in the sequence.
+- `src/game/bases/base.ts` (new) — the full `Base` record (§6b.2:
+  `terrainOptions`, `encounters` — always `[]` until M11, `requirements`,
+  `difficulty`, `firstClearCredits`, `status`/`isCriticalPath`/`unlocks`/
+  `localOffset`) plus `BaseProgress` (the separate, per-save-file mutable
+  status/establishedAt/resupplyCounts record — deliberately NOT baked
+  into `Base` itself, which is fixed authored content shared by every
+  save) and the forward-declared M9/M10/M11 types (`CombatantDefinition`,
+  `EncounterSpec`, `LoadoutTag`, `HandlingBand`, `WeaponTier`) each marked
+  `@public` so knip doesn't flag them as dead code while nothing imports
+  them by name yet. **Schema and registry only** — `evaluateBaseFit`
+  (`fit-check.ts`) is **not** built here; it's M9's, since its signature
+  needs `ShipClass` (M7) and `PermanentUpgrade`/`EquipmentItem` (M9) types
+  that don't exist yet at M6's point in the sequence.
+- `src/game/bases/difficulty.ts` (new) — `computeDifficultyProfile`, a
+  pure function (no `constants.ts`/Phaser import, ship-reference numbers
+  passed as an explicit parameter, matching `terrain-generator.ts`'s own
+  options-parameter convention) genuinely computing `BaseDifficultyProfile`
+  from a base's own `requirements`/`terrainOptions` and its target body's
+  gravity/hazard — never a hardcoded, independently-typed number. Mechanical
+  axis: a baseline score plus how tight the authored TWR bands are relative
+  to a bare ship's thrust-to-weight on that body, plus a flat corrosive/cold
+  hazard bump. Spatial axis: pad-width tightness plus terrain roughness.
+  Combat axis is unconditionally 0 today (Milestone 11's job to populate,
+  per §6b.3's own amendment) — the `capstone-balanced` classification is
+  therefore structurally unreachable until then, documented and tested as
+  such rather than left as an unexplained gap.
+- `src/game/bases/bases.ts` (new) — `BASES`, exactly 5 hand-authored bases
+  reusing Milestone 9.5's own worked-example roster verbatim (Anchor
+  Station + Scarp Outpost on Kessel's Reach; Meridian Yard on Verdalis;
+  Rustwell Landing on Pyrrhine Expanse; Frostgate on Glacian Drift) —
+  identical id/worldId/localOffset/isCriticalPath/unlocks/starting-status
+  to what §9.5.7 already depends on, pinned by a regression test so a
+  future edit can't silently break that milestone's arithmetic. Every
+  base's `difficulty` field is produced by actually calling
+  `computeDifficultyProfile`, never hand-typed. Also exports
+  `findBodyById` (throws on an unknown id — a real data-integrity bug, not
+  a "can't happen" guard), reused by both `bases.ts` itself and `GameScene`.
 - **Base status is a three-state machine, not binary**: `locked →
-discovered-unclaimed → established` (amended from a simpler discovered/
-  locked flag per Milestone 9.5's design — establishing a base, not merely
-  discovering it, is what has narrative/mechanical weight, see §9.5.4).
-  `status`, `isCriticalPath`, `unlocks`, and `localOffset` are fields on
-  the same `Base` record §6b.2 defines (not a separate `BaseConfig` type —
-  see §6b.2's own copy of these fields for the authoritative shapes).
-  Persisted via M4's validated-`localStorage` pattern, alongside
-  `establishedAt`/`resupplyCounts` (§9.5.4, feeds M12).
-- A `BaseDifficultyProfile` (§6b.2) computed from each base's mechanical
-  (and, once available, spatial) parameters.
-- A `WorldMapScene` rendering M5's body registry with locked/discovered/
-  established visual states; base-select UI for multi-base worlds shows
-  per-base difficulty-axis badges (mechanical/spatial/combat pip counts, a
-  dominant-axis emphasis, a distinct capstone marker — §6b.1) and, once
-  M9.5 lands, the mission-brief fields a player needs before committing:
-  distance to target (TU) and atmosphere/hazard summary (read from the
-  target `CelestialBody`, M5), target hostility level (from
-  `difficulty.axes.combat`/`requirements.combat` on `Base`, §6b.2 —
-  reads as 0/no-requirement until M11 populates real encounter data, the
-  same "empty until M11" state `Base.encounters` is already in), and
-  cargo/load weight required — this last one is **not** on `Base` or
-  `CelestialBody` at all, but on the specific `MissionDefinition`
-  (`minManifest`, §9.5.1) offered at that base, since the same base's
-  requirement differs between its Establish-Presence and Resupply
-  missions. The briefing composes these from three different records, not
-  one — flagged explicitly so an implementer doesn't look for a single
-  "briefing" field that doesn't exist.
+discovered-unclaimed → established`. `src/game/persistence/
+base-progress.ts` (new) persists this validated, per-save-file state —
+  `initialBaseProgress`/`loadBaseProgress`/`saveBaseProgress` mirror
+  Milestone 4's `high-scores.ts` pattern exactly (reject-the-whole-thing on
+  any corruption, best-effort writes), and `establishBase` is the pure
+  state-transition function this milestone's acceptance criteria calls
+  for: flips the target base to `established`, propagates `unlocks` to
+  every currently-`locked` target (never downgrading an already-further-
+  along base), and preserves the original `establishedAt` on a repeat call.
+  `src/game/persistence/safe-local-storage.ts` (new) — `KeyValueStorage`/
+  `getSafeLocalStorage` extracted out of `high-scores.ts` (which now
+  imports it) so this second persistence consumer doesn't duplicate the
+  same sandboxed-storage-access safety check — the "one philosophy, four
+  consumers" reuse Milestone 4's own section predicted.
+- `src/game/scenes/world-map-scene.ts` (new) — a two-level world-select /
+  base-select scene. World list: every world with at least one authored
+  base, reachable ones as real buttons, locked ones as plain non-
+  interactive muted text. A reachable single-base world launches that base
+  directly (D17's own Goal text: the base-select screen is for worlds with
+  _more than one_ base); a reachable multi-base world (today, only
+  Kessel's Reach) shows a base-select list with per-base difficulty badges
+  ("MECH 1 · NAV 8 (SPATIAL)", omitting a zero-value axis rather than
+  faking one) plus a plain-language legend caption explaining the
+  abbreviations. Selecting a reachable base launches `GameScene` with that
+  `Base` via `GameSceneData.base` — the first real production caller of
+  the plumbing Milestone 5 built but nothing ever exercised until now.
+  `GameScene` now uses the selected base's own `terrainOptions` (a fixed
+  seed — a curated puzzle presents the same layout every time, unlike free
+  flight's per-restart reshuffle) when one is provided, falling back to
+  the exact pre-Milestone-6 procedural behavior otherwise. `MenuScene`
+  gained a new, additive "WORLD MAP" button between START and SETTINGS —
+  START itself is deliberately unchanged (still a generic free flight on
+  the default body), a conservative scope choice avoiding a much larger,
+  riskier restructuring of the existing certified M1-M5 menu flow for a
+  distinction (curated vs. procedural terrain) that has no visible payoff
+  yet anyway until Milestone 9.5 wires a real mission/reward loop to it.
 
-**Acceptance criteria** (deliberately scoped to what M6 alone can certify —
-see the dependency note below): starting state has exactly one world, with
-its first base `discovered-unclaimed`; the `locked → discovered-unclaimed
-→ established` transition and `unlocks` propagation work correctly when
-driven directly (a test harness calling the state-transition function, not
-a played mission — M9.5 is what wires an actual mission outcome to trigger
-it, see §9.5.4); a base's difficulty badges are computed from its real
-authored parameters, never hardcoded independent of the actual `Base`
-record; locked worlds/bases are visible but not selectable; unlock state
-survives a real page reload. The full player-facing loop this enables —
-completing the opening Establish Presence mission to actually flip the
-state, established bases staying re-enterable for a Resupply reward — is
-M9.5's acceptance criteria to certify, not M6's; M6 only has to prove the
-state machine and persistence are correct in isolation.
+**Acceptance criteria**: met. Starting state has exactly one world
+(Kessel's Reach) reachable, with Anchor Station `discovered-unclaimed` and
+everything else `locked` (e2e-verified against a fresh save); the
+`locked → discovered-unclaimed → established` transition and `unlocks`
+propagation work correctly when driven directly via `establishBase`
+(unit-tested — direct flips, cascades, no-downgrade, preserved
+`establishedAt`, throws on an unknown id); a base's difficulty badges are
+computed from its real authored parameters (unit-tested: a registry test
+recomputes `computeDifficultyProfile` independently and deep-equals it
+against each registry entry); locked worlds/bases are visible but not
+selectable (e2e-verified: a real click landed directly on a locked
+entry's own on-screen position is confirmed to be a genuine no-op, not
+just a different visual style); unlock state survives a real page reload
+(e2e-verified via a seeded `localStorage` write). The full player-facing
+loop this enables (a real mission actually flipping the state, established
+bases staying re-enterable for a reward) remains M9.5's acceptance
+criteria to certify, not M6's, per this section's own dependency note.
 
-**Dependency note**: M6's own certification above depends only on M5 and
-M3 (below), same as the roadmap table. M9.5 (roadmap position 8) is what
-_drives_ this state machine end-to-end via real missions, and is
-correctly listed as depending on M6 — not the other way around. Earlier
-drafts of this section folded M9.5's not-yet-buildable mission mechanics
-into M6's own acceptance criteria, which would have made M6 impossible to
-certify on its own; the wording above is the fix.
+**Required tests**: `bases.test.ts` — exactly 5 entries, unique ids, every
+`worldId` resolves to a real `CelestialBody`, every `unlocks` target
+resolves to a real base, every difficulty axis in [0, 10],
+`firstClearCredits > 0`, a pin test against §9.5.7's exact roster, and a
+recompute-and-deep-equal test proving `difficulty` is genuinely derived,
+not hardcoded. `difficulty.test.ts` — both axis functions and the full
+profile (tutorial/mechanical/spatial dominance, tie-break order, the
+documented-unreachable capstone/combat branches). `base-progress.test.ts`
+— initial-state seeding, load/save round-trip, 9 distinct
+corruption/wrong-shape cases (each independently falling back to a fresh
+default, including a `null` or non-object per-entry value), and the full
+`establishBase` transition/cascade/immutability/no-downgrade/throw
+behavior. `e2e/world-map.spec.ts` — 3 tests: a fresh save's locked-vs-
+reachable gating (including the real-click-lands-and-does-nothing check
+on a locked entry) plus BACK navigating both levels plus an actual flight
+launch with the right base; a seeded unlock state making previously-
+locked entries selectable across a real reload; a single-base world
+launching directly without an intermediate base-select screen.
 
-**Required tests**: unit tests for the unlock-state data model (initial
-state, the three-state transition graph, `unlocks` propagation,
-persistence schema validation) and for `Base`/registry validity (every
-base has a valid, distinct `id`/`worldId`, difficulty axes in range
-0-10); e2e test reaching a locked world/base, confirming it can't be
-entered, then unlocking one and confirming it can.
+**Required quality gates**: full gate list — green (157 unit/integration
+tests, up from Milestone 5's 111; coverage 97.78%/90.56%/100%/97.7%,
+thresholds 90/85/90/90 all met — the handful of uncovered lines are the
+documented-unreachable-until-Milestone-11 `difficulty.ts` branches;
+`pnpm build`/`deadcode`/`security:audit`/`security:secrets` all clean;
+`pnpm test:e2e` 42/42 across Chromium/Firefox/WebKit, confirmed stable
+across 3 consecutive full runs). A dimension-specific adversarial review
+(correctness, standards/DRY, test-coverage, UX/navigation — every finding
+independently re-verified) found the schema/formula/persistence layer
+correct with no defects, but did catch and fix real gaps: a missing unit
+test for `base-progress.ts`'s null-entry validation guard (a genuinely
+load-bearing check — confirmed by temporarily removing it and observing
+a real `TypeError`); a missing e2e assertion that a locked entry's own
+on-screen click position is truly inert, not just visually distinct
+(Milestone 6's own acceptance-criteria wording literally says "confirming
+it can't be entered," which a text-presence check alone doesn't prove);
+and, from the UX pass, that D17's own Goal text ("worlds with more than
+one landing base show base-select") wasn't actually implemented as
+conditional — every reachable world unconditionally drilled into a
+base-select screen even for the 3-of-4 worlds with exactly one base,
+fixed by launching a single-base world's base directly, plus adding a
+plain-language legend caption for the previously-unexplained "MECH"/"NAV"
+badge abbreviations. One review process note worth recording: the
+adversarial-review workflow's own verify-phase agents edited
+`world-map-scene.ts` and `base-progress.test.ts` concurrently without
+seeing each other's changes, which needed a manual re-audit (full
+re-read of both files, a fresh `pnpm quality` + 3 e2e runs, and one
+additional e2e test the concurrent edits' own new behavior — the
+single-base auto-launch — had landed with zero test coverage) before
+trusting either file's final state.
 
-**Required quality gates**: full gate list, must stay green.
+**Required documentation updates**: this file, `CHANGELOG.md` — done.
 
-**Certification checklist**: not started. Depends on M5 and M3.
+**Certification checklist**: certified. Depends on M5 and M3.
 
 ---
 

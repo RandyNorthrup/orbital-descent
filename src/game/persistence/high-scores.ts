@@ -1,40 +1,14 @@
+import type { KeyValueStorage } from './safe-local-storage';
+
 export interface HighScoreEntry {
   readonly score: number;
   readonly achievedAt: number; // Date.now()-style epoch ms, informational only (not used for sorting)
-}
-
-// Deliberately just the two methods this module needs, not the full
-// Storage DOM interface -- but a real window.localStorage structurally
-// satisfies this with zero adaptation, since getItem/setItem match its
-// real signatures exactly.
-export interface KeyValueStorage {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
 }
 
 // Versioned (`:v1` suffix) so a future schema change can move to `:v2` and
 // simply orphan old-shape data under the old key rather than needing to
 // migrate it in place.
 export const HIGH_SCORES_STORAGE_KEY = 'orbital-descent:high-scores:v1';
-
-/**
- * Safely obtains `window.localStorage`, or `null` if merely *accessing* the
- * property throws. Reading `window.localStorage` is a getter, not a plain
- * property, and real browsers can throw a `SecurityError` DOMException on
- * that read alone -- e.g. a sandboxed cross-origin iframe without
- * `allow-same-origin`, or a browser/privacy setting that blocks all storage.
- * That throw happens at the call site, before `loadHighScores`/
- * `recordHighScore` are ever entered, so their own internal try/catches
- * around `JSON.parse`/`setItem` cannot help -- callers must go through this
- * instead of writing `window.localStorage` directly.
- */
-export function getSafeLocalStorage(): KeyValueStorage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
 
 function isHighScoreEntry(value: unknown): value is HighScoreEntry {
   if (typeof value !== 'object' || value === null) {

@@ -48,12 +48,20 @@ import {
 } from '../constants';
 import { FlightState } from '../flight/flight-state';
 import { degreesToRadians } from '../physics/lander-physics';
-import { getSafeLocalStorage, recordHighScore } from '../persistence/high-scores';
+import { recordHighScore } from '../persistence/high-scores';
+import { getSafeLocalStorage } from '../persistence/safe-local-storage';
+import type { Base } from '../bases/base';
 import { BODIES } from '../planets/bodies';
+import { findBodyById } from '../bases/bases';
 import type { CelestialBody } from '../planets/celestial-body';
 import { calculateScore } from '../scoring/score';
 import { isOnLandingPad, isSafeLanding } from '../terrain/landing';
-import { generateTerrain, getTerrainHeightAt, type Terrain } from '../terrain/terrain-generator';
+import {
+  generateTerrain,
+  getTerrainHeightAt,
+  type GenerateTerrainOptions,
+  type Terrain,
+} from '../terrain/terrain-generator';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createPaperShape, type PaperShape } from '../rendering/paper-shape';
 import { createRadialGlowImage } from '../rendering/radial-glow';
@@ -79,15 +87,19 @@ const ENGINE_GLOW_TEXTURE_KEY = 'lander-engine-glow';
 type GameOutcome = 'flying' | FlightOutcome;
 
 export interface GameSceneData {
-  /** The world to fly on. Defaults to BODIES[0] (Kessel's Reach) when
-   * omitted — every caller today (MenuScene's START, ResultScene's
-   * RESTART) starts a fresh flight with no data at all, since there's no
-   * world-selection UI yet (Milestone 6 adds one and will pass this
-   * explicitly). */
-  readonly body?: CelestialBody;
+  /** The curated base to fly (Milestone 6) — its own `terrainOptions`
+   * generate the terrain (a fixed seed, unlike free flight's per-restart
+   * `Date.now()` reseed, so a curated puzzle presents the same layout
+   * every time), and its `worldId` resolves the target `CelestialBody`.
+   * Omitted by every caller today (MenuScene's START, ResultScene's
+   * RESTART) — a generic procedural flight on BODIES[0] (Kessel's Reach),
+   * exactly this project's pre-Milestone-6 behavior. WorldMapScene is the
+   * first real caller that passes this. */
+  readonly base?: Base;
 }
 
 export class GameScene extends Phaser.Scene {
+  private base: Base | null = null;
   private body!: CelestialBody;
   private flightState!: FlightState;
   private terrain!: Terrain;
@@ -112,7 +124,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   init(data: GameSceneData = {}): void {
-    this.body = data.body ?? BODIES[0];
+    this.base = data.base ?? null;
+    this.body = this.base === null ? BODIES[0] : findBodyById(this.base.worldId);
   }
 
   create(): void {
@@ -136,7 +149,17 @@ export class GameScene extends Phaser.Scene {
 
     buildBackground(this);
 
-    this.terrain = generateTerrain({
+    // A curated base's own terrainOptions generate a fixed, repeatable
+    // layout (the puzzle this specific base authors); free flight (no
+    // base selected) keeps this project's pre-Milestone-6 behavior
+    // exactly: a fresh procedural reseed every restart. Every base
+    // authored so far uses WORLD_WIDTH/GAME_HEIGHT for width/height, so
+    // camera bounds/ground-closing points/lander spawn X below (all still
+    // WORLD_WIDTH-based) stay correct for both branches without further
+    // change — a base wanting a genuinely different world width is a
+    // real, currently out-of-scope extension, not a case this scene
+    // silently mishandles today.
+    const terrainOptions: GenerateTerrainOptions = this.base?.terrainOptions ?? {
       seed: Date.now(),
       width: WORLD_WIDTH,
       height: GAME_HEIGHT,
@@ -145,7 +168,8 @@ export class GameScene extends Phaser.Scene {
       maxHeightFraction: TERRAIN_MAX_HEIGHT_FRACTION,
       maxStepFraction: TERRAIN_MAX_STEP_FRACTION,
       padSegmentCount: LANDING_PAD_SEGMENT_COUNT,
-    });
+    };
+    this.terrain = generateTerrain(terrainOptions);
     this.buildTerrainVisual();
 
     this.flightState = new FlightState({

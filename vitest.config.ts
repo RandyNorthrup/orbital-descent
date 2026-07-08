@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-// "unit" = single pure-function correctness (physics, terrain, scoring, persistence, planets).
+// "unit" = single pure-function correctness (physics, terrain, scoring, persistence, planets, bases).
 // "integration" = multi-module orchestration in plain Node (e.g. FlightState ticking
 // physics + fuel + rotation together over many frames). Full-browser rendering
 // correctness is Playwright's job (see playwright.config.ts) — this project has no
@@ -29,9 +29,9 @@ export default defineConfig({
       reporter: ['text', 'html', 'lcov'],
       // Scoped to the Phaser-free pure-logic layers (physics, flight
       // orchestration, terrain generation, landing rules, seeded procedural
-      // layout, the scoring formula, validated high-score persistence, and
-      // the celestial-body registry) that unit + integration tests actually
-      // exercise. Scene glue
+      // layout, the scoring formula, validated high-score/base-progress
+      // persistence, the celestial-body registry, and the base/difficulty
+      // registry) that unit + integration tests actually exercise. Scene glue
       // and Phaser-dependent rendering (src/game/scenes/**, most of
       // src/game/rendering/**, src/main.ts) wire that logic into Phaser/the
       // DOM and are verified by the Playwright e2e smoke test instead — no
@@ -47,6 +47,7 @@ export default defineConfig({
         'src/game/scoring/**/*.ts',
         'src/game/persistence/**/*.ts',
         'src/game/planets/**/*.ts',
+        'src/game/bases/**/*.ts',
         'src/game/rendering/starfield.ts',
         'src/game/rendering/ridgeline.ts',
       ],

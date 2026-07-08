@@ -8,6 +8,62 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 6 — Planetary Browser / World Map (Decision D17),
+  certified**: a new two-level `WorldMapScene` (world-select, then
+  base-select within a world) reads a data-driven `Base` schema
+  (`src/game/bases/base.ts`) and a hand-authored 5-base registry
+  (`bases.ts`) reusing Milestone 9.5's own worked-example roster verbatim
+  (Anchor Station + Scarp Outpost on Kessel's Reach, Meridian Yard on
+  Verdalis, Rustwell Landing on Pyrrhine Expanse, Frostgate on Glacian
+  Drift) so that future milestone's arithmetic can't silently drift. Each
+  base's difficulty (mechanical/spatial/combat axes, dominant archetype,
+  budget) is genuinely computed from its own authored requirements/terrain
+  (`difficulty.ts`, combat pinned at 0 until Milestone 11 populates real
+  encounter data) — never hardcoded. A three-state unlock machine
+  (`locked → discovered-unclaimed → established`) persists via a new
+  `src/game/persistence/base-progress.ts`, reusing Milestone 4's validated-
+  `localStorage` pattern (its `KeyValueStorage`/`getSafeLocalStorage`
+  safety check extracted into a shared `persistence/safe-local-storage.ts`
+  that `high-scores.ts` now also imports, avoiding a second copy).
+  Selecting a reachable base launches `GameScene` with that base's own
+  fixed-seed `terrainOptions` — the first real production caller of the
+  `GameSceneData.base` plumbing Milestone 5 built but nothing ever
+  exercised until now. `MenuScene` gained a new, additive "WORLD MAP"
+  button; START itself is deliberately unchanged (still a generic free
+  flight), a conservative choice avoiding a larger restructure of the
+  already-certified M1-M5 menu flow for a distinction with no visible
+  payoff until Milestone 9.5 wires a real mission loop to it.
+- **Verified this release**: format/lint/typecheck all clean; unit +
+  integration 157 tests (up from Milestone 5's 111); coverage
+  97.78%/90.56%/100%/97.7% (thresholds 90/85/90/90, all met — the few
+  uncovered lines are `difficulty.ts` branches documented as structurally
+  unreachable until Milestone 11 gives the combat axis a real nonzero
+  value); `pnpm build`/`deadcode`/`security:audit`/`security:secrets` all
+  clean; `pnpm test:e2e` 42/42 across Chromium/Firefox/WebKit, stable
+  across 3 consecutive full runs. An adversarial review (correctness,
+  standards/DRY, test-coverage, UX/navigation — every finding
+  independently re-verified) found the schema/formula/persistence layer
+  correct with no defects, but caught and fixed real gaps: a missing unit
+  test for a load-bearing null-entry validation guard in
+  `base-progress.ts` (confirmed genuinely load-bearing by temporarily
+  removing it and observing a real crash); a missing e2e assertion that a
+  locked world/base entry's own on-screen click position is truly inert
+  (the milestone's own acceptance criteria specifically says "confirming
+  it can't be entered," which a text-presence check alone doesn't prove);
+  and — from the UX pass — that Decision D17's own text ("worlds with more
+  than one landing base show base-select") wasn't actually conditional in
+  the shipped code, fixed by making a single-base world (3 of today's 4)
+  launch its base directly instead of always drilling into a base-select
+  screen that would show exactly one entry, plus adding a plain-language
+  legend for the previously-unexplained "MECH"/"NAV" difficulty-badge
+  abbreviations. The review process itself surfaced a lesson worth
+  recording: its own verify-phase agents edited the same two files
+  concurrently without seeing each other's changes, which needed a
+  full manual re-audit (fresh gate run, 3 e2e runs, and one more e2e test
+  for a concurrently-added behavior — the single-base auto-launch — that
+  had landed with no test coverage of its own) before any of it could be
+  trusted as final.
+
 - **Milestone 5 — Fictional Celestial Bodies (Decision D11/D20),
   certified**: generalized the single hardcoded world into a data-driven
   registry of 12 fictional worlds (`src/game/planets/bodies.ts`,

@@ -36,6 +36,16 @@ export default tseslint.config(
           ignoreEnums: true,
           ignoreClassFieldInitialValues: false,
           detectObjects: false,
+          // A standalone `type X = 0 | 1 | 2 | 3;` alias is a compile-time-only
+          // literal union, not a runtime value — it costs nothing to read
+          // (each member is self-documenting in context, e.g. a tier number)
+          // and can't "drift" the way a runtime magic number can. Note this
+          // only recognizes the literal union as the *entire* RHS of a type
+          // alias declaration (`isTSNumericLiteralType` in the rule's own
+          // source) — a literal union inline in an interface property or
+          // nested in an object type still needs a named type alias
+          // extracted, same as `WeaponTier` in `src/game/bases/base.ts`.
+          ignoreNumericLiteralTypes: true,
         },
       ],
       '@typescript-eslint/no-non-null-assertion': 'error',
