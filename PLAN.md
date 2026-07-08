@@ -93,8 +93,11 @@ unit-tested in plain Node, and precisely as accurate as the game requires
 `FlightState` splits its inputs into two categories, per `FlightStateOptions`:
 
 - **Ship-intrinsic** (`thrustAccel`, `rotationSpeedRadPerSec`,
-  `fuelBurnRate`): global constants in `constants.ts` today, owned by
-  Milestone 7's `ShipClass` once that milestone lands.
+  `fuelBurnRate`): sourced from the selected `ShipClass`
+  (`src/game/ships/ship.ts`, Milestone 7) — no longer global constants in
+  `constants.ts`, which never held rotation in radians anyway
+  (`GameScene` converts `ShipClass.handling`, authored in deg/s, via
+  `degreesToRadians` at the call site, same conversion point as before).
 - **Body/environment** (`gravityAccel`, `dragCoefficient`, `hazard`):
   sourced from the selected `CelestialBody` (`src/game/planets/
 celestial-body.ts`), not a constant. `dragCoefficient` is that body's
@@ -1800,7 +1803,9 @@ thrustEfficiency}` \| `null`). `TerrainPalette`/`CorrosiveHazard`/
   normal thrust burn. Ship-intrinsic stats (`THRUST_ACCEL`,
   `ROTATION_SPEED_DEG`, `FUEL_BURN_RATE`, `MAX_FUEL` — owned by M7's
   `ShipClass` once that milestone lands) stay in `constants.ts`,
-  unchanged; only gravity/drag/hazard moved to per-body data.
+  unchanged at this milestone; only gravity/drag/hazard moved to per-body
+  data. (M7 later deleted all four from `constants.ts` — see that
+  milestone's own Scope delivered section.)
 - `GameScene` takes the selected body via new `GameSceneData.body?`
   (optional; defaults to `BODIES[0]` in `init()` until M6 adds real
   selection). Every current caller (`MenuScene`'s START, `ResultScene`'s
@@ -2033,7 +2038,9 @@ trusting either file's final state.
 
 ---
 
-### Milestone 7 — Ship Roster (not started)
+### Milestone 7 — Ship Roster (certified)
+
+**Status: CERTIFIED** (2026-07-07).
 
 **Goal**: 5 starter ships available from the start (Decision D13), each
 belonging to a distinct **ship class** (an archetype) with
@@ -2055,52 +2062,179 @@ This same purchase-or-unlock model applies to equipment items in M9 too
 (noted there as well, so the two milestones don't drift into
 inconsistent acquisition rules).
 
-**Scope**: `src/game/ships/ship.ts` (a `ShipClass` config: id, name,
-class/archetype, `dryMass`, `baseThrustAccel`, `fuelCapacity`, `burnRate`
-(fuel consumed per second at full thrust — needed by §6b.1's
-fuel-efficient-ship archetype and every worked fuel-margin example in
-§6b.5/§9.5.7), `handling` (rotation rate in deg/s — named to match every
-consumer of this stat, §6b.2/§6b.5/§9.5, rather than "rotation speed"),
-**equipment slot count** (consumed by M9), and an `acquisition` field — `{ type: 'starter' }` \| `{ type: 'purchase'; price: number }` \|
-`{ type: 'unlock'; condition: ... }`). **Thrust model, made explicit**
-(resolves an ambiguity §6b.6 item 2 flagged in the original "mass or
-thrust multiplier" phrasing): `engineForce = baseThrustAccel × dryMass`,
-held fixed — bolting on equipment/cargo mass lowers realized acceleration
-without touching the engine itself; see the M9 amendment below for the
-full `effectiveThrustAccel` formula this feeds. Two more fields, added by
-Milestone 9.5 (cheaper to bake into this not-yet-built interface now than
-retrofit after M7 certifies): `massBudget: number` (total mass-units this
-class can carry across equipment _and_ cargo combined — conceptually
-paired with M9's mass-budget mechanism, not a separate ceiling) and
-`cargoBayCapacity: number` (a secondary, cargo-only ceiling; `0` is valid,
-for combat-archetype classes with no cargo bay regardless of leftover
-`massBudget`), plus `fuelPerDistanceUnit: number` (consumed only by
-M9.5's relay transit-fuel formula). `src/game/ships/ships.ts` (registry: 5
-`starter` ships + at least 2 more split across `purchase` and `unlock`), a
-ship-select screen (extends M3/M6's menu system, showing locked ships
-with _why_ they're locked — price or unlock condition), `FlightState`/
-`GameScene` taking the selected ship's stats instead of the current
-hardcoded `THRUST_ACCEL`/`MAX_FUEL`/etc. The actual purchase transaction
-is M8's job (a generic mechanism that sells anything with a price tag,
-ships here and equipment in M9) — this milestone only needs the ship data
-model and read-only "is it available" logic; wiring a real purchase
-button is acceptance criteria for M8, not this milestone.
+**Scope delivered**:
 
-**Acceptance criteria**: selecting different ships/classes produces
-measurably different flight feel (integration-tested, same pattern as
-M5's body-variation test); locked ships are visible with their
-acquisition method shown, but not selectable until purchased or unlocked.
+- `src/game/ships/ship.ts` (new) — the `ShipClass` interface exactly as
+  scoped (`id`, `name`, `archetype: ShipArchetype`, `dryMass`,
+  `baseThrustAccel`, `fuelCapacity`, `burnRate`, `handling`,
+  `equipmentSlots`, `massBudget`, `cargoBayCapacity`,
+  `fuelPerDistanceUnit`, `acquisition: ShipAcquisition`), plus the
+  `ShipAcquisition` union (`{type:'starter'}` \|
+  `{type:'purchase';price}` \|
+  `{type:'unlock';requiredBaseId;description}` — `requiredBaseId` is a
+  plain `Base.id` string, not a function, keeping this serializable
+  authored data like every other registry in this project). The thrust
+  model (`engineForce = baseThrustAccel × dryMass`, held fixed) is
+  documented on `dryMass` itself; this milestone doesn't need to compute
+  `engineForce` anywhere since every flight before M9 carries zero
+  equipment/cargo mass, so realized thrust equals `baseThrustAccel`
+  exactly — M9's `effectiveThrustAccel` formula is the real consumer of
+  the general case.
+- `src/game/ships/ships.ts` (new) — `SHIPS`, a non-empty-tuple registry of
+  exactly 7 ships: 5 `starter` (Falcon, Scout, Courier, Sentinel, Hauler),
+  1 `purchase` (Vanguard, 750cr — genuinely unreachable until M8 exists to
+  populate `purchasedShipIds`), 1 `unlock` (Cryohauler, gated on
+  Frostgate reaching `established`). Falcon is `SHIPS[0]` and this
+  project's default ship: its four flight-relevant stats
+  (`baseThrustAccel`/`fuelCapacity`/`burnRate`/`handling` = 46/100/18/150)
+  reproduce the four deleted `constants.ts` globals exactly, so every e2e
+  test written before ship selection existed keeps passing unmodified.
+  Scout/Courier/Hauler's seven shared fields
+  (`dryMass`/`baseThrustAccel`/`massBudget`/`cargoBayCapacity`/
+  `equipmentSlots`/`fuelCapacity`/`fuelPerDistanceUnit`) reproduce
+  §9.5.7's worked-example table verbatim (pinned by a regression test,
+  same "avoid future arithmetic drift" reasoning as `bases.ts`'s own pin
+  test against the same section). Also exports `findShipById` (throws on
+  an unknown id, matching `findBodyById`'s convention).
+- **Ship selection is a three-state-ish read-only availability model, not
+  baked into `Base`'s three-state machine.** `src/game/persistence/
+ship-progress.ts` (new) — `ShipProgressState`
+  (`selectedShipId`/`purchasedShipIds`, the latter always empty until M8
+  exists to populate it), `initialShipProgress`/`loadShipProgress`/
+  `saveShipProgress` mirroring `base-progress.ts`'s exact validated-
+  localStorage pattern (reject-the-whole-thing on any corruption,
+  best-effort writes, plus an extra fail-closed check for a
+  `selectedShipId` that no longer names a ship in the current registry —
+  a roster-shrink case `base-progress.ts` has no equivalent of), a pure
+  `selectShip` transition (throws on an unknown id), and `isShipAvailable`
+  composing a ship's `acquisition` against both `ShipProgressState`
+  (purchases) and Milestone 6's live `BaseProgressMap` (unlock
+  conditions) — the one place this milestone's read-only model reaches
+  into M6's own persisted state, by design (§6b.2 already anticipated
+  this cross-system composition).
+- `src/game/scenes/ship-select-scene.ts` (new) — a flat 7-row "hangar"
+  screen. Every row shows a stat tag (`THR 46 · FUEL 100 · HDL 150
+(BALANCED)`, a two-column layout keeping the list within `GAME_HEIGHT`
+  without a second vertical line per row) so a player can compare ships
+  without leaving the screen. Available ships are real buttons (suffixed
+  `(SELECTED)` for the currently-equipped one); locked ones are plain
+  non-interactive text with a second muted reason line (`PRICE: 750
+CREDITS` / `UNLOCK: ESTABLISH FROSTGATE`). Selecting an available ship
+  persists the choice and re-renders in place — this is a persistent
+  loadout screen, not a launch action, so it never starts a flight
+  itself. `MenuScene` gained an additive "SHIP SELECT" button (its three
+  near-duplicate `createUiButton` calls were refactored into one
+  data-driven loop over a button-spec array in the same change, to keep
+  a 4th button from needing a bare magic-number row multiplier).
+- **`GameScene` resolves the flying ship from persisted storage directly
+  in `init()`, not via a `GameSceneData` field** — a deliberate departure
+  from `base`'s per-launch-parameter pattern: equipping a ship is a
+  persistent loadout choice, so every caller (`MenuScene` START,
+  `WorldMapScene`'s `launchBase`, `ResultScene`'s RESTART) automatically
+  flies whatever is currently equipped without each needing to thread a
+  `shipId` through its own scene data. Falls back to `SHIPS[0]` when
+  storage access is blocked. `FlightState` construction and the fuel
+  HUD/score normalization now read from `this.ship` instead of the four
+  deleted constants.
+- **`THRUST_ACCEL`/`ROTATION_SPEED_DEG`/`MAX_FUEL`/`FUEL_BURN_RATE`
+  removed from `constants.ts` entirely** — their own doc comments already
+  said "owned by Milestone 7's `ShipClass` once that milestone lands";
+  Falcon's `ships.ts` entry is now the sole source of truth for those
+  four numbers (matches M5's precedent removing `GRAVITY_ACCEL`/
+  `TERRAIN_FILL_COLOR_*` once `CelestialBody` took over). `bases.ts`'s
+  `SHIP_REFERENCE` placeholder (used by `computeDifficultyProfile`) now
+  reads `findShipById('falcon').baseThrustAccel` instead of the removed
+  constant — numerically identical (46), just wired to real ship data
+  instead of a bare-hull placeholder comment.
 
-**Required tests**: unit tests for the ship registry (valid/distinct
-configs, every `acquisition` variant represented); integration test
-comparing two ship classes' handling under identical input; a
-selection-screen test (unit or e2e) asserting a locked ship's entry is
-rendered but its select action is a no-op/disabled until its
-`acquisition` condition is met.
+**Acceptance criteria**: met. Selecting different ships produces
+measurably different flight feel — integration-tested (a nimble
+scout-like ship rotates and accelerates further than a lumbering
+hauler-like ship under identical input, same methodology as M5's
+body-variation test) and e2e-verified (selecting Scout via the real UI,
+then flying, reads `GameScene.ship.id === 'scout'`). Locked ships are
+visible with their acquisition method shown (price or unlock condition)
+but not selectable until available — e2e-verified with a real click
+landing on a locked entry's own on-screen position, confirmed a genuine
+no-op (not just a different visual style), matching M6's own established
+precedent for this exact guarantee.
 
-**Required quality gates**: full gate list, must stay green.
+**Required tests**: `ships.test.ts` — 13 tests: exactly 7 entries with
+the correct 5/1/1 acquisition split, unique ids/names, positive core
+stats, distinct full configs, every `purchase` priced and every `unlock`
+pointed at a real `BASES` id, a pin test for Falcon's four legacy-
+matching stats plus `SHIPS[0] === falcon`, and a pin test for
+Scout/Courier/Hauler's seven §9.5.7-load-bearing fields (one `it` per
+ship). `ship-progress.test.ts` — initial-state seeding, load/save
+round-trip, 6 distinct corruption/wrong-shape cases (including a stale
+`selectedShipId` naming a ship outside the current registry) each falling
+back to a fresh default, `selectShip`'s transition/immutability/throw
+behavior, and `isShipAvailable` for all three acquisition variants
+including the no-`BaseProgress`-entry-at-all edge case for an unlock
+ship. `flight-state.integration.test.ts` — one new test comparing two
+ships' thrust/handling under identical input (ad hoc literals, not an
+import of the real registry, matching this file's own established
+convention). `e2e/ship-select.spec.ts` — 2 tests: a fresh save (default
+Falcon, every starter genuinely clickable, Vanguard/Cryohauler locked
+with their real-click-inert-confirmed reason text, selecting Scout then
+flying it for real, BACK and ESC both returning to Menu) and a seeded
+Frostgate-established state unlocking Cryohauler with a real UI-driven
+write verified to survive an actual page reload.
 
-**Certification checklist**: not started. Depends on M3.
+**Required quality gates**: full gate list — green (187 unit/integration
+tests, up from Milestone 6's 157; coverage 98.08%/92.06%/100%/98%,
+thresholds 90/85/90/90 all met, `ships/**` and `persistence/
+ship-progress.ts` both 100%-covered; `pnpm build`/`deadcode`/
+`security:audit`/`security:secrets` all clean; `pnpm test:e2e` 48/48
+across Chromium/Firefox/WebKit, confirmed stable across 3 consecutive
+full runs run in isolation — two earlier back-to-back full-suite runs
+each showed 1-3 unrelated real-time-physics-timing tests (`landing.spec.ts`,
+`game-flow.spec.ts`, `button-clicks.spec.ts`) timing out, traced directly
+to this sandbox's own CPU contention from a concurrently-running review
+workflow rather than a product regression — re-running those same tests
+in isolation, and the full suite with no concurrent load, was clean every
+time). A dimension-specific adversarial review (correctness, standards/
+DRY, test-coverage, UX/gameplay-balance — every finding independently
+re-verified) found the ship data model, persistence layer, and scene
+wiring correct against both PLAN.md §9.5.7's exact table and this
+project's own conventions, but did catch and fix real gaps: a missing
+regression test pinning Scout/Courier/Hauler against §9.5.7 (added,
+mirroring `bases.test.ts`'s own precedent); a genuine starter-ship-name
+collision with a hostile NPC PLAN.md §6b.5 Base 6 already named "Warden"
+(the starter renamed to Sentinel before combat ever ships, cheaper now
+than after); a real UX gap where the ship-select screen showed zero stat
+information, making an informed choice impossible without leaving the
+screen (fixed with a per-row stat tag, laid out as a second column
+instead of a second line so it fit within `GAME_HEIGHT` without pushing
+BACK off-canvas); a `bodies.ts` doc comment that overclaimed "every world
+stays flyable regardless of ship" without accounting for the cold
+hazard's `thrustEfficiency` multiplier (corrected, and confirmed currently
+latent — Thornreach Expanse, the one body where the margin is razor-thin,
+has no base registered yet); a stale `MAX_FUEL` reference in a doc
+comment `THRUST_ACCEL`'s own comment had already been scrubbed of a few
+lines above it; and duplicated e2e helper functions between
+`world-map.spec.ts` and the new `ship-select.spec.ts` (extracted into
+`e2e/test-helpers.ts`, both specs now share one copy). As with Milestone
+6, this review's own verify-phase agents ran concurrently and edited
+several of the same files (`ships.ts`, `bodies.ts`, `ship-select-scene.ts`,
+the e2e specs) without seeing each other's changes mid-flight — one agent
+correctly flagged and refused to act on injected `<system-reminder>`-
+formatted text appearing in its own tool output that instructed it not to
+tell the user about a concurrent edit (a real prompt-injection pattern,
+correctly identified as such and independently fact-checked rather than
+obeyed or trusted blindly), and another independently caught a fellow
+reviewer's factually wrong claim ("bodies.ts gained a 13th celestial
+body") by re-checking the real file instead of trusting the report — both
+exactly the kind of independent verification this process depends on.
+A full manual re-audit (fresh reads of every touched file, a real
+screenshot to confirm the new stat-tag layout doesn't visually collide,
+`pnpm quality` re-run from scratch, and 3 additional clean e2e runs in
+isolation) followed before trusting any of it, per the Milestone 6
+lesson.
+
+**Required documentation updates**: this file, `CHANGELOG.md` — done.
+
+**Certification checklist**: certified. Depends on M3.
 
 ---
 

@@ -16,8 +16,9 @@ export interface ScoreInputs {
 }
 
 export interface ScoreWeights {
-  /** Matches MAX_FUEL from constants.ts -- needed here only to normalize
-   * fuelRemaining into a 0..1 fraction. */
+  /** Matches the flying ship's own `fuelCapacity` (`ships/ship.ts`,
+   * Milestone 7) -- needed here only to normalize fuelRemaining into a
+   * 0..1 fraction. */
   readonly maxFuel: number;
   /** Flat points for any confirmed safe landing, regardless of the other
    * three factors. */

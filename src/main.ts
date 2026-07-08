@@ -6,6 +6,7 @@ import { GameScene } from './game/scenes/game-scene';
 import { ResultScene } from './game/scenes/result-scene';
 import { SettingsScene } from './game/scenes/settings-scene';
 import { WorldMapScene } from './game/scenes/world-map-scene';
+import { ShipSelectScene } from './game/scenes/ship-select-scene';
 import './style.css';
 
 const APP_PARENT_ELEMENT_ID = 'app';
@@ -16,7 +17,15 @@ const config: Phaser.Types.Core.GameConfig = {
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
   backgroundColor: BACKGROUND_COLOR,
-  scene: [BootScene, MenuScene, GameScene, ResultScene, SettingsScene, WorldMapScene],
+  scene: [
+    BootScene,
+    MenuScene,
+    GameScene,
+    ResultScene,
+    SettingsScene,
+    WorldMapScene,
+    ShipSelectScene,
+  ],
 };
 
 const game = new Phaser.Game(config);

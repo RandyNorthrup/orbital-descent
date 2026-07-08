@@ -8,6 +8,62 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 7 — Ship Roster (Decision D13), certified**: a new
+  `ShipClass` data model (`src/game/ships/ship.ts`) and a 7-ship registry
+  (`ships.ts`) — 5 starters (Falcon, Scout, Courier, Sentinel, Hauler), 1
+  purchase-gated (Vanguard, unreachable until Milestone 8's store exists),
+  1 unlock-gated (Cryohauler, tied to establishing Frostgate). Falcon
+  reproduces this project's pre-Milestone-7 certified flight constants
+  exactly, so every existing e2e test keeps passing unmodified; Scout/
+  Courier/Hauler reproduce PLAN.md §9.5.7's own worked-example table
+  verbatim, pinned by a regression test. A new `ShipSelectScene`
+  ("hangar") lets the player browse and equip any available ship, showing
+  a stat tag per row and, for locked ones, a stated reason (price or
+  unlock condition) — reachable via a new, additive "SHIP SELECT" menu
+  button. Ship selection is a persistent loadout choice rather than a
+  per-launch parameter: `GameScene` now resolves the flying ship directly
+  from a new validated-`localStorage`-backed `persistence/
+ship-progress.ts` (mirroring Milestone 6's `base-progress.ts` pattern,
+  composing its own `purchasedShipIds` with Milestone 6's live
+  `BaseProgressMap` for unlock checks) rather than via scene data, so
+  every flight path (free flight, a curated base, a restart) automatically
+  flies whatever's currently equipped. `THRUST_ACCEL`/`ROTATION_SPEED_DEG`/
+  `MAX_FUEL`/`FUEL_BURN_RATE` — global constants since Milestone 1 — are
+  removed from `constants.ts` entirely, now owned solely by Falcon's
+  registry entry.
+- **Verified this release**: format/lint/typecheck all clean; unit +
+  integration 187 tests (up from Milestone 6's 157); coverage
+  98.08%/92.06%/100%/98% (thresholds 90/85/90/90, all met — `ships/**`
+  and the new `persistence/ship-progress.ts` both 100%-covered);
+  `pnpm build`/`deadcode`/`security:audit`/`security:secrets` all clean;
+  `pnpm test:e2e` 48/48 across Chromium/Firefox/WebKit, stable across 3
+  consecutive full runs in isolation (two earlier full-suite runs each
+  showed a handful of unrelated real-time-physics-timing tests time out
+  under this sandbox's own CPU contention from a concurrently-running
+  review workflow — re-run cleanly with no concurrent load). An
+  adversarial review (correctness, standards/DRY, test-coverage,
+  UX/gameplay-balance — every finding independently re-verified) found
+  the ship data/persistence/scene layer correct against both PLAN.md
+  §9.5.7's table and this project's conventions, but caught and fixed
+  real gaps: a missing regression test pinning Scout/Courier/Hauler
+  against §9.5.7; a starter ship named "Warden" colliding with a hostile
+  NPC PLAN.md §6b.5 already named the same thing (renamed to Sentinel
+  before combat ever ships); a real UX gap where the ship-select screen
+  showed zero stat information (fixed with a per-row stat tag, laid out
+  as a second column rather than a second line so the list still fits
+  within the canvas); a stale doc-comment overclaim about every world
+  being flyable regardless of ship, which didn't account for the cold
+  hazard's thrust-efficiency penalty (corrected, and confirmed currently
+  latent since the one body where the margin is razor-thin has no base
+  registered yet); and duplicated e2e helper functions between
+  `world-map.spec.ts` and the new `ship-select.spec.ts` (extracted into
+  a shared `e2e/test-helpers.ts`). As with Milestone 6, this review's own
+  verify-phase agents edited several files concurrently without seeing
+  each other's changes — a full manual re-audit (fresh reads of every
+  touched file, a real screenshot confirming the new stat-tag layout
+  doesn't visually collide, `pnpm quality` re-run from scratch, 3
+  additional clean e2e runs) followed before trusting any of it.
+
 - **Milestone 6 — Planetary Browser / World Map (Decision D17),
   certified**: a new two-level `WorldMapScene` (world-select, then
   base-select within a world) reads a data-driven `Base` schema

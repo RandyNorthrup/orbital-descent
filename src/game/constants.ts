@@ -21,22 +21,6 @@ export const WORLD_WIDTH = GAME_WIDTH * WORLD_WIDTH_MULTIPLIER;
  * flash a different hue. */
 export const BACKGROUND_COLOR = 0x141428;
 
-/** Main engine acceleration in px/s² while thrust is held — ship-intrinsic
- * (owned by Milestone 7's ShipClass once that milestone lands), unlike
- * gravity, which became a per-world stat in Milestone 5
- * (`CelestialBody.gravityAccel`, `planets/bodies.ts`). Every registered
- * world's gravity stays comfortably under this so every world is flyable —
- * see `bodies.ts`'s own doc comment. */
-export const THRUST_ACCEL = 46;
-
-/** Rotation rate in degrees/s while a rotate key is held. */
-export const ROTATION_SPEED_DEG = 150;
-
-/** Fuel is a unitless 0..MAX_FUEL gauge, not litres/kg — matches the
- * simplicity of the rest of the simulation's pixel-space units. */
-export const MAX_FUEL = 100;
-export const FUEL_BURN_RATE = 18;
-
 /** Lander spawn point: horizontally centered in the *world* (not just the
  * initial viewport, now that they differ — Milestone 2.5), near the top. */
 export const LANDER_START_X = WORLD_WIDTH / 2;

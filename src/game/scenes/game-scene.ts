@@ -5,7 +5,6 @@ import {
   ENGINE_GLOW_COLOR,
   ENGINE_GLOW_MAX_ALPHA,
   ENGINE_GLOW_RADIUS,
-  FUEL_BURN_RATE,
   GAME_HEIGHT,
   GAME_WIDTH,
   HIGH_SCORE_LIST_MAX_ENTRIES,
@@ -24,9 +23,7 @@ import {
   LANDING_MAX_SAFE_SPEED,
   LANDING_PAD_FILL_COLOR_BOTTOM,
   LANDING_PAD_FILL_COLOR_TOP,
-  MAX_FUEL,
   RESULT_TRANSITION_DELAY_MS,
-  ROTATION_SPEED_DEG,
   SCORE_BASE_LANDING_BONUS,
   SCORE_MAX_FUEL_BONUS,
   SCORE_MAX_PRECISION_BONUS,
@@ -39,7 +36,6 @@ import {
   TERRAIN_SEGMENTS,
   TERRAIN_SHADOW_LAYER_DEPTH,
   LANDING_PAD_SEGMENT_COUNT,
-  THRUST_ACCEL,
   UI_BODY_FONT_SIZE_PX,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
@@ -50,10 +46,13 @@ import { FlightState } from '../flight/flight-state';
 import { degreesToRadians } from '../physics/lander-physics';
 import { recordHighScore } from '../persistence/high-scores';
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
+import { loadShipProgress } from '../persistence/ship-progress';
 import type { Base } from '../bases/base';
 import { BODIES } from '../planets/bodies';
 import { findBodyById } from '../bases/bases';
 import type { CelestialBody } from '../planets/celestial-body';
+import type { ShipClass } from '../ships/ship';
+import { SHIPS, findShipById } from '../ships/ships';
 import { calculateScore } from '../scoring/score';
 import { isOnLandingPad, isSafeLanding } from '../terrain/landing';
 import {
@@ -101,6 +100,7 @@ export interface GameSceneData {
 export class GameScene extends Phaser.Scene {
   private base: Base | null = null;
   private body!: CelestialBody;
+  private ship!: ShipClass;
   private flightState!: FlightState;
   private terrain!: Terrain;
   private lander!: PaperShape;
@@ -126,6 +126,23 @@ export class GameScene extends Phaser.Scene {
   init(data: GameSceneData = {}): void {
     this.base = data.base ?? null;
     this.body = this.base === null ? BODIES[0] : findBodyById(this.base.worldId);
+    this.ship = this.resolveSelectedShip();
+  }
+
+  /** Equipping a ship (`ShipSelectScene`) is a persistent loadout choice,
+   * not a per-launch parameter like `base` — every flight (free flight, a
+   * curated base, a restart) picks up whatever ship was most recently
+   * selected without every caller needing to thread a `shipId` through
+   * their own scene data. `getSafeLocalStorage()` returns null when
+   * storage access itself is blocked (sandboxed iframe, privacy setting)
+   * -- flight still starts normally on the default ship in that case, same
+   * degradation as every other localStorage read in this scene. */
+  private resolveSelectedShip(): ShipClass {
+    const storage = getSafeLocalStorage();
+    if (storage === null) {
+      return SHIPS[0];
+    }
+    return findShipById(loadShipProgress(storage, SHIPS).selectedShipId);
   }
 
   create(): void {
@@ -177,12 +194,15 @@ export class GameScene extends Phaser.Scene {
         position: { x: LANDER_START_X, y: LANDER_START_Y },
         velocity: { x: 0, y: 0 },
         rotationRadians: 0,
-        fuel: MAX_FUEL,
+        fuel: this.ship.fuelCapacity,
       },
       gravityAccel: this.body.gravityAccel,
-      thrustAccel: THRUST_ACCEL,
-      rotationSpeedRadPerSec: degreesToRadians(ROTATION_SPEED_DEG),
-      fuelBurnRate: FUEL_BURN_RATE,
+      // Zero equipment/cargo mass on every flight before Milestone 9 ships,
+      // so realized thrust acceleration is exactly baseThrustAccel (see
+      // ShipClass.dryMass's own doc comment on the engineForce model).
+      thrustAccel: this.ship.baseThrustAccel,
+      rotationSpeedRadPerSec: degreesToRadians(this.ship.handling),
+      fuelBurnRate: this.ship.burnRate,
       dragCoefficient: this.body.atmosphereDensity,
       hazard: this.body.hazard,
     });
@@ -241,7 +261,7 @@ export class GameScene extends Phaser.Scene {
       })
       .setDepth(HUD_LAYER_DEPTH)
       .setScrollFactor(0);
-    this.updateFuelText(MAX_FUEL);
+    this.updateFuelText(this.ship.fuelCapacity);
 
     this.add
       .text(GAME_WIDTH - HUD_MARGIN, HUD_MARGIN, 'ESC: pause', {
@@ -332,7 +352,7 @@ export class GameScene extends Phaser.Scene {
           padHalfWidth,
         },
         {
-          maxFuel: MAX_FUEL,
+          maxFuel: this.ship.fuelCapacity,
           baseLandingBonus: SCORE_BASE_LANDING_BONUS,
           maxFuelBonus: SCORE_MAX_FUEL_BONUS,
           maxPrecisionBonus: SCORE_MAX_PRECISION_BONUS,
@@ -393,7 +413,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateFuelText(fuel: number): void {
-    const percent = Math.round((fuel / MAX_FUEL) * FUEL_PERCENT_MULTIPLIER);
+    const percent = Math.round((fuel / this.ship.fuelCapacity) * FUEL_PERCENT_MULTIPLIER);
     this.fuelText.setText(`FUEL: ${percent.toString()}%`);
   }
 }

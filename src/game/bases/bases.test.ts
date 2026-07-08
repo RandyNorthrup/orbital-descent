@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { BASES, findBodyById } from './bases';
 import { computeDifficultyProfile } from './difficulty';
 import { BODIES } from '../planets/bodies';
+import { findShipById } from '../ships/ships';
 import {
   GAME_HEIGHT,
   TERRAIN_MAX_HEIGHT_FRACTION,
   TERRAIN_MIN_HEIGHT_FRACTION,
   TERRAIN_SEGMENTS,
-  THRUST_ACCEL,
   WORLD_WIDTH,
 } from '../constants';
 
@@ -135,7 +135,7 @@ describe('BASES', () => {
       base.terrainOptions,
       body,
       {
-        thrustAccel: THRUST_ACCEL,
+        thrustAccel: findShipById('falcon').baseThrustAccel,
       },
     );
 

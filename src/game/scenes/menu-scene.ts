@@ -16,6 +16,7 @@ import {
   SCENE_KEY_GAME,
   SCENE_KEY_MENU,
   SCENE_KEY_SETTINGS,
+  SCENE_KEY_SHIP_SELECT,
   SCENE_KEY_WORLD_MAP,
 } from './scene-keys';
 import { ArmedKeyGuard, requireKeyboard } from './scene-utils';
@@ -72,29 +73,39 @@ export class MenuScene extends Phaser.Scene {
     }
 
     const startY = GAME_HEIGHT * START_BUTTON_Y_FRACTION;
-    createUiButton(this, {
-      x: GAME_WIDTH / 2,
-      y: startY,
-      label: 'START',
-      onClick: () => {
-        this.startFlight();
+    const buttons: readonly { readonly label: string; readonly onClick: () => void }[] = [
+      {
+        label: 'START',
+        onClick: (): void => {
+          this.startFlight();
+        },
       },
-    });
-    createUiButton(this, {
-      x: GAME_WIDTH / 2,
-      y: startY + UI_BUTTON_ROW_HEIGHT_PX,
-      label: 'WORLD MAP',
-      onClick: () => {
-        this.openWorldMap();
+      {
+        label: 'WORLD MAP',
+        onClick: (): void => {
+          this.openWorldMap();
+        },
       },
-    });
-    createUiButton(this, {
-      x: GAME_WIDTH / 2,
-      y: startY + UI_BUTTON_ROW_HEIGHT_PX * 2,
-      label: 'SETTINGS',
-      onClick: () => {
-        this.openSettings();
+      {
+        label: 'SHIP SELECT',
+        onClick: (): void => {
+          this.openShipSelect();
+        },
       },
+      {
+        label: 'SETTINGS',
+        onClick: (): void => {
+          this.openSettings();
+        },
+      },
+    ];
+    buttons.forEach((button, index) => {
+      createUiButton(this, {
+        x: GAME_WIDTH / 2,
+        y: startY + index * UI_BUTTON_ROW_HEIGHT_PX,
+        label: button.label,
+        onClick: button.onClick,
+      });
     });
   }
 
@@ -110,6 +121,10 @@ export class MenuScene extends Phaser.Scene {
 
   private openWorldMap(): void {
     this.scene.start(SCENE_KEY_WORLD_MAP);
+  }
+
+  private openShipSelect(): void {
+    this.scene.start(SCENE_KEY_SHIP_SELECT);
   }
 
   private openSettings(): void {

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 const TAP_HOLD_MS = 50;
 
@@ -84,4 +84,96 @@ export async function findButtonPosition(
 export async function clickButton(page: Page, sceneKey: string, label: string): Promise<void> {
   const { x, y } = await findButtonPosition(page, sceneKey, label);
   await page.locator('#app canvas').click({ position: { x, y } });
+}
+
+/** Checks for a substring anywhere in the given scene's current text
+ * objects — for entries with no fixed exact-match label the way
+ * `findButtonPosition` needs, once a difficulty badge or
+ * "(LOCKED)"/"(SELECTED)"/"(CLEARED)" suffix is involved. Shared by
+ * `world-map.spec.ts` and `ship-select.spec.ts`, whose locked/gated entries
+ * are both plain `this.add.text` with no fixed label. */
+export function sceneHasText(page: Page, sceneKey: string, substring: string): Promise<boolean> {
+  return page.evaluate(
+    ({ key, substring }) =>
+      window.__ORBITAL_DESCENT_GAME__?.scene
+        .getScene(key)
+        .children.list.map((child) => child as unknown as { text?: string })
+        .some((child) => child.text?.includes(substring)) ?? false,
+    { key: sceneKey, substring },
+  );
+}
+
+/** Waits until the given substring genuinely appears among a scene's
+ * rendered text objects — proves a click handler's synchronous render
+ * teardown/rebuild has actually run, not just that the click event landed,
+ * before any subsequent absence-check can be trusted. */
+export async function waitForSceneText(
+  page: Page,
+  sceneKey: string,
+  substring: string,
+  timeoutMs: number,
+): Promise<void> {
+  await page.waitForFunction(
+    ({ key, substring }) =>
+      window.__ORBITAL_DESCENT_GAME__?.scene
+        .getScene(key)
+        .children.list.map((child) => child as unknown as { text?: string })
+        .some((child) => child.text?.includes(substring)) ?? false,
+    { key: sceneKey, substring },
+    { timeout: timeoutMs },
+  );
+}
+
+/** Finds a locked entry's on-screen center by a substring match against its
+ * rendered "(LOCKED)"-suffixed text (see `sceneHasText`'s own comment for
+ * why substring, not exact match, is needed here) — a locked entry is plain
+ * `this.add.text` with no `.setInteractive()`, so `findButtonPosition`
+ * (exact-match against a `createUiButton`) can't locate it. */
+export async function findLockedEntryPosition(
+  page: Page,
+  sceneKey: string,
+  substring: string,
+): Promise<{ x: number; y: number }> {
+  const position = await page.evaluate(
+    ({ key, substring }) => {
+      const scene = window.__ORBITAL_DESCENT_GAME__?.scene.getScene(key);
+      const entry = scene?.children.list
+        .map((child) => child as unknown as { text?: string; x: number; y: number })
+        .find((child) => child.text?.includes(substring));
+      return entry ? { x: entry.x, y: entry.y } : undefined;
+    },
+    { key: sceneKey, substring },
+  );
+  if (!position) {
+    throw new Error(`Locked entry containing "${substring}" not found in scene "${sceneKey}".`);
+  }
+  return position;
+}
+
+/** Clicks at a locked entry's own on-screen position (mirroring
+ * `clickButton`'s canvas-relative-click technique) and confirms the click
+ * was a genuine no-op: no `.setInteractive()` means no `pointerdown`
+ * handler is wired, so this must neither change the scene's own current
+ * view nor start a flight. */
+export async function clickLockedEntryAndConfirmInert(
+  page: Page,
+  sceneKey: string,
+  substring: string,
+  stillVisibleSubstring: string,
+): Promise<void> {
+  const { x, y } = await findLockedEntryPosition(page, sceneKey, substring);
+  await page.locator('#app canvas').click({ position: { x, y } });
+
+  // A real click landing on a wired button starts a scene transition inside
+  // the same frame/tick; give one an honest chance to happen before
+  // asserting its absence, rather than racing a synchronous check against
+  // an async click.
+  await page.waitForTimeout(200);
+
+  const scenes = await page.evaluate(
+    () => window.__ORBITAL_DESCENT_GAME__?.scene.getScenes(true).map((s) => s.scene.key) ?? [],
+  );
+  expect(scenes).toContain(sceneKey);
+  expect(scenes).not.toContain('Game');
+  expect(await sceneHasText(page, sceneKey, stillVisibleSubstring)).toBe(true);
 }

@@ -2,13 +2,13 @@ import type { Base, BaseRequirements } from './base';
 import { computeDifficultyProfile, type DifficultyShipReference } from './difficulty';
 import type { CelestialBody } from '../planets/celestial-body';
 import { BODIES } from '../planets/bodies';
+import { findShipById } from '../ships/ships';
 import type { GenerateTerrainOptions } from '../terrain/terrain-generator';
 import {
   GAME_HEIGHT,
   TERRAIN_MAX_HEIGHT_FRACTION,
   TERRAIN_MIN_HEIGHT_FRACTION,
   TERRAIN_SEGMENTS,
-  THRUST_ACCEL,
   WORLD_WIDTH,
 } from '../constants';
 
@@ -30,11 +30,16 @@ export function findBodyById(id: string): CelestialBody {
 }
 
 /** The one ship-intrinsic number `computeDifficultyProfile` needs (see
- * `difficulty.ts`'s own doc comment on `DifficultyShipReference`) — Milestone
- * 7's real `ShipClass` roster doesn't exist yet, so every base here is
- * scored against the bare hull's own `THRUST_ACCEL`, matching every other
- * Milestone 1-5 system's assumption of an unmodified ship. */
-const SHIP_REFERENCE: DifficultyShipReference = { thrustAccel: THRUST_ACCEL };
+ * `difficulty.ts`'s own doc comment on `DifficultyShipReference`) — every
+ * base here is scored against Falcon, this project's default ship
+ * (`ships/ships.ts`'s `SHIPS[0]`), matching every other Milestone 1-6
+ * system's assumption of an unmodified, unequipped starter ship. Not a
+ * live, per-player "your currently equipped ship" difficulty score — that
+ * would make a base's badge change as the player's loadout changes, a
+ * bigger, currently out-of-scope redesign this milestone doesn't need. */
+const SHIP_REFERENCE: DifficultyShipReference = {
+  thrustAccel: findShipById('falcon').baseThrustAccel,
+};
 
 /** Shared `terrainOptions` fields across every registered base — only
  * `seed`/`maxStepFraction`/`padSegmentCount` differ per base (see each

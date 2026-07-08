@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clickButton, waitForActiveScene } from './test-helpers';
+import {
+  clickButton,
+  clickLockedEntryAndConfirmInert,
+  sceneHasText,
+  waitForActiveScene,
+  waitForSceneText,
+} from './test-helpers';
 
 const BOOT_TIMEOUT_MS = 10000;
 const SCENE_TRANSITION_TIMEOUT_MS = 10000;
@@ -12,98 +18,6 @@ const TEST_TIMEOUT_MS = 60000;
 // own comment for why: real e2e coverage of the actual browser Storage API,
 // not a re-import of the app's own internals).
 const BASE_PROGRESS_STORAGE_KEY = 'orbital-descent:base-progress:v1';
-
-/** WorldMapScene's world/base entries have no fixed exact-match label the
- * way buttons do (see test-helpers.ts's findButtonPosition) once a
- * difficulty badge or "(LOCKED)"/"(CLEARED)" suffix is involved — this
- * checks for a substring anywhere in the scene's current text objects,
- * matching pause-resume.spec.ts's own precedent of a small local
- * escape-hatch helper for state this suite has no other way to observe. */
-function sceneHasText(page: Page, sceneKey: string, substring: string): Promise<boolean> {
-  return page.evaluate(
-    ({ key, substring }) =>
-      window.__ORBITAL_DESCENT_GAME__?.scene
-        .getScene(key)
-        .children.list.map((child) => child as unknown as { text?: string })
-        .some((child) => child.text?.includes(substring)) ?? false,
-    { key: sceneKey, substring },
-  );
-}
-
-/** Waits until the given substring genuinely appears among WorldMapScene's
- * rendered text objects — proves the click handler's synchronous
- * renderView() teardown/rebuild has actually run, not just that the click
- * event landed, before any subsequent absence-check can be trusted. */
-async function waitForSceneText(
-  page: Page,
-  sceneKey: string,
-  substring: string,
-  timeoutMs: number,
-): Promise<void> {
-  await page.waitForFunction(
-    ({ key, substring }) =>
-      window.__ORBITAL_DESCENT_GAME__?.scene
-        .getScene(key)
-        .children.list.map((child) => child as unknown as { text?: string })
-        .some((child) => child.text?.includes(substring)) ?? false,
-    { key: sceneKey, substring },
-    { timeout: timeoutMs },
-  );
-}
-
-/** Finds a locked world/base entry's on-screen center by a substring match
- * against its rendered "(LOCKED)"-suffixed text (see `sceneHasText`'s own
- * comment for why substring, not exact match, is needed here) — a locked
- * entry is plain `this.add.text` with no `.setInteractive()`
- * (world-map-scene.ts), so `test-helpers.ts`'s `findButtonPosition`
- * (exact-match against a `createUiButton`) can't locate it. */
-async function findLockedEntryPosition(
-  page: Page,
-  sceneKey: string,
-  substring: string,
-): Promise<{ x: number; y: number }> {
-  const position = await page.evaluate(
-    ({ key, substring }) => {
-      const scene = window.__ORBITAL_DESCENT_GAME__?.scene.getScene(key);
-      const entry = scene?.children.list
-        .map((child) => child as unknown as { text?: string; x: number; y: number })
-        .find((child) => child.text?.includes(substring));
-      return entry ? { x: entry.x, y: entry.y } : undefined;
-    },
-    { key: sceneKey, substring },
-  );
-  if (!position) {
-    throw new Error(`Locked entry containing "${substring}" not found in scene "${sceneKey}".`);
-  }
-  return position;
-}
-
-/** Clicks at a locked entry's own on-screen position (mirroring
- * `test-helpers.ts`'s `clickButton`'s canvas-relative-click technique) and
- * confirms the click was a genuine no-op: no `.setInteractive()` means no
- * `pointerdown` handler is wired, so this must neither change WorldMapScene's
- * own current view nor start a flight. */
-async function clickLockedEntryAndConfirmInert(
-  page: Page,
-  substring: string,
-  stillVisibleSubstring: string,
-): Promise<void> {
-  const { x, y } = await findLockedEntryPosition(page, 'WorldMap', substring);
-  await page.locator('#app canvas').click({ position: { x, y } });
-
-  // A real click landing on a wired button starts a scene transition inside
-  // the same frame/tick; give one an honest chance to happen before
-  // asserting its absence, rather than racing a synchronous check against
-  // an async click.
-  await page.waitForTimeout(200);
-
-  const scenes = await page.evaluate(
-    () => window.__ORBITAL_DESCENT_GAME__?.scene.getScenes(true).map((s) => s.scene.key) ?? [],
-  );
-  expect(scenes).toContain('WorldMap');
-  expect(scenes).not.toContain('Game');
-  expect(await sceneHasText(page, 'WorldMap', stillVisibleSubstring)).toBe(true);
-}
 
 async function openWorldMapFromMenu(page: Page): Promise<void> {
   await page.goto('/');
@@ -130,14 +44,19 @@ test('a fresh save gates locked worlds/bases, lets BACK navigate both levels, an
 
   // Clicking directly on a locked world entry's own on-screen position must
   // be a genuine no-op, not just visually different from a real button.
-  await clickLockedEntryAndConfirmInert(page, 'VERDALIS (LOCKED)', "KESSEL'S REACH");
+  await clickLockedEntryAndConfirmInert(page, 'WorldMap', 'VERDALIS (LOCKED)', "KESSEL'S REACH");
 
   await clickButton(page, 'WorldMap', "KESSEL'S REACH");
   await waitForSceneText(page, 'WorldMap', 'ANCHOR STATION', SCENE_TRANSITION_TIMEOUT_MS);
   expect(await sceneHasText(page, 'WorldMap', 'SCARP OUTPOST (LOCKED)')).toBe(true);
 
   // Same no-op guarantee one level down, for a locked base entry.
-  await clickLockedEntryAndConfirmInert(page, 'SCARP OUTPOST (LOCKED)', 'ANCHOR STATION');
+  await clickLockedEntryAndConfirmInert(
+    page,
+    'WorldMap',
+    'SCARP OUTPOST (LOCKED)',
+    'ANCHOR STATION',
+  );
 
   // BACK from the base list returns to the world list, not all the way to
   // the menu — the two-level navigation's own "back" must be scoped to the

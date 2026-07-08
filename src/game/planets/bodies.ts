@@ -4,9 +4,19 @@ import type { CelestialBody } from './celestial-body';
  * Starter registry of fictional worlds/moons (Decision D11/D20 — "at least
  * 12", never real celestial bodies).
  *
- * - `gravityAccel` spans roughly 9-26 px/s², always well under the ship's
- *   fixed 46 px/s² thrust accel (`THRUST_ACCEL` in `constants.ts`), so every
- *   world stays flyable.
+ * - `gravityAccel` spans roughly 9-26 px/s²; ignoring hazard thrust-
+ *   efficiency penalties, that's always well under even the roster's
+ *   weakest ship (Hauler's 40 px/s² `baseThrustAccel`, `ships/ships.ts`,
+ *   Milestone 7). Under a `cold` hazard's `thrustEfficiency` multiplier
+ *   (`flight/flight-state.ts`), the actual worst case in this registry is
+ *   `thornreach-expanse` (gravityAccel 21, thrustEfficiency 0.6): Hauler's
+ *   effective thrust is `40 × 0.6 = 24`, TWR ≈ 1.14 -- razor-thin, not
+ *   "well under." Currently latent: `bases/bases.ts` only registers bases
+ *   on 4 of these 12 bodies (kessels-reach/verdalis/pyrrhine-expanse/
+ *   glacian-drift), so thornreach-expanse has no base yet and isn't
+ *   reachable via Start or World Map today -- re-check this margin before
+ *   it ever gets one paired with a cold hazard and the roster's weakest
+ *   ship.
  * - `atmosphereDensity` spans 0 (airless) up to ~0.06 (thick); at typical
  *   in-flight speeds this is a meaningfully-felt but not overwhelming drag
  *   force relative to gravity/thrust.
@@ -117,7 +127,8 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     gravityAccel: 17,
     atmosphereDensity: 0.04,
     // 4, not the originally-tuned 5: at 5, passive drain alone (with zero
-    // thrust used at all) fully empties MAX_FUEL (100) in exactly 20s --
+    // thrust used at all) fully empties Falcon's fuelCapacity (100,
+    // `ships/ships.ts`) in exactly 20s --
     // precisely SCORE_TIME_PAR_MS, this game's own "comfortably beats par"
     // reference duration -- leaving zero fuel margin for the braking burn
     // every real landing needs, regardless of skill. Found by Milestone 5's

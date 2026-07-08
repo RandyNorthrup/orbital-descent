@@ -12,11 +12,13 @@ const BOOT_TIMEOUT_MS = 10000;
 // CRASH_TEST_TIMEOUT_MS's own comment below).
 const TEST_TIMEOUT_MS = 90000;
 
-// Holding rotate for this long at ROTATION_SPEED_DEG (150 deg/s, see
-// constants.ts) turns the ship ~120 degrees -- comfortably past
-// LANDING_MAX_SAFE_ANGLE_DEG (15 deg) with margin for frame-timing
-// variance, and integrateRotation has no angular momentum, so releasing
-// the key freezes rotation exactly there for the rest of the fall.
+// Holding rotate for this long at the default ship's handling (Falcon's
+// 150 deg/s -- `ships/ships.ts`, Milestone 7; a fresh browser context has
+// no persisted ship selection yet, so Falcon is what's flying here) turns
+// the ship ~120 degrees -- comfortably past LANDING_MAX_SAFE_ANGLE_DEG
+// (15 deg) with margin for frame-timing variance, and integrateRotation
+// has no angular momentum, so releasing the key freezes rotation exactly
+// there for the rest of the fall.
 const ROTATE_HOLD_MS = 800;
 // Wider than landing.spec.ts's own GROUND_CONTACT_TIMEOUT_MS (25000): this
 // test's ground-contact wait runs after an additional ROTATE_HOLD_MS of

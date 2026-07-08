@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FlightState, type FlightSnapshot, type FlightStateOptions } from './flight-state';
+import { degreesToRadians } from '../physics/lander-physics';
 
 /**
  * These tests exercise FlightState as a whole — physics + fuel + rotation
@@ -165,5 +166,33 @@ describe('FlightState', () => {
     // outcomes for the identical ship and identical input.
     expect(heavyAfter.position.y).toBeGreaterThan(lightAfter.position.y);
     expect(heavyAfter.velocity.y).not.toBeCloseTo(lightAfter.velocity.y);
+  });
+
+  // Milestone 7 (Ship Roster): the same body/world produces measurably
+  // different flight feel for two different ship classes' thrust/handling
+  // stats, under identical input -- same methodology as the gravity/drag
+  // body-variation test above, kept as ad hoc literals here (not an import
+  // of the real ships/ships.ts registry) for the same reason that test
+  // doesn't import the real planets/bodies.ts registry: this file exercises
+  // FlightState in isolation from any specific registry's authored content.
+  it('a nimble scout-class ship rotates and accelerates measurably differently than a lumbering hauler-class ship', () => {
+    const scoutLike = makeFlightState(
+      {},
+      { thrustAccel: 54, rotationSpeedRadPerSec: degreesToRadians(200) },
+    );
+    const haulerLike = makeFlightState(
+      {},
+      { thrustAccel: 40, rotationSpeedRadPerSec: degreesToRadians(85) },
+    );
+
+    const scoutAfter = tickMany(scoutLike, 30, 1 / 60, { thrust: true, rotate: 1 });
+    const haulerAfter = tickMany(haulerLike, 30, 1 / 60, { thrust: true, rotate: 1 });
+
+    // Both rotate the same direction from the same starting angle, but the
+    // higher-handling ship covers measurably more rotation in the same time.
+    expect(scoutAfter.rotationRadians).toBeGreaterThan(haulerAfter.rotationRadians);
+    // Both still climb (thrust exceeds gravity for both), but the higher-
+    // thrust ship climbs measurably further in the same time.
+    expect(scoutAfter.position.y).toBeLessThan(haulerAfter.position.y);
   });
 });
