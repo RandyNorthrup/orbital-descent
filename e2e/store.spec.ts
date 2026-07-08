@@ -147,6 +147,158 @@ test.describe('store: purchase gating', () => {
   });
 });
 
+test.describe('store: upgrade and equipment purchases', () => {
+  // Stronger Engines' real price (economy/store.ts's upgradeListings,
+  // ships/upgrades.ts's UPGRADES roster) -- duplicated as a literal for the
+  // same black-box reason as VANGUARD_PRICE_CREDITS above: this test should
+  // catch a real regression in either number, not silently track whichever
+  // value the source currently happens to have.
+  const STRONGER_ENGINES_PRICE_CREDITS = 300;
+  // Pulse Cannon's real price (economy/store.ts's equipmentListings,
+  // equipment/equipment.ts's EQUIPMENT_ITEMS roster) -- same reason.
+  const PULSE_CANNON_PRICE_CREDITS = 200;
+
+  // Mirrors src/game/persistence/upgrade-progress.ts's
+  // UPGRADE_PROGRESS_STORAGE_KEY and src/game/persistence/
+  // equipment-progress.ts's EQUIPMENT_PROGRESS_STORAGE_KEY -- duplicated
+  // here deliberately, same black-box-testing convention as this file's own
+  // CURRENCY_STORAGE_KEY/SHIP_PROGRESS_STORAGE_KEY above.
+  const UPGRADE_PROGRESS_STORAGE_KEY = 'orbital-descent:upgrade-progress:v1';
+  const EQUIPMENT_PROGRESS_STORAGE_KEY = 'orbital-descent:equipment-progress:v1';
+
+  test('a permanent-upgrade purchase deducts its price, marks it owned, and survives a real reload', async ({
+    page,
+  }) => {
+    test.setTimeout(TEST_TIMEOUT_MS);
+    await page.goto('/');
+    await waitForBooted(page);
+
+    await seedCurrencyBalance(page, 1000);
+    await page.reload();
+    await waitForBooted(page);
+    await openStoreFromMenu(page);
+
+    await waitForSceneText(page, 'Store', 'STRONGER ENGINES', SCENE_TRANSITION_TIMEOUT_MS);
+    expect(await sceneHasText(page, 'Store', 'BALANCE: 1000 CREDITS')).toBe(true);
+    // A genuinely clickable button, not just visually distinct text --
+    // confirms the listing rendered as 'affordable', not 'too-expensive'.
+    await expect(findButtonPosition(page, 'Store', 'STRONGER ENGINES')).resolves.toBeDefined();
+
+    await clickButton(page, 'Store', 'STRONGER ENGINES');
+
+    const expectedBalanceAfterPurchase = 1000 - STRONGER_ENGINES_PRICE_CREDITS;
+    await waitForSceneText(
+      page,
+      'Store',
+      `BALANCE: ${expectedBalanceAfterPurchase.toString()} CREDITS`,
+      SCENE_TRANSITION_TIMEOUT_MS,
+    );
+    expect(await sceneHasText(page, 'Store', 'STRONGER ENGINES (OWNED)')).toBe(true);
+
+    // Survives a real full-page reload -- a genuine UI-driven
+    // write -> reload -> re-render round trip, not just an in-session check.
+    await page.reload();
+    await waitForBooted(page);
+    await openStoreFromMenu(page);
+    await waitForSceneText(page, 'Store', 'STRONGER ENGINES (OWNED)', SCENE_TRANSITION_TIMEOUT_MS);
+    expect(
+      await sceneHasText(
+        page,
+        'Store',
+        `BALANCE: ${expectedBalanceAfterPurchase.toString()} CREDITS`,
+      ),
+    ).toBe(true);
+
+    const storedUpgradeProgress = await page.evaluate(
+      (key) =>
+        JSON.parse(localStorage.getItem(key) ?? 'null') as {
+          purchasedUpgradeIds?: string[];
+        } | null,
+      UPGRADE_PROGRESS_STORAGE_KEY,
+    );
+    expect(storedUpgradeProgress?.purchasedUpgradeIds).toContain('stronger-engines');
+  });
+
+  test('a purchase-type equipment purchase deducts its price, marks it owned, and survives a real reload', async ({
+    page,
+  }) => {
+    test.setTimeout(TEST_TIMEOUT_MS);
+    await page.goto('/');
+    await waitForBooted(page);
+
+    await seedCurrencyBalance(page, 1000);
+    await page.reload();
+    await waitForBooted(page);
+    await openStoreFromMenu(page);
+
+    await waitForSceneText(page, 'Store', 'PULSE CANNON', SCENE_TRANSITION_TIMEOUT_MS);
+    expect(await sceneHasText(page, 'Store', 'BALANCE: 1000 CREDITS')).toBe(true);
+    await expect(findButtonPosition(page, 'Store', 'PULSE CANNON')).resolves.toBeDefined();
+
+    await clickButton(page, 'Store', 'PULSE CANNON');
+
+    const expectedBalanceAfterPurchase = 1000 - PULSE_CANNON_PRICE_CREDITS;
+    await waitForSceneText(
+      page,
+      'Store',
+      `BALANCE: ${expectedBalanceAfterPurchase.toString()} CREDITS`,
+      SCENE_TRANSITION_TIMEOUT_MS,
+    );
+    expect(await sceneHasText(page, 'Store', 'PULSE CANNON (OWNED)')).toBe(true);
+
+    // Survives a real full-page reload, same round trip as the upgrade
+    // purchase above -- this time checking equipment-progress.ts's own
+    // storage key/shape rather than upgrade-progress.ts's.
+    await page.reload();
+    await waitForBooted(page);
+    await openStoreFromMenu(page);
+    await waitForSceneText(page, 'Store', 'PULSE CANNON (OWNED)', SCENE_TRANSITION_TIMEOUT_MS);
+    expect(
+      await sceneHasText(
+        page,
+        'Store',
+        `BALANCE: ${expectedBalanceAfterPurchase.toString()} CREDITS`,
+      ),
+    ).toBe(true);
+
+    const storedEquipmentProgress = await page.evaluate(
+      (key) =>
+        JSON.parse(localStorage.getItem(key) ?? 'null') as {
+          purchasedEquipmentIds?: string[];
+        } | null,
+      EQUIPMENT_PROGRESS_STORAGE_KEY,
+    );
+    expect(storedEquipmentProgress?.purchasedEquipmentIds).toContain('pulse-cannon');
+  });
+
+  test('an unlock-type equipment item never appears in the Store catalog', async ({ page }) => {
+    test.setTimeout(TEST_TIMEOUT_MS);
+    await page.goto('/');
+    await waitForBooted(page);
+    // A generous balance -- if Autocannon (unlock-type, gated on Scarp
+    // Outpost being established) rendered at all, this balance would be
+    // more than enough to make it show as buyable rather than locked, so
+    // its total absence here can't be explained away by "it's just too
+    // expensive to see as a button."
+    await seedCurrencyBalance(page, 5000);
+    await page.reload();
+    await waitForBooted(page);
+    await openStoreFromMenu(page);
+
+    await waitForSceneText(page, 'Store', 'EQUIPMENT', SCENE_TRANSITION_TIMEOUT_MS);
+    // Pulse Cannon (purchase-type) confirms the EQUIPMENT column actually
+    // rendered its listings before asserting Autocannon's absence means
+    // "filtered out," not "the column never rendered."
+    expect(await sceneHasText(page, 'Store', 'PULSE CANNON')).toBe(true);
+    // equipmentListings() (economy/store.ts) filters to purchase-type
+    // items only -- Autocannon is unlock-type (requires Scarp Outpost
+    // established), so it must never appear anywhere in the Store's
+    // catalog, no matter the balance. It only ever surfaces on
+    // LoadoutScene once that base is established.
+    expect(await sceneHasText(page, 'Store', 'AUTOCANNON')).toBe(false);
+  });
+});
+
 test.describe('store: currency crediting on a real landing', () => {
   // Free-flight technique itself ("let gravity bring the ship down, real
   // time, no piloting") matches landing.spec.ts's own -- reused as-is here

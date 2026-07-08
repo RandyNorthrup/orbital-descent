@@ -66,6 +66,14 @@ milestones depend on understanding _why_, not just _what_.
   a crash/error, just a poor look. Revisit once a real reason exists to
   design world-edge behavior on purpose (a hard wall, a mission boundary,
   M6's base-to-base travel model) rather than speculatively now.
+- **`bases/fit-check.ts`'s `evaluateBaseFit` isn't wired into any scene
+  yet** (Milestone 9): exported and unit-tested, but no live UI shows a
+  base's pre-launch fit warnings — `LoadoutScene` (M9) is ship/loadout-
+  scoped, not base-scoped, so there's no "current target base" concept to
+  hang a warning on yet. Not a gap against M9's own acceptance criteria
+  (none require this), but a gap against its Scope text's original intent.
+  Likely real home: Milestone 9.5's mission flow, the first point a
+  concrete "about to fly base X" moment exists.
 
 ## 4. Architecture Notes
 
@@ -2406,7 +2414,21 @@ certified).
 
 ---
 
-### Milestone 9 — Ship Upgrades & Equipment Loadout (not started)
+### Milestone 9 — Ship Upgrades & Equipment Loadout (CERTIFIED)
+
+**Status: CERTIFIED** (2026-07-08). The scene/e2e/docs pass below (run as a
+scoped Workflow that was explicitly told not to touch the pure-logic layer)
+left two `pnpm quality` steps failing — `format:check` on 9 pure-logic files
+that session never touched, and `deadcode` (knip) flagging 2 legitimately
+not-yet-by-name-imported exported types — and correctly stopped short of
+certifying over a known-failing gate (§7: "no milestone is marked complete
+with a known-failing... gate silently dropped"). Both were one-line,
+zero-logic fixes applied directly afterward: a `prettier --write` pass on
+the 9 files, and a `@public` JSDoc annotation on `FitBand`/
+`PermanentUpgradeStat` (the exact precedent `ships/ship.ts`'s
+`ShipArchetype`/`store.ts`'s `StoreListingKind` already established). `pnpm
+quality` now passes in full; see "Verified this session" below for the
+final numbers, independently re-measured after those fixes.
 
 **Goal**: Two distinct upgrade categories, both purchasable via M8's
 store (Decision D14):
@@ -2505,9 +2527,273 @@ and the loadout screen). If implementation reveals any one of them is
 substantial enough to destabilize the others' review, split it into its
 own sub-milestone (M9a/M9b/...) rather than certifying all six at once —
 noted here so the split is a deliberate option, not a scope discovery
-made partway through a stalled PR.
+made partway through a stalled PR. In practice the six subsystems stayed
+small enough to certify together: the pure-logic layer (upgrades,
+equipment, loadout resolution, `fit-check.ts`, both progress-persistence
+modules) was built and unit/integration-tested in an earlier session; this
+session's own scope was the Phaser scene layer, e2e coverage, and this
+certification pass.
 
-**Certification checklist**: not started. Depends on M8.
+**Scope delivered**:
+
+- `src/game/ships/upgrades.ts` — `PermanentUpgrade`/`UPGRADES` (4 items:
+  Stronger Engines, Lighter Hull Alloy, Extended Fuel Cells, Efficient
+  Injectors), `findUpgradeById`, `applyPermanentUpgrades` (folds every
+  owned upgrade's signed `amount` onto the matching `ShipClass` stat).
+- `src/game/equipment/equipment.ts` — `EQUIPMENT_ITEMS` (7 items: 2
+  weapons — Pulse Cannon purchase/T1, Autocannon unlock/T2 — and 5
+  utility items covering all three passive effects named in §6b.1's
+  puzzle-countermeasure table (Fuel Tank, Corrosion Coating, Thermal
+  Lining) plus two active-use items (Repair Kit, Thrust Booster)),
+  `findEquipmentById`, `totalCarriedMass`, the named
+  `effectiveThrustAccel` formula (`baseThrustAccel × dryMass / (dryMass +
+carriedMass)`, the exact formula M9.5 is scoped to reuse unmodified for
+  cargo), `summarizePassiveEffects`.
+- `src/game/equipment/loadout.ts` — `resolveEquippedItems` (reconciles
+  persisted equip order against the _current_ ship's live slot count and
+  mass budget — the one place a ship swap that no longer fits a prior
+  loadout degrades gracefully instead of erroring), `cycleActiveItem`,
+  `equipmentIdsOfSlotType`.
+- `src/game/bases/fit-check.ts` — `evaluateBaseFit` facade (§6b.2):
+  mechanical (TWR band, fuel margin ratio), spatial (handling band), and
+  combat (`'not-applicable'` until M11) branches, plus hazard-countermeasure
+  tag warnings. Exported and unit-tested, but **not yet called from any
+  scene** — no live UI currently shows a base's fit warnings pre-launch.
+  This isn't a certification gap against M9's own acceptance criteria
+  (none of which require a live fit-check UI), but it is a gap against
+  this milestone's own Scope text ("consumed by the pre-mission loadout
+  screen ... for live pre-launch warnings"): `LoadoutScene` as built is
+  ship/loadout-scoped, not base-scoped (there is no "current target base"
+  concept in the menu flow yet), so there's nowhere natural to hang a
+  base-specific warning yet. Left for whichever milestone first gives the
+  player a concrete "I'm about to fly base X" moment — M9.5's mission flow
+  is the likely real home for this wiring. Noted as an open item in §3.
+- `src/game/persistence/upgrade-progress.ts` /
+  `src/game/persistence/equipment-progress.ts` — validated-`localStorage`
+  progress state for each domain, mirroring `ship-progress.ts`'s exact
+  pattern (`initial*`/`load*`/`save*`, stale-id rejection). `equipItem`/
+  `unequipItem`/`cycleActiveWeapon`/`cycleActiveUtility` are pure,
+  idempotent transitions; `equipItem` re-validates fit via
+  `resolveEquippedItems` rather than trusting its caller, so a UI bug
+  offering an invalid equip action degrades to a safe no-op instead of a
+  corrupted persisted state.
+- `src/game/economy/store.ts` extended: `StoreListingKind` gained
+  `'upgrade'`/`'equipment'`, `upgradeListings`/`equipmentListings`
+  (equipment listings are purchase-type only — unlock-type items surface
+  on `LoadoutScene` instead, mirroring how `ShipSelectScene` shows an
+  unlock-type ship's condition).
+- `src/game/scenes/game-scene.ts` extended: `init()` folds owned upgrades
+  onto the ship, resolves carried equipment against the ship's live
+  slot/mass budget, negates corrosive/cold hazards when the matching
+  resistance item is equipped, and adds effective fuel-capacity bonuses
+  from equipped Fuel Tank items. New bindings: Q/E cycle the active
+  weapon/utility item, Space/F trigger them (weapon firing has no
+  gameplay effect yet — hands off to M11; a utility trigger applies
+  `repairKit`/`thrustBurst` directly, the two passive-effect kinds no-op
+  on trigger since they're already continuously active). New data-manager
+  keys for e2e: `activeWeaponId`/`activeUtilityId`/
+  `lastTriggeredWeaponId`/`lastTriggeredUtilityId`.
+- `src/game/scenes/loadout-scene.ts` (new) — the pre-mission loadout
+  screen. Shows the effective (upgrades-applied) ship's name/slots/mass
+  usage line (recomputed from `resolveEquippedItems`/`totalCarriedMass`
+  every render, never hand-tracked, so it can't drift from what's
+  actually equipped), a one-line owned-upgrades summary (informational
+  only — upgrades have no slot cost and nothing to toggle), and a
+  two-column (WEAPONS | UTILITY) equipment list following
+  `ShipSelectScene`'s exact `track()`/`renderView()`/`ArmedKeyGuard`/
+  `createUiButton` conventions: locked (not owned, muted text + reason),
+  owned-and-equipped (a real button labeled `<NAME> (EQUIPPED)`,
+  unequips on click), owned-not-equipped-and-would-fit (a real button
+  labeled `<NAME>`, equips on click), or owned-not-equipped-and-would-not-
+  fit (muted text + "SLOTS FULL"/"TOO HEAVY" reason — this project's
+  "never offer a button for an action that would silently no-op"
+  convention, since equipping it would otherwise no-op inside
+  `equipItem`'s own re-check).
+- `src/game/scenes/menu-scene.ts` extended: added a 6th "LOADOUT" button
+  and combined the old two-line BEST/BALANCE display into one line
+  (`"BEST: <score> · BALANCE: <n> CREDITS"`, or just the balance half
+  pre-first-score) to free a full row of vertical space — see this
+  section's own layout notes below.
+- `src/game/scenes/store-scene.ts` extended: `create()` now also loads
+  upgrade/equipment progress; `this.catalog` concatenates
+  `shipListings`/`upgradeListings`/`equipmentListings`; ownership
+  checks and purchase completion route by `listing.kind` to the matching
+  persistence module, then unconditionally save all four progress states
+  (currency/ship/upgrade/equipment) — simplest correct approach for a
+  low-frequency action. Rendering was restructured this session — see
+  "Independent review" below.
+- `src/game/scenes/scene-keys.ts`/`src/main.ts`: `SCENE_KEY_LOADOUT`
+  added and registered.
+- `e2e/loadout.spec.ts` (new, 3 tests): a fresh save shows every
+  equipment item locked with its own purchase/unlock reason and BACK/ESC
+  both return to Menu; a seeded-ownership test equips 3 items across two
+  clicks each, asserts the live slots/mass line and per-item stat tags
+  update correctly, asserts a 4th owned-but-unequippable item shows
+  "SLOTS FULL" as inert muted text (not a button), then reloads twice
+  (once after equipping, once after an unequip) asserting the exact
+  equipped set and the owned-upgrades summary line both survive a real
+  `page.reload()` — this milestone's own required "e2e reload test...
+  asserting upgrades and the current loadout survive a real page reload."
+  A third, in-flight test seeds two owned-and-equipped utility items
+  directly (bypassing `LoadoutScene`'s own click flow) and drives
+  `GameScene` itself: three real `E` presses cycle the active utility
+  item through both ids and back to the first (proving a genuine
+  wraparound, not a one-shot advance), a real ~1s thrust hold burns a
+  measurable amount of fuel, and `F` triggers the active Repair Kit —
+  asserted both via the `lastTriggeredUtilityId` data-manager marker and
+  via a measurable fuel-percentage increase read directly off the
+  flying HUD's own `Text` object, with a closing `outcome === 'flying'`
+  check confirming the whole sequence ran mid-flight rather than after
+  landing or crashing.
+- `e2e/store.spec.ts` extended (follow-up session, 3 new tests alongside
+  M8's pre-existing ones, which keep passing unchanged): a permanent-
+  upgrade purchase (Stronger Engines) deducts its price, renders
+  `(OWNED)`, and survives a real reload, checked directly against
+  `upgrade-progress.ts`'s own `UPGRADE_PROGRESS_STORAGE_KEY`/
+  `purchasedUpgradeIds`; a purchase-type equipment purchase (Pulse
+  Cannon) does the same, checked against `equipment-progress.ts`'s
+  `EQUIPMENT_PROGRESS_STORAGE_KEY`/`purchasedEquipmentIds`; and a third
+  test confirms an unlock-type equipment item (Autocannon) never appears
+  in the Store's catalog at all, even at a 5000-credit balance —
+  `equipmentListings()`'s purchase-type-only filter (confirmed alongside
+  a purchase-type sibling item actually rendering, so the absence proves
+  filtering, not an unrendered column).
+
+**Independent review this session**: this session's own review of
+the already-built scene layer caught and fixed two real defects:
+
+1. **`StoreScene` overflowed `GAME_HEIGHT` by ~325px.** M9 grew the
+   catalog from M8's single `'ship'` listing to 9 listings across three
+   `StoreListingKind`s (1 ship + 4 upgrades + 4 purchase-type equipment
+   items); the scene's flat single-column list (unchanged since M8) put
+   its BACK button at y≈964 on a fresh save — confirmed directly via a
+   headless script reading every rendered child's real `y`, not just
+   inferred from a failing test. This silently broke real clicks past
+   the visible canvas (`e2e/store.spec.ts`'s purchase-gating test timed
+   out clicking BACK, reproducibly, even at `--workers=1`, so not the
+   sandbox contention this suite sometimes sees elsewhere). Fixed by
+   splitting the catalog into one column per `StoreListingKind` (SHIPS |
+   UPGRADES | EQUIPMENT, the same per-kind-column technique
+   `LoadoutScene`'s own WEAPONS | UTILITY split already uses), capping
+   the tallest column at 4 rows instead of 9. Re-verified against real
+   screenshots in both the tallest-per-row worst cases (fresh save, every
+   listing locked/too-expensive; a 5000-credit balance, every listing
+   affordable) — BACK lands at y≈541/593 respectively, comfortably inside 640.
+2. **`e2e/high-scores.spec.ts` had a stale exact-match assertion.**
+   MenuScene's BEST/BALANCE merge (this milestone, for the LOADOUT
+   button's vertical space) changed the seeded-high-score test's read of
+   `"BEST: 742"` to `"BEST: 742 · BALANCE: 0 CREDITS"` — a real,
+   reproducible failure, not flakiness. Updated the assertion (and its
+   comment) to the new merged format.
+
+This review also independently checked, and found no issue with (beyond
+what's flagged above): `LoadoutScene`'s row-spacing constants
+(`INFO_LINE_GAP_PX`/`ROW_GAP_PX`) were widened from 4px/6px to 6px/12px
+after a compressed screenshot preview looked like a near-zero gap between
+a button row's own stat line and the next button row — a follow-up
+high-resolution crop and the real `Text` objects' own `displayHeight`
+values showed the original spacing was never actually overlapping
+(~11.5px real clearance even at the old constants), but the wider values
+were kept anyway as real, verified margin (`LoadoutScene`'s tallest
+column, worst-case 5 rows, still lands its BACK button at y≈577 —
+comfortably inside 640); three flaky failures in a full 6-worker parallel
+run (`landing.spec.ts`, `game-flow.spec.ts`, `button-clicks.spec.ts`) each
+passed cleanly in isolation, matching M7/M8's own already-documented
+"environmental contention, not a regression" pattern for this sandbox;
+`store-scene.ts`'s M9 wiring (catalog concatenation, ownership routing,
+unconditional four-way save) matched this session's own task spec exactly
+and needed no changes beyond the column-layout fix above.
+
+**Acceptance criteria**: met — an upgraded ship's stats visibly change
+(unit-tested via `applyPermanentUpgrades`); equipping items increases
+`totalCarriedMass` and measurably degrades `effectiveThrustAccel` (unit-
+and integration-tested); each equipment item's benefit stat is verified to
+actually apply (`summarizePassiveEffects`, `GameScene`'s fuel-
+capacity/hazard-negation wiring); Q/E cycle the active weapon/utility item
+and Space/F trigger exactly the currently-selected one
+(`cycleActiveItem`/`GameScene`'s data-manager keys, unit- and e2e-tested);
+loadout and upgrades persist across a real reload
+(`e2e/loadout.spec.ts`, above) and across mission attempts (read fresh
+from `localStorage` on every `GameScene.init()`, same pattern as ship
+selection).
+
+**Required tests**: unit tests for every permanent upgrade's stat
+modification and every equipment item's benefit-stat + mass-cost pairing
+— done (`upgrades.test.ts`, `equipment.test.ts`, `loadout.test.ts`,
+`equipment-progress.test.ts`, `upgrade-progress.test.ts`,
+`fit-check.test.ts`). Integration test comparing upgraded-vs-base and
+light-vs-heavy-loadout ship performance — done (`fit-check.test.ts`'s TWR-
+band cases). E2e reload test for upgrades/loadout persistence — done
+(`e2e/loadout.spec.ts`, above).
+
+**Required quality gates**: full gate list — all green (see below).
+
+**Verified this session** (2026-07-08): after the scoped Workflow above
+completed, `pnpm format:check` was run and failed on exactly the 9
+pure-logic files it correctly declined to touch — fixed with a
+formatting-only `prettier --write` pass (no AST change, reconfirmed via a
+clean re-run). `pnpm deadcode` (knip) then failed on `FitBand`
+(`bases/fit-check.ts`) and `PermanentUpgradeStat` (`ships/upgrades.ts`) —
+both real exported types with no by-name importer yet outside their own
+file, the identical situation `store.ts`'s `StoreListingKind` hit at M8
+certification; fixed the same way, a one-line `@public` JSDoc annotation
+(`ships/ship.ts`'s `ShipArchetype` precedent), no logic change.
+
+With both fixed, the full chain: `pnpm format:check`/`lint`/`typecheck`
+clean; `pnpm test:coverage` 309/309 tests passing,
+98.96%/94.88%/100%/98.9% (thresholds all met); `pnpm build` succeeds;
+`pnpm deadcode` clean; `pnpm security:secrets` clean; `pnpm
+security:audit` "No known vulnerabilities found" — `pnpm quality` passes
+in full. `pnpm test:e2e` (75 tests, 3 browsers): run twice independently;
+each run showed the identical single pre-existing flake
+(`landing.spec.ts`'s ground-contact `waitForFunction`, 74/75), confirmed
+via `uptime` (load average ~25 on this machine) as the same real
+concurrent-process contention M6-M8 already documented, not a regression
+— re-run in isolation (`--project=chromium`, 1 worker) passed cleanly in
+12.4s. `pnpm lighthouse`: 3 runs against the production build, Performance
+0.99/1.00/1.00, Accessibility 1.00/1.00/1.00, Best Practices
+0.96/0.96/0.96 — all above the required 0.90 threshold, no regression from
+M1/M2's original fix. Layout (MenuScene/LoadoutScene/StoreScene)
+independently re-screenshotted (a fresh script, not a re-read of the
+Workflow's own screenshots) with a seeded multi-row state across every
+column — no overlap, no cutoff, matching the Workflow's own reported
+measurements exactly.
+
+**Layout notes** (MenuScene/LoadoutScene/StoreScene, all re-verified
+against real Playwright screenshots per this project's own established
+"hand arithmetic alone isn't sufficient" caution, M8 §5):
+
+- `MenuScene`: `STAT_LINE_Y_FRACTION` 0.39 (the merged BEST/BALANCE line,
+  same slot the old standalone BEST line held), `START_BUTTON_Y_FRACTION`
+  0.46 (nudged down from M8's 0.56 now that only one stat line precedes
+  the button stack) — 6 buttons at `UI_BUTTON_ROW_HEIGHT_PX` (62px) apart
+  center the last (SETTINGS) at 640 × 0.46 + 5 × 62 = 604.4px, comfortably
+  inside 640. Screenshot: title, one merged stat line, 6 evenly-spaced
+  buttons, no overlap, ~34px clear below SETTINGS.
+- `LoadoutScene`: title (0.06) → usage line (0.15) → upgrades summary
+  (0.19) → WEAPONS/UTILITY column headers (0.23) → two-column list
+  (starting 0.27, `WEAPON_COLUMN_X_FRACTION`/`UTILITY_COLUMN_X_FRACTION`
+  0.27/0.73). Row spacing constants widened this session (see
+  "Independent review" above) to `INFO_LINE_GAP_PX` 6px/`ROW_GAP_PX` 12px.
+  Screenshot taken at the worst realistic case for this screen (every row
+  locked on a fresh save is the tallest per-row case; the seeded
+  screenshot used a mix of locked/owned/equipped rows across both
+  columns) — BACK lands at y≈577, no overlap anywhere, no cutoff.
+- `StoreScene`: title (0.07) → balance (0.16) → SHIPS/UPGRADES/EQUIPMENT
+  column headers (0.22) → three-column list (starting 0.27,
+  `SHIPS_COLUMN_X_FRACTION`/`UPGRADES_COLUMN_X_FRACTION`/
+  `EQUIPMENT_COLUMN_X_FRACTION` 0.15/0.5/0.85). Screenshotted at both
+  worst-case row heights (fresh save, all 9 listings locked/too-expensive
+  at `LOCKED_ROW_HEIGHT_PX`; a 5000-credit balance, all 9 affordable at
+  the taller `AFFORDABLE_ROW_HEIGHT_PX`) — BACK lands at y≈541/593
+  respectively, no column-to-column text collision, no cutoff.
+
+**Required documentation updates**: this file, `CHANGELOG.md` — done.
+
+**Certification checklist**: **certified** — every Definition of Done
+criterion (§7) met: acceptance criteria (point 1), `pnpm quality:full`'s
+full gate list plus `pnpm lighthouse` (points 3-4), this file and
+`CHANGELOG.md` updated (points 5-6). Depends on M8 (certified).
 
 ---
 

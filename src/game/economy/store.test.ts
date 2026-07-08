@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { canAfford, listingStatus, shipListings, type StoreListing } from './store';
+import {
+  canAfford,
+  equipmentListings,
+  listingStatus,
+  shipListings,
+  upgradeListings,
+  type StoreListing,
+} from './store';
 import { SHIPS } from '../ships/ships';
+import { findUpgradeById, UPGRADES } from '../ships/upgrades';
+import { EQUIPMENT_ITEMS } from '../equipment/equipment';
 
 const LISTING: StoreListing = { kind: 'ship', id: 'vanguard', name: 'Vanguard', price: 750 };
 
@@ -14,6 +23,50 @@ describe('shipListings', () => {
     const listings = shipListings(SHIPS);
     expect(listings.some((listing) => listing.id === 'falcon')).toBe(false);
     expect(listings.some((listing) => listing.id === 'cryohauler')).toBe(false);
+  });
+});
+
+describe('upgradeListings', () => {
+  it('projects every registered upgrade, since every upgrade is purchase-only', () => {
+    const listings = upgradeListings(UPGRADES);
+    expect(listings).toHaveLength(UPGRADES.length);
+    expect(listings.every((listing) => listing.kind === 'upgrade')).toBe(true);
+    expect(listings.map((listing) => listing.id)).toEqual(UPGRADES.map((upgrade) => upgrade.id));
+  });
+
+  it('carries each upgrade’s real name and price through unchanged', () => {
+    const strongerEngines = findUpgradeById('stronger-engines');
+    const listing = upgradeListings(UPGRADES).find(
+      (candidate) => candidate.id === 'stronger-engines',
+    );
+    expect(listing).toEqual({
+      kind: 'upgrade',
+      id: strongerEngines.id,
+      name: strongerEngines.name,
+      price: strongerEngines.price,
+    });
+  });
+});
+
+describe('equipmentListings', () => {
+  it('includes exactly the purchase-type equipment items in the registry', () => {
+    const listings = equipmentListings(EQUIPMENT_ITEMS);
+    const expectedIds = EQUIPMENT_ITEMS.filter((item) => item.acquisition.type === 'purchase').map(
+      (item) => item.id,
+    );
+    expect(listings.map((listing) => listing.id)).toEqual(expectedIds);
+    expect(listings.every((listing) => listing.kind === 'equipment')).toBe(true);
+  });
+
+  it('excludes every unlock-type equipment item', () => {
+    const listings = equipmentListings(EQUIPMENT_ITEMS);
+    const unlockIds = EQUIPMENT_ITEMS.filter((item) => item.acquisition.type === 'unlock').map(
+      (item) => item.id,
+    );
+    for (const unlockId of unlockIds) {
+      expect(listings.some((listing) => listing.id === unlockId)).toBe(false);
+    }
+    expect(unlockIds.length).toBeGreaterThan(0);
   });
 });
 

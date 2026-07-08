@@ -30,9 +30,11 @@ export default defineConfig({
       // Scoped to the Phaser-free pure-logic layers (physics, flight
       // orchestration, terrain generation, landing rules, seeded procedural
       // layout, the scoring formula, validated high-score/base-progress/
-      // ship-progress/currency-progress persistence, the celestial-body
-      // registry, the base/difficulty registry, the ship registry, and the
-      // economy layer) that unit + integration tests actually exercise. Scene glue
+      // ship-progress/currency-progress/upgrade-progress/equipment-progress
+      // persistence, the celestial-body registry, the base/difficulty/
+      // fit-check registry, the ship/upgrade registry, the equipment
+      // registry, and the economy layer) that unit + integration tests
+      // actually exercise. Scene glue
       // and Phaser-dependent rendering (src/game/scenes/**, most of
       // src/game/rendering/**, src/main.ts) wire that logic into Phaser/the
       // DOM and are verified by the Playwright e2e smoke test instead — no
@@ -50,6 +52,7 @@ export default defineConfig({
         'src/game/planets/**/*.ts',
         'src/game/bases/**/*.ts',
         'src/game/ships/**/*.ts',
+        'src/game/equipment/**/*.ts',
         'src/game/economy/**/*.ts',
         'src/game/rendering/starfield.ts',
         'src/game/rendering/ridgeline.ts',

@@ -104,8 +104,11 @@ test('a persisted high score survives a real page reload, and corrupted storage 
   // Proves the real read path: MenuScene's own loadHighScores() call, run
   // fresh against the real localStorage a reload produces, surfaces exactly
   // what was persisted — not just that raw bytes survive a reload, which
-  // the browser already guarantees on its own.
-  expect(await readMenuBestScoreText(page)).toBe('BEST: 742');
+  // the browser already guarantees on its own. Milestone 9 merged the old
+  // standalone "BEST: <score>" line with the balance line into one combined
+  // line (see menu-scene.ts's own STAT_LINE_Y_FRACTION doc comment) to free
+  // vertical space for the LOADOUT button — a fresh save's balance is 0.
+  expect(await readMenuBestScoreText(page)).toBe('BEST: 742 · BALANCE: 0 CREDITS');
 
   // A manually corrupted entry (Milestone 4's other acceptance criterion)
   // must be rejected gracefully in a real browser, not crash the boot.

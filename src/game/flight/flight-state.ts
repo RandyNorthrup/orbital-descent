@@ -78,13 +78,38 @@ export class FlightState {
     return this.currentSnapshot;
   }
 
-  tick(input: FlightInput, dtSeconds: number): FlightSnapshot {
+  /**
+   * Instantly adds `amount` to the current fuel, clamped to `maxFuel` —
+   * Milestone 9's equipped-item "repair kit" trigger hook
+   * (`equipment/equipment.ts`'s `repairKit` utility effect). `maxFuel` is
+   * passed in rather than read from a stored field because the ship's
+   * *effective* fuel capacity (base capacity plus any equipped `Fuel Tank`
+   * bonus) is a `GameScene`/equipment concern this class doesn't track.
+   */
+  restoreFuel(amount: number, maxFuel: number): void {
+    this.currentSnapshot = {
+      ...this.currentSnapshot,
+      fuel: Math.min(maxFuel, this.currentSnapshot.fuel + amount),
+    };
+  }
+
+  /**
+   * `thrustAccelOverride`, when given, replaces `this.thrustAccel` for this
+   * one tick only — the internal field is left untouched, so the next call
+   * without an override reverts automatically. This is Milestone 9's
+   * equipped-item "temporary thrust burst" hook (`equipment/equipment.ts`'s
+   * `thrustBurst` utility effect): `GameScene` owns the burst's own
+   * countdown timer and passes the boosted value only while it's active,
+   * keeping that timing concern out of this Phaser-free class entirely.
+   */
+  tick(input: FlightInput, dtSeconds: number, thrustAccelOverride?: number): FlightSnapshot {
     const current = this.currentSnapshot;
     const isThrusting = input.thrust && current.fuel > 0;
+    const thrustAccelThisTick = thrustAccelOverride ?? this.thrustAccel;
 
     const gravity: Vector2 = { x: 0, y: this.gravityAccel };
     const thrust = isThrusting
-      ? thrustVector(current.rotationRadians, this.thrustAccel * this.thrustEfficiency)
+      ? thrustVector(current.rotationRadians, thrustAccelThisTick * this.thrustEfficiency)
       : ZERO_VECTOR;
     const drag = atmosphericDrag(current.velocity, this.dragCoefficient);
     const acceleration = addVectors(addVectors(gravity, thrust), drag);

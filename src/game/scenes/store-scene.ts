@@ -10,8 +10,17 @@ import {
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
 } from '../constants';
-import { listingStatus, shipListings, type StoreListing } from '../economy/store';
+import {
+  equipmentListings,
+  listingStatus,
+  shipListings,
+  upgradeListings,
+  type StoreListing,
+  type StoreListingKind,
+} from '../economy/store';
 import { SHIPS } from '../ships/ships';
+import { UPGRADES } from '../ships/upgrades';
+import { EQUIPMENT_ITEMS } from '../equipment/equipment';
 import {
   initialCurrencyState,
   loadCurrencyState,
@@ -26,6 +35,20 @@ import {
   saveShipProgress,
   type ShipProgressState,
 } from '../persistence/ship-progress';
+import {
+  initialUpgradeProgress,
+  loadUpgradeProgress,
+  purchaseUpgrade,
+  saveUpgradeProgress,
+  type UpgradeProgressState,
+} from '../persistence/upgrade-progress';
+import {
+  initialEquipmentProgress,
+  loadEquipmentProgress,
+  purchaseEquipment,
+  saveEquipmentProgress,
+  type EquipmentProgressState,
+} from '../persistence/equipment-progress';
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createUiButton } from '../rendering/ui-button';
@@ -39,20 +62,34 @@ const TITLE_Y_FRACTION = 0.07;
  * this matter" context before the catalog, so it claims that slot instead
  * of the catalog itself. */
 const BALANCE_Y_FRACTION = 0.16;
-/** Pushed down from `BALANCE_Y_FRACTION` by roughly one row's worth of room
- * (640 * (0.26 - 0.16) = 64px, comfortably more than the 22px-tall balance
- * line needs) so the catalog never crowds the balance line above it.
+/** One column-header row ("SHIPS"/"UPGRADES"/"EQUIPMENT", see
+ * `STORE_COLUMNS` below) between the balance line and the catalog itself —
+ * added by Milestone 9, which turned this screen's single-`'ship'`-listing
+ * catalog into a 9-listing, 3-`StoreListingKind` one (see `LIST_START_Y_
+ * FRACTION`'s own doc comment for why a flat single-column list no longer
+ * fits). Sits roughly one row below `BALANCE_Y_FRACTION` (640 * (0.22 -
+ * 0.16) = 38.4px, comfortably more than a single text line needs). */
+const COLUMN_HEADER_Y_FRACTION = 0.22;
+/** Pushed down from `COLUMN_HEADER_Y_FRACTION` by roughly one row's worth of
+ * room (640 * (0.27 - 0.22) = 32px) so the catalog never crowds the column
+ * headers above it.
  *
- * Hand-verified against today's actual one-listing catalog (`shipListings`
- * over `SHIPS` yields exactly the Vanguard, Milestone 7's one
- * `'purchase'`-type ship): title at `640 * 0.07` = 44.8px, balance line at
- * `640 * 0.16` = 102.4px, catalog starting at `640 * 0.26` = 166.4px. The
- * Vanguard's row is at worst `AFFORDABLE_ROW_HEIGHT_PX` (99px, the taller of
- * the two price-reason-line row heights -- see its own doc comment) tall,
- * landing the BACK button at `166.4 + 99 + BACK_BUTTON_GAP_PX(24)` = 289.4px
- * -- under half of `GAME_HEIGHT` (640), nowhere near colliding with
- * anything above it. */
-const LIST_START_Y_FRACTION = 0.26;
+ * Milestone 9 grew this screen's catalog from Milestone 7/8's single
+ * `'ship'` listing (Vanguard) to 9 listings across three `StoreListingKind`s
+ * (1 ship, `UPGRADES.length` = 4 upgrades, 4 purchase-type equipment items)
+ * — a flat single-column list at the old row heights would put its BACK
+ * button close to 1000px down, hundreds of pixels past `GAME_HEIGHT` (640).
+ * `STORE_COLUMNS` below splits the catalog into one column per kind instead
+ * (same technique `LoadoutScene`'s own weapon/utility column split uses),
+ * capping the tallest column at 4 rows (upgrades or equipment, whichever
+ * this save's ownership/afford state renders more of at the taller
+ * `AFFORDABLE_ROW_HEIGHT_PX`): listStartY itself is `640 * 0.27` = 172.8px, so
+ * the tallest column ends around `172.8 + 4 * 99` = 568.8px, landing the BACK
+ * button (`renderView()` sets its y to that column-end plus
+ * `BACK_BUTTON_GAP_PX(24)`, with no further offset) ≈ 592.8px — comfortably
+ * inside `GAME_HEIGHT`, re-verified against a real screenshot (see
+ * `PLAN.md` Milestone 9 notes, which independently states y≈593). */
+const LIST_START_Y_FRACTION = 0.27;
 
 /** One list entry's worth of vertical space for an "owned" listing (a
  * single plain text line, no reason line needed) — matches every other
@@ -112,21 +149,57 @@ function priceReasonText(listing: StoreListing): string {
   return `PRICE: ${listing.price.toString()} CREDITS`;
 }
 
+/** Where each `StoreListingKind`'s own column sits, evenly spread across
+ * `GAME_WIDTH` (960) with generous margin either side of the widest current
+ * row string in any column (`"EFFICIENT INJECTORS (LOCKED)"`, ~278px at
+ * `UI_BODY_FONT_SIZE_PX`, ~139px each side of its own center) — the
+ * `0.15`/`0.85` outer columns still clear the canvas edges by ~58px, and
+ * every adjacent pair of columns clears each other by ~80px, re-verified
+ * against a real screenshot (see `PLAN.md` Milestone 9 notes) rather than
+ * asserted from arithmetic alone, matching this project's established
+ * "no automated collision detection, hand-verified margin" convention for
+ * this kind of layout (e.g. `ShipSelectScene`'s `NAME_COLUMN_OFFSET_PX`). */
+const SHIPS_COLUMN_X_FRACTION = 0.15;
+const UPGRADES_COLUMN_X_FRACTION = 0.5;
+const EQUIPMENT_COLUMN_X_FRACTION = 0.85;
+
+/** One column per `StoreListingKind` (Milestone 9's own addition of
+ * `'upgrade'`/`'equipment'` listings, see `COLUMN_HEADER_Y_FRACTION`'s doc
+ * comment for why a flat single-column list stopped fitting `GAME_HEIGHT`)
+ * — the one place `renderView` goes from "which kind" to "which header
+ * text and which x", so the two can't independently drift apart. */
+const STORE_COLUMNS: readonly {
+  readonly kind: StoreListingKind;
+  readonly header: string;
+  readonly xFraction: number;
+}[] = [
+  { kind: 'ship', header: 'SHIPS', xFraction: SHIPS_COLUMN_X_FRACTION },
+  { kind: 'upgrade', header: 'UPGRADES', xFraction: UPGRADES_COLUMN_X_FRACTION },
+  { kind: 'equipment', header: 'EQUIPMENT', xFraction: EQUIPMENT_COLUMN_X_FRACTION },
+];
+
 /**
- * The store screen (Milestone 8, Decision D15): every listing in the
- * catalog (Milestone 7's purchasable ships today; Milestone 9 will add
- * equipment listings into the same flat list) is shown as owned, affordable
- * and buyable, or too expensive — reading balance from Milestone 8's own
- * `persistence/currency-progress.ts` and ownership from Milestone 7's
- * `persistence/ship-progress.ts`. Buying a listing is a persistent
- * ownership change, not an equip action — the player still visits the
- * existing `ShipSelectScene` to equip a purchased ship, exactly mirroring
- * how `selectShip` and `purchaseShip` are two deliberately separate actions
- * there.
+ * The store screen (Milestone 8, Decision D15; extended by Milestone 9 to
+ * also sell permanent upgrades and purchase-type equipment): every listing
+ * in `this.catalog` is shown as owned, affordable and buyable, or too
+ * expensive — reading balance from Milestone 8's own `persistence/
+ * currency-progress.ts` and ownership from whichever domain's own
+ * persistence module the listing's `kind` routes to (`ownedIdsFor`).
+ * Rendered as one column per `StoreListingKind` (`STORE_COLUMNS`) rather
+ * than Milestone 8's original flat single-column list — seeing all 9
+ * listings at `AFFORDABLE_ROW_HEIGHT_PX` each would run the list ~830px
+ * past `GAME_HEIGHT` in a single column (see `COLUMN_HEADER_Y_FRACTION`'s
+ * doc comment for the exact math). Buying a listing is a persistent
+ * ownership change, not an equip/select action — the player still visits
+ * `ShipSelectScene`/`LoadoutScene` to equip a purchased ship/equipment item,
+ * exactly mirroring how `selectShip` and `purchaseShip` are two
+ * deliberately separate actions there.
  */
 export class StoreScene extends Phaser.Scene {
   private currencyState!: CurrencyState;
   private shipProgress!: ShipProgressState;
+  private upgradeProgress!: UpgradeProgressState;
+  private equipmentProgress!: EquipmentProgressState;
   private catalog!: readonly StoreListing[];
   private viewObjects: Phaser.GameObjects.GameObject[] = [];
   private keyEscape!: Phaser.Input.Keyboard.Key;
@@ -151,7 +224,21 @@ export class StoreScene extends Phaser.Scene {
     this.currencyState = storage === null ? initialCurrencyState() : loadCurrencyState(storage);
     this.shipProgress =
       storage === null ? initialShipProgress(SHIPS) : loadShipProgress(storage, SHIPS);
-    this.catalog = shipListings(SHIPS);
+    this.upgradeProgress =
+      storage === null ? initialUpgradeProgress() : loadUpgradeProgress(storage, UPGRADES);
+    this.equipmentProgress =
+      storage === null
+        ? initialEquipmentProgress()
+        : loadEquipmentProgress(storage, EQUIPMENT_ITEMS);
+    // Milestone 9: concatenated, in this order, onto Milestone 7's own ship
+    // catalog -- StoreScene's generic listing/afford/purchase mechanism
+    // doesn't change to grow from one domain to three (economy/store.ts's
+    // own doc comment anticipated exactly this).
+    this.catalog = [
+      ...shipListings(SHIPS),
+      ...upgradeListings(UPGRADES),
+      ...equipmentListings(EQUIPMENT_ITEMS),
+    ];
     this.renderView();
   }
 
@@ -206,15 +293,28 @@ export class StoreScene extends Phaser.Scene {
         .setOrigin(ORIGIN_CENTER),
     );
 
-    let y = GAME_HEIGHT * LIST_START_Y_FRACTION;
-    for (const listing of this.catalog) {
-      y = this.renderListingRow(listing, y);
+    const headerY = GAME_HEIGHT * COLUMN_HEADER_Y_FRACTION;
+    const listStartY = GAME_HEIGHT * LIST_START_Y_FRACTION;
+    let backButtonY = listStartY;
+    for (const column of STORE_COLUMNS) {
+      const columnX = GAME_WIDTH * column.xFraction;
+      this.track(
+        this.add
+          .text(columnX, headerY, column.header, {
+            fontFamily: 'monospace',
+            fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
+            color: hexToCss(UI_TEXT_COLOR),
+          })
+          .setOrigin(ORIGIN_CENTER),
+      );
+      const columnEndY = this.renderCatalogColumn(column.kind, columnX, listStartY);
+      backButtonY = Math.max(backButtonY, columnEndY);
     }
 
     this.track(
       createUiButton(this, {
         x: GAME_WIDTH / 2,
-        y: y + BACK_BUTTON_GAP_PX,
+        y: backButtonY + BACK_BUTTON_GAP_PX,
         label: 'BACK',
         onClick: () => {
           this.scene.start(SCENE_KEY_MENU);
@@ -223,11 +323,42 @@ export class StoreScene extends Phaser.Scene {
     );
   }
 
-  /** Renders one listing's row at `y`, returning the y for the next row. */
-  private renderListingRow(listing: StoreListing, y: number): number {
+  /** Routes a listing's own domain (`StoreListingKind`) to the matching
+   * owned-ids array -- the one place `renderListingRow`/`purchaseAndRerender`
+   * both go from "which listing" to "which persisted ownership list", so the
+   * two can't independently drift on the routing. */
+  private ownedIdsFor(kind: StoreListingKind): readonly string[] {
+    switch (kind) {
+      case 'ship':
+        return this.shipProgress.purchasedShipIds;
+      case 'upgrade':
+        return this.upgradeProgress.purchasedUpgradeIds;
+      case 'equipment':
+        return this.equipmentProgress.purchasedEquipmentIds;
+    }
+  }
+
+  /** Renders every `this.catalog` listing of the given `kind`, stacked at
+   * `x` starting from `y` -- returns the y the next row after this column's
+   * last one would start at, so the caller can size the BACK button gap off
+   * whichever column ends up tallest (same pattern as `LoadoutScene`'s own
+   * `renderEquipmentColumn`). */
+  private renderCatalogColumn(kind: StoreListingKind, x: number, y: number): number {
+    let currentY = y;
+    for (const listing of this.catalog) {
+      if (listing.kind === kind) {
+        currentY = this.renderListingRow(listing, x, currentY);
+      }
+    }
+    return currentY;
+  }
+
+  /** Renders one listing's row at `x, y`, returning the y for the next row
+   * in the same column. */
+  private renderListingRow(listing: StoreListing, x: number, y: number): number {
     const status = listingStatus(
       listing,
-      this.shipProgress.purchasedShipIds,
+      this.ownedIdsFor(listing.kind),
       this.currencyState.balance,
     );
     const name = listing.name.toUpperCase();
@@ -235,7 +366,7 @@ export class StoreScene extends Phaser.Scene {
     if (status === 'owned') {
       this.track(
         this.add
-          .text(GAME_WIDTH / 2, y, `${name} (OWNED)`, {
+          .text(x, y, `${name} (OWNED)`, {
             fontFamily: 'monospace',
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
@@ -248,7 +379,7 @@ export class StoreScene extends Phaser.Scene {
     if (status === 'affordable') {
       this.track(
         createUiButton(this, {
-          x: GAME_WIDTH / 2,
+          x,
           y,
           label: name,
           onClick: () => {
@@ -258,7 +389,7 @@ export class StoreScene extends Phaser.Scene {
       );
       this.track(
         this.add
-          .text(GAME_WIDTH / 2, y + BUTTON_REASON_LINE_OFFSET_PX, priceReasonText(listing), {
+          .text(x, y + BUTTON_REASON_LINE_OFFSET_PX, priceReasonText(listing), {
             fontFamily: 'monospace',
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
@@ -271,7 +402,7 @@ export class StoreScene extends Phaser.Scene {
     // status === 'too-expensive'
     this.track(
       this.add
-        .text(GAME_WIDTH / 2, y, `${name} (LOCKED)`, {
+        .text(x, y, `${name} (LOCKED)`, {
           fontFamily: 'monospace',
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_MUTED_TEXT_COLOR),
@@ -280,7 +411,7 @@ export class StoreScene extends Phaser.Scene {
     );
     this.track(
       this.add
-        .text(GAME_WIDTH / 2, y + REASON_LINE_OFFSET_PX, priceReasonText(listing), {
+        .text(x, y + REASON_LINE_OFFSET_PX, priceReasonText(listing), {
           fontFamily: 'monospace',
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_MUTED_TEXT_COLOR),
@@ -291,21 +422,38 @@ export class StoreScene extends Phaser.Scene {
   }
 
   /** Completes a purchase in one synchronous handler: deducts the balance,
-   * records ownership, persists both (storage permitting), then re-renders
-   * in place -- does not navigate away and does not touch
-   * `selectedShipId` (buying a ship doesn't equip it; that's
-   * ShipSelectScene's own separate, deliberate action). `getSafeLocalStorage()`
-   * is called once and reused for both writes, matching every other
-   * "read/write pair share one storage handle" call site in this
-   * codebase. */
+   * records ownership in whichever domain the listing belongs to (routed by
+   * `listing.kind`), then persists *all four* progress states
+   * unconditionally (currency, ship, upgrade, equipment) rather than only
+   * the one that actually changed -- simplest correct approach, and cheaper
+   * than conditional saves for a low-frequency user action (a few extra
+   * `localStorage` writes on a purchase is free). Does not navigate away and
+   * does not equip/select whatever was just bought -- that's
+   * `ShipSelectScene`'s/`LoadoutScene`'s own separate, deliberate action,
+   * mirroring `purchaseShip`'s own established convention.
+   * `getSafeLocalStorage()` is called once and reused for every write,
+   * matching every other "read/write pair share one storage handle" call
+   * site in this codebase. */
   private purchaseAndRerender(listing: StoreListing): void {
     this.currencyState = spendCurrency(this.currencyState, listing.price);
-    this.shipProgress = purchaseShip(this.shipProgress, listing.id);
+    switch (listing.kind) {
+      case 'ship':
+        this.shipProgress = purchaseShip(this.shipProgress, listing.id);
+        break;
+      case 'upgrade':
+        this.upgradeProgress = purchaseUpgrade(this.upgradeProgress, listing.id);
+        break;
+      case 'equipment':
+        this.equipmentProgress = purchaseEquipment(this.equipmentProgress, listing.id);
+        break;
+    }
 
     const storage = getSafeLocalStorage();
     if (storage !== null) {
       saveCurrencyState(storage, this.currencyState);
       saveShipProgress(storage, this.shipProgress);
+      saveUpgradeProgress(storage, this.upgradeProgress);
+      saveEquipmentProgress(storage, this.equipmentProgress);
     }
 
     this.renderView();

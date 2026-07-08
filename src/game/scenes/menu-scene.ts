@@ -15,6 +15,7 @@ import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createUiButton } from '../rendering/ui-button';
 import {
   SCENE_KEY_GAME,
+  SCENE_KEY_LOADOUT,
   SCENE_KEY_MENU,
   SCENE_KEY_SETTINGS,
   SCENE_KEY_SHIP_SELECT,
@@ -26,22 +27,26 @@ import type { SettingsSceneData } from './settings-scene';
 
 const ORIGIN_CENTER = 0.5;
 const TITLE_Y_FRACTION = 0.3;
-const BEST_SCORE_Y_FRACTION = 0.4;
-/** Below BEST_SCORE_Y_FRACTION by 640 * (0.47 - 0.4) = 44.8px -- clear of
- * BEST's own ~22px-tall line above and, per START_BUTTON_Y_FRACTION's own
- * doc comment, clear of the button stack below. Unlike BEST (conditionally
- * hidden pre-first-score), this line always renders, so it can't be
- * skipped when picking a fixed slot for it. */
-const BALANCE_Y_FRACTION = 0.47;
-/** Nudged down from 0.55 (pre-Milestone-8's 4-button stack) to 0.56 to open
- * a 640 * (0.56 - 0.47) = 57.6px gap below BALANCE_Y_FRACTION's line.
- * Verified against a real screenshot (see PLAN.md Milestone 8 notes): with
- * 5 buttons at UI_BUTTON_ROW_HEIGHT_PX (62px) apart, the last button
- * (SETTINGS, index 4 -- STORE is 4th of 5) centers at
- * 640 * 0.56 + 4 * 62 = 606.4px -- well inside GAME_HEIGHT (640), landing
+/** Milestone 9's own LOADOUT button pushed a 6th entry onto what was a
+ * 5-button stack -- fitting it under GAME_HEIGHT (640) required freeing a
+ * full row of vertical space, done by combining the old two-line BEST/
+ * BALANCE display into this one line (`"BEST: <score> · BALANCE: <n>
+ * CREDITS"`, or just the balance half when no score exists yet) rather than
+ * showing them separately. Sits at the same slot the old
+ * `BEST_SCORE_Y_FRACTION` occupied (`640 * 0.39` = 249.6px), clear of the
+ * title's own real rendered height above it (`640 * 0.3` = 192px) by the
+ * same ~57.6px magnitude Milestone 8's own doc comment already verified
+ * safe for a title-to-first-content-line gap. */
+const STAT_LINE_Y_FRACTION = 0.39;
+/** Nudged up from Milestone 8's 0.56 (5-button stack) to 0.46, reclaiming
+ * the vertical space the BEST/BALANCE merge above freed up, to fit this
+ * milestone's 6th (LOADOUT) button. Verified against a real screenshot (see
+ * PLAN.md Milestone 9 notes): with 6 buttons at UI_BUTTON_ROW_HEIGHT_PX
+ * (62px) apart, the last button (SETTINGS, index 5 of 6) centers at
+ * 640 * 0.46 + 5 * 62 = 604.4px -- well inside GAME_HEIGHT (640), landing
  * with the same kind of comfortable hand-verified margin ShipSelectScene's
  * own doc comments describe. */
-const START_BUTTON_Y_FRACTION = 0.56;
+const START_BUTTON_Y_FRACTION = 0.46;
 
 export class MenuScene extends Phaser.Scene {
   private keyEnter!: Phaser.Input.Keyboard.Key;
@@ -64,48 +69,33 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(ORIGIN_CENTER);
 
-    // Only shown once a real score exists (Milestone 4/Decision D8) — a
-    // first-time player with an empty leaderboard sees a clean menu, not a
-    // confusing "BEST: 0". getSafeLocalStorage() returns null when storage
-    // access itself is blocked (sandboxed iframe, privacy setting), in which
-    // case the menu degrades to showing no BEST line at all, same as a
-    // first-time player, rather than throwing and aborting the rest of
-    // create() (the START/SETTINGS buttons below).
+    // getSafeLocalStorage() returns null when storage access itself is
+    // blocked (sandboxed iframe, privacy setting), in which case the menu
+    // degrades to a fresh save's own defaults (no best score, 0 balance),
+    // same as a first-time player, rather than throwing and aborting the
+    // rest of create() (the button stack below).
     const storage = getSafeLocalStorage();
     const bestScore = storage === null ? undefined : loadHighScores(storage)[0]?.score;
-    if (bestScore !== undefined) {
-      this.add
-        .text(
-          GAME_WIDTH / 2,
-          GAME_HEIGHT * BEST_SCORE_Y_FRACTION,
-          `BEST: ${bestScore.toString()}`,
-          {
-            fontFamily: 'monospace',
-            fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
-          },
-        )
-        .setOrigin(ORIGIN_CENTER);
-    }
-
-    // Unlike BEST above, BALANCE always renders (Milestone 8/Decision D15)
-    // -- starting at 0 credits is a normal, self-explanatory economy-game
-    // state, not a confusing one. Reuses the same `storage` handle already
-    // fetched for BEST above rather than calling getSafeLocalStorage() a
-    // second time.
     const balance =
       storage === null ? initialCurrencyState().balance : loadCurrencyState(storage).balance;
+
+    // One combined line (Milestone 9 -- see STAT_LINE_Y_FRACTION's own doc
+    // comment for why BEST and BALANCE were merged): BEST is only ever
+    // included once a real score exists (Milestone 4/Decision D8) -- a
+    // first-time player with an empty leaderboard sees a clean
+    // "BALANCE: 0 CREDITS", not a confusing "BEST: undefined". BALANCE
+    // itself always renders (Milestone 8/Decision D15) -- starting at 0
+    // credits is a normal, self-explanatory economy-game state.
+    const statLine =
+      bestScore === undefined
+        ? `BALANCE: ${balance.toString()} CREDITS`
+        : `BEST: ${bestScore.toString()} · BALANCE: ${balance.toString()} CREDITS`;
     this.add
-      .text(
-        GAME_WIDTH / 2,
-        GAME_HEIGHT * BALANCE_Y_FRACTION,
-        `BALANCE: ${balance.toString()} CREDITS`,
-        {
-          fontFamily: 'monospace',
-          fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_MUTED_TEXT_COLOR),
-        },
-      )
+      .text(GAME_WIDTH / 2, GAME_HEIGHT * STAT_LINE_Y_FRACTION, statLine, {
+        fontFamily: 'monospace',
+        fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
+        color: hexToCss(UI_MUTED_TEXT_COLOR),
+      })
       .setOrigin(ORIGIN_CENTER);
 
     const startY = GAME_HEIGHT * START_BUTTON_Y_FRACTION;
@@ -126,6 +116,12 @@ export class MenuScene extends Phaser.Scene {
         label: 'SHIP SELECT',
         onClick: (): void => {
           this.openShipSelect();
+        },
+      },
+      {
+        label: 'LOADOUT',
+        onClick: (): void => {
+          this.openLoadout();
         },
       },
       {
@@ -167,6 +163,10 @@ export class MenuScene extends Phaser.Scene {
 
   private openShipSelect(): void {
     this.scene.start(SCENE_KEY_SHIP_SELECT);
+  }
+
+  private openLoadout(): void {
+    this.scene.start(SCENE_KEY_LOADOUT);
   }
 
   private openStore(): void {

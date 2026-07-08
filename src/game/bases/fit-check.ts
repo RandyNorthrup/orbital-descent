@@ -1,0 +1,161 @@
+import type { ShipClass } from '../ships/ship';
+import { applyPermanentUpgrades, type PermanentUpgrade } from '../ships/upgrades';
+import {
+  effectiveThrustAccel,
+  summarizePassiveEffects,
+  totalCarriedMass,
+  type EquipmentItem,
+} from '../equipment/equipment';
+import type { CelestialBody } from '../planets/celestial-body';
+import { SCORE_TIME_PAR_MS } from '../constants';
+import type { Base, HandlingBand, TWRBand } from './base';
+
+const MILLISECONDS_PER_SECOND = 1000;
+/** Below this ratio, the estimated fuel cost of a full-thrust descent (see
+ * `estimateFuelNeeded` below) exceeds effective fuel capacity. */
+const FUEL_MARGIN_WARNING_THRESHOLD = 1;
+
+/**
+ * @public consumed internally by this file's own `bandFor`/`BaseFitResult`
+ * (both `twrBand`/`handlingBand` are typed against it) — not imported by
+ * name anywhere else yet, since no scene wires `evaluateBaseFit` into live
+ * UI this milestone (a deliberate, documented scope decision — see PLAN.md's
+ * Milestone 9 certification notes). Not dead code — matches
+ * `bases/base.ts`'s `HandlingBand`/`WeaponTier` precedent for a type alias
+ * with no by-name importer yet.
+ */
+export type FitBand = 'impossible' | 'risky' | 'comfortable';
+
+/**
+ * PLAN.md §6b.2's facade result. `fuelMarginRatio` is a raw ratio (available
+ * ÷ estimated-needed), not a banded verdict — the loadout UI turns a value
+ * below `FUEL_MARGIN_WARNING_THRESHOLD` into a warning string itself, same
+ * as every other soft signal in `warnings`.
+ */
+export interface BaseFitResult {
+  readonly twr: number;
+  readonly twrBand: FitBand;
+  readonly fuelMarginRatio: number;
+  readonly handlingBand: FitBand | 'not-applicable';
+  readonly combatOutcome:
+    { readonly cleared: boolean; readonly hullRemaining: number } | 'not-applicable';
+  readonly warnings: readonly string[];
+}
+
+function bandFor(value: number, band: TWRBand | HandlingBand): FitBand {
+  if (value < band.hardFloor) {
+    return 'impossible';
+  }
+  if (value < band.comfortable) {
+    return 'risky';
+  }
+  return 'comfortable';
+}
+
+/**
+ * Closed-form fuel-needed estimate, not a full per-tick simulation of an
+ * actual descent (a real autopilot capable of flying every curated base
+ * would be its own substantial system, and isn't part of this milestone's
+ * required tests — see the certification notes for this deliberate scope
+ * boundary). Assumes the conservative worst case, continuous thrust for
+ * `SCORE_TIME_PAR_MS` (this project's own "reference descent time," already
+ * used the same way to tune hazard drain rates — see `planets/bodies.ts`'s
+ * Pyrrhal Shallows), plus any passive corrosive drain over that same
+ * window. Reads as a pessimistic pre-flight estimate, not a guarantee: a
+ * skilled pilot burning less than continuously will do better than this
+ * number suggests, matching how `twrBand`'s "risky" tier already reads as
+ * "flyable, but tight" rather than a hard verdict.
+ */
+function estimateFuelNeeded(ship: ShipClass, passiveDrainRate: number): number {
+  const referenceDescentSeconds = SCORE_TIME_PAR_MS / MILLISECONDS_PER_SECOND;
+  return (ship.burnRate + passiveDrainRate) * referenceDescentSeconds;
+}
+
+/** Milestone 11 replaces this with a real `simulateEncounter(...)` call —
+ * every base authored before that milestone ships has an empty
+ * `encounters` array (`Base.encounters`'s own doc comment), so reaching a
+ * non-empty one here is a real data-authoring bug, not a reachable,
+ * silently-wrong result to paper over. */
+function resolveCombatOutcome(base: Base): BaseFitResult['combatOutcome'] {
+  if (base.encounters.length === 0) {
+    return 'not-applicable';
+  }
+  throw new Error(
+    'evaluateBaseFit: base.encounters is non-empty, but Milestone 11 combat simulation does not exist yet.',
+  );
+}
+
+/**
+ * The three-branch facade (PLAN.md §6b.2): mechanical (thrust-to-weight,
+ * fuel margin), spatial (handling), and combat (currently always
+ * `'not-applicable'` — see `resolveCombatOutcome`). `upgrades`/`loadout` are
+ * folded onto `ship` via `applyPermanentUpgrades`/
+ * `equipment.ts`'s mass-and-passive-effect math before any comparison
+ * against `base.requirements`, so this is the one place those thresholds
+ * are ever evaluated against a ship's stats — never a second, independently
+ * computed verdict elsewhere.
+ */
+export function evaluateBaseFit(
+  ship: ShipClass,
+  upgrades: readonly PermanentUpgrade[],
+  loadout: readonly EquipmentItem[],
+  body: CelestialBody,
+  base: Base,
+): BaseFitResult {
+  const upgradedShip = applyPermanentUpgrades(ship, upgrades);
+  const carriedMass = totalCarriedMass(loadout);
+  const passiveEffects = summarizePassiveEffects(loadout);
+
+  const accel = effectiveThrustAccel(upgradedShip, carriedMass);
+  const twr = accel / body.gravityAccel;
+  const twrBand = bandFor(twr, base.requirements.minTWR);
+
+  const effectiveFuelCapacity = upgradedShip.fuelCapacity + passiveEffects.fuelCapacityBonus;
+  const passiveDrainRate =
+    body.hazard?.type === 'corrosive' && !passiveEffects.corrosionResistant
+      ? body.hazard.fuelDrainRate
+      : 0;
+  const fuelMarginRatio =
+    effectiveFuelCapacity / estimateFuelNeeded(upgradedShip, passiveDrainRate);
+
+  const handlingBand: FitBand | 'not-applicable' =
+    base.requirements.handling === null
+      ? 'not-applicable'
+      : bandFor(upgradedShip.handling, base.requirements.handling);
+
+  const combatOutcome = resolveCombatOutcome(base);
+
+  const warnings: string[] = [];
+  if (twrBand === 'impossible') {
+    warnings.push(
+      "Thrust-to-weight ratio is below this base's minimum -- landing is not completable.",
+    );
+  } else if (twrBand === 'risky') {
+    warnings.push(
+      'Thrust-to-weight ratio is tight for this base -- flyable, but with little margin.',
+    );
+  }
+  if (fuelMarginRatio < FUEL_MARGIN_WARNING_THRESHOLD) {
+    warnings.push('Estimated fuel margin is insufficient for a full-thrust descent at this base.');
+  }
+  if (handlingBand === 'impossible') {
+    warnings.push(
+      "Handling is below this base's minimum -- precise maneuvers are not completable.",
+    );
+  } else if (handlingBand === 'risky') {
+    warnings.push('Handling is tight for this base -- flyable, but with little margin.');
+  }
+
+  const ownedTags = new Set([
+    ...upgrades.flatMap((upgrade) => upgrade.tags),
+    ...loadout.flatMap((item) => item.tags),
+  ]);
+  const missingHazardCounters = base.requirements.hazardCounterTags.filter(
+    (tag) => !ownedTags.has(tag),
+  );
+  if (missingHazardCounters.length > 0) {
+    warnings.push(`No countermeasure equipped for: ${missingHazardCounters.join(', ')}.`);
+  }
+
+  return { twr, twrBand, fuelMarginRatio, handlingBand, combatOutcome, warnings };
+}

@@ -195,4 +195,32 @@ describe('FlightState', () => {
     // thrust ship climbs measurably further in the same time.
     expect(scoutAfter.position.y).toBeLessThan(haulerAfter.position.y);
   });
+
+  // Milestone 9 (Ship Upgrades & Equipment Loadout): a temporary thrust
+  // boost (the `thrustBurst` equipment effect) and an instant fuel restore
+  // (the `repairKit` effect) are both `GameScene`-driven, one-off hooks on
+  // top of the normal tick loop, exercised here in isolation from any
+  // specific equipment registry, same methodology as the ship-variation
+  // test above.
+  it('tick’s thrustAccelOverride boosts this tick only, reverting on the very next tick', () => {
+    const state = makeFlightState();
+    const boosted = state.tick({ thrust: true, rotate: 0 }, 1 / 60, 200);
+    const reverted = state.tick({ thrust: true, rotate: 0 }, 1 / 60);
+    // The boosted tick's acceleration is far higher than the base 50 --
+    // its resulting velocity is well past what one un-boosted tick could
+    // produce, and the following un-boosted tick doesn't add anywhere
+    // near as much again.
+    const boostedGain = STARTING_SNAPSHOT.velocity.y - boosted.velocity.y;
+    const revertedGain = boosted.velocity.y - reverted.velocity.y;
+    expect(boostedGain).toBeGreaterThan(revertedGain * 5);
+  });
+
+  it('restoreFuel adds fuel immediately, clamped to maxFuel', () => {
+    const state = makeFlightState({ fuel: 40 });
+    state.restoreFuel(25, 100);
+    expect(state.snapshot.fuel).toBe(65);
+
+    state.restoreFuel(1000, 100);
+    expect(state.snapshot.fuel).toBe(100);
+  });
 });

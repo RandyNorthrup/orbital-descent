@@ -53,10 +53,32 @@ import {
   saveCurrencyState,
 } from '../persistence/currency-progress';
 import { scoreToCurrency } from '../economy/currency';
+import {
+  initialUpgradeProgress,
+  loadUpgradeProgress,
+  ownedUpgrades,
+} from '../persistence/upgrade-progress';
+import {
+  cycleActiveUtility,
+  cycleActiveWeapon,
+  initialEquipmentProgress,
+  loadEquipmentProgress,
+  type EquipmentProgressState,
+} from '../persistence/equipment-progress';
+import { applyPermanentUpgrades, UPGRADES } from '../ships/upgrades';
+import {
+  effectiveThrustAccel,
+  findEquipmentById,
+  summarizePassiveEffects,
+  totalCarriedMass,
+  EQUIPMENT_ITEMS,
+  type EquipmentItem,
+} from '../equipment/equipment';
+import { resolveEquippedItems } from '../equipment/loadout';
 import type { Base } from '../bases/base';
 import { BODIES } from '../planets/bodies';
 import { findBodyById } from '../bases/bases';
-import type { CelestialBody } from '../planets/celestial-body';
+import type { CelestialBody, Hazard } from '../planets/celestial-body';
 import type { ShipClass } from '../ships/ship';
 import { SHIPS, findShipById } from '../ships/ships';
 import { calculateScore } from '../scoring/score';
@@ -107,6 +129,32 @@ export class GameScene extends Phaser.Scene {
   private base: Base | null = null;
   private body!: CelestialBody;
   private ship!: ShipClass;
+  /** `ship` with every owned Milestone 9 permanent upgrade folded in
+   * (`ships/upgrades.ts`'s `applyPermanentUpgrades`) — every stat read
+   * during this flight (thrust, mass, fuel capacity, burn rate, handling)
+   * reads from this, never from `ship` directly, so an owned upgrade can't
+   * silently fail to apply on some call sites but not others. */
+  private effectiveShip!: ShipClass;
+  /** This flight's actually-carried equipment, already trimmed to
+   * `effectiveShip`'s live slot count/mass budget (`equipment/loadout.ts`'s
+   * `resolveEquippedItems`) — resolved once in `init()`, not re-resolved
+   * every frame, since neither the ship nor the persisted loadout changes
+   * mid-flight. */
+  private carriedItems: readonly EquipmentItem[] = [];
+  private equipmentProgress!: EquipmentProgressState;
+  /** `effectiveThrustAccel(effectiveShip, carriedMass)` — the thrust
+   * acceleration this flight uses absent an active thrust-burst utility
+   * item; `update()` adds `thrustBoostBonusAccel` on top while
+   * `thrustBoostRemainingMs` is positive. */
+  private baseEffectiveThrustAccel = 0;
+  private effectiveFuelCapacity = 0;
+  /** `body.hazard`, unless an equipped Corrosion Coating/Thermal Lining
+   * utility item negates it (`equipment/equipment.ts`'s
+   * `summarizePassiveEffects`) — computed once in `init()` and passed to
+   * `FlightState` unchanged for the rest of the flight. */
+  private effectiveHazard: Hazard = null;
+  private thrustBoostRemainingMs = 0;
+  private thrustBoostBonusAccel = 0;
   private flightState!: FlightState;
   private terrain!: Terrain;
   private lander!: PaperShape;
@@ -123,6 +171,17 @@ export class GameScene extends Phaser.Scene {
   private keyD!: Phaser.Input.Keyboard.Key;
   private keyW!: Phaser.Input.Keyboard.Key;
   private keyEscape!: Phaser.Input.Keyboard.Key;
+  /** Milestone 9's cycle/trigger input (PLAN.md's "as input/UI, not combat
+   * resolution — that's M11" scope note): Q/E cycle the active weapon/
+   * utility item among whatever's actually carried; Space/F trigger
+   * whichever is currently active. Plain `JustDown` (not `ArmedKeyGuard`)
+   * is correct here — unlike Escape, none of these keys ever causes a
+   * scene transition into GameScene, so there's no "held over from the
+   * action that triggered this scene" case to guard against. */
+  private keyCycleWeapon!: Phaser.Input.Keyboard.Key;
+  private keyCycleUtility!: Phaser.Input.Keyboard.Key;
+  private keyTriggerWeapon!: Phaser.Input.Keyboard.Key;
+  private keyTriggerUtility!: Phaser.Input.Keyboard.Key;
   private pauseGuard!: ArmedKeyGuard;
 
   constructor() {
@@ -133,6 +192,40 @@ export class GameScene extends Phaser.Scene {
     this.base = data.base ?? null;
     this.body = this.base === null ? BODIES[0] : findBodyById(this.base.worldId);
     this.ship = this.resolveSelectedShip();
+
+    const storage = getSafeLocalStorage();
+    const upgradeProgress =
+      storage === null ? initialUpgradeProgress() : loadUpgradeProgress(storage, UPGRADES);
+    this.equipmentProgress =
+      storage === null
+        ? initialEquipmentProgress()
+        : loadEquipmentProgress(storage, EQUIPMENT_ITEMS);
+
+    this.effectiveShip = applyPermanentUpgrades(
+      this.ship,
+      ownedUpgrades(upgradeProgress, UPGRADES),
+    );
+    this.carriedItems = resolveEquippedItems(
+      this.effectiveShip,
+      this.equipmentProgress.equippedItemIds,
+      EQUIPMENT_ITEMS,
+    );
+
+    const passiveEffects = summarizePassiveEffects(this.carriedItems);
+    this.effectiveFuelCapacity = this.effectiveShip.fuelCapacity + passiveEffects.fuelCapacityBonus;
+    this.baseEffectiveThrustAccel = effectiveThrustAccel(
+      this.effectiveShip,
+      totalCarriedMass(this.carriedItems),
+    );
+
+    const rawHazard = this.body.hazard;
+    const hazardNegated =
+      (rawHazard?.type === 'corrosive' && passiveEffects.corrosionResistant) ||
+      (rawHazard?.type === 'cold' && passiveEffects.coldResistant);
+    this.effectiveHazard = hazardNegated ? null : rawHazard;
+
+    this.thrustBoostRemainingMs = 0;
+    this.thrustBoostBonusAccel = 0;
   }
 
   /** Equipping a ship (`ShipSelectScene`) is a persistent loadout choice,
@@ -160,6 +253,10 @@ export class GameScene extends Phaser.Scene {
     this.keyW = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
     this.keyEscape = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.pauseGuard = new ArmedKeyGuard(this.keyEscape);
+    this.keyCycleWeapon = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+    this.keyCycleUtility = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keyTriggerWeapon = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.keyTriggerUtility = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
 
     this.outcome = 'flying';
     this.data.set('outcome', this.outcome);
@@ -168,6 +265,8 @@ export class GameScene extends Phaser.Scene {
     // a previous landing must be explicitly cleared — otherwise a crash
     // following an earlier safe landing would still report that old score.
     this.data.remove('score');
+    this.data.set('activeWeaponId', this.equipmentProgress.activeWeaponId);
+    this.data.set('activeUtilityId', this.equipmentProgress.activeUtilityId);
     this.elapsedMs = 0;
 
     buildBackground(this);
@@ -200,17 +299,16 @@ export class GameScene extends Phaser.Scene {
         position: { x: LANDER_START_X, y: LANDER_START_Y },
         velocity: { x: 0, y: 0 },
         rotationRadians: 0,
-        fuel: this.ship.fuelCapacity,
+        fuel: this.effectiveFuelCapacity,
       },
       gravityAccel: this.body.gravityAccel,
-      // Zero equipment/cargo mass on every flight before Milestone 9 ships,
-      // so realized thrust acceleration is exactly baseThrustAccel (see
-      // ShipClass.dryMass's own doc comment on the engineForce model).
-      thrustAccel: this.ship.baseThrustAccel,
-      rotationSpeedRadPerSec: degreesToRadians(this.ship.handling),
-      fuelBurnRate: this.ship.burnRate,
+      // Folds in owned permanent upgrades and equipped mass (Milestone 9) —
+      // see effectiveShip/carriedItems's own doc comments in init().
+      thrustAccel: this.baseEffectiveThrustAccel,
+      rotationSpeedRadPerSec: degreesToRadians(this.effectiveShip.handling),
+      fuelBurnRate: this.effectiveShip.burnRate,
       dragCoefficient: this.body.atmosphereDensity,
-      hazard: this.body.hazard,
+      hazard: this.effectiveHazard,
     });
 
     this.lander = createPaperShape(this, {
@@ -267,7 +365,7 @@ export class GameScene extends Phaser.Scene {
       })
       .setDepth(HUD_LAYER_DEPTH)
       .setScrollFactor(0);
-    this.updateFuelText(this.ship.fuelCapacity);
+    this.updateFuelText(this.effectiveFuelCapacity);
 
     this.add
       .text(GAME_WIDTH - HUD_MARGIN, HUD_MARGIN, 'ESC: pause', {
@@ -310,7 +408,42 @@ export class GameScene extends Phaser.Scene {
     }
     const thrust = this.cursors.up.isDown || this.keyW.isDown;
 
-    const snapshot = this.flightState.tick({ thrust, rotate }, deltaMs / MILLISECONDS_PER_SECOND);
+    if (Phaser.Input.Keyboard.JustDown(this.keyCycleWeapon)) {
+      this.equipmentProgress = cycleActiveWeapon(
+        this.equipmentProgress,
+        this.effectiveShip,
+        EQUIPMENT_ITEMS,
+      );
+      this.data.set('activeWeaponId', this.equipmentProgress.activeWeaponId);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyCycleUtility)) {
+      this.equipmentProgress = cycleActiveUtility(
+        this.equipmentProgress,
+        this.effectiveShip,
+        EQUIPMENT_ITEMS,
+      );
+      this.data.set('activeUtilityId', this.equipmentProgress.activeUtilityId);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyTriggerWeapon)) {
+      this.triggerActiveWeapon();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyTriggerUtility)) {
+      this.triggerActiveUtility();
+    }
+
+    if (this.thrustBoostRemainingMs > 0) {
+      this.thrustBoostRemainingMs = Math.max(0, this.thrustBoostRemainingMs - deltaMs);
+    }
+    const thrustAccelThisTick =
+      this.thrustBoostRemainingMs > 0
+        ? this.baseEffectiveThrustAccel + this.thrustBoostBonusAccel
+        : this.baseEffectiveThrustAccel;
+
+    const snapshot = this.flightState.tick(
+      { thrust, rotate },
+      deltaMs / MILLISECONDS_PER_SECOND,
+      thrustAccelThisTick,
+    );
     this.elapsedMs += deltaMs;
     this.updateFuelText(snapshot.fuel);
 
@@ -358,7 +491,7 @@ export class GameScene extends Phaser.Scene {
           padHalfWidth,
         },
         {
-          maxFuel: this.ship.fuelCapacity,
+          maxFuel: this.effectiveFuelCapacity,
           baseLandingBonus: SCORE_BASE_LANDING_BONUS,
           maxFuelBonus: SCORE_MAX_FUEL_BONUS,
           maxPrecisionBonus: SCORE_MAX_PRECISION_BONUS,
@@ -431,7 +564,43 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateFuelText(fuel: number): void {
-    const percent = Math.round((fuel / this.ship.fuelCapacity) * FUEL_PERCENT_MULTIPLIER);
+    const percent = Math.round((fuel / this.effectiveFuelCapacity) * FUEL_PERCENT_MULTIPLIER);
     this.fuelText.setText(`FUEL: ${percent.toString()}%`);
+  }
+
+  /** Space fires the currently-active weapon. Milestone 11 owns actual
+   * combat resolution (PLAN.md's own M9 scope note: "hands off to M11") --
+   * this only exposes which weapon fired and when, via the data manager,
+   * for the e2e suite and for a future combat system to consume. */
+  private triggerActiveWeapon(): void {
+    const weaponId = this.equipmentProgress.activeWeaponId;
+    if (weaponId === null) {
+      return;
+    }
+    this.data.set('lastTriggeredWeaponId', weaponId);
+  }
+
+  /** F activates the currently-active utility item. Only the two
+   * *active-use* effects (`repairKit`/`thrustBurst`) have anything to apply
+   * here — the *passive* effects (`fuelCapacityBonus`/`corrosionResistance`/
+   * `coldResistance`) are already continuously in effect for the whole
+   * flight (folded in once, in `init()`), so triggering one of those is a
+   * no-op beyond exposing the event below. See `equipment/equipment.ts`'s
+   * `UtilityEffect` doc comment for the full passive/active split. */
+  private triggerActiveUtility(): void {
+    const utilityId = this.equipmentProgress.activeUtilityId;
+    if (utilityId === null) {
+      return;
+    }
+    const item = findEquipmentById(utilityId);
+    if (item.slotType === 'utility') {
+      if (item.effect.kind === 'repairKit') {
+        this.flightState.restoreFuel(item.effect.fuelRestored, this.effectiveFuelCapacity);
+      } else if (item.effect.kind === 'thrustBurst') {
+        this.thrustBoostRemainingMs = item.effect.durationMs;
+        this.thrustBoostBonusAccel = item.effect.bonusThrustAccel;
+      }
+    }
+    this.data.set('lastTriggeredUtilityId', utilityId);
   }
 }

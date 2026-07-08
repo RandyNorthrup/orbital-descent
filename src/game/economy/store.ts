@@ -1,22 +1,16 @@
 import type { ShipClass } from '../ships/ship';
+import type { PermanentUpgrade } from '../ships/upgrades';
+import type { EquipmentItem } from '../equipment/equipment';
 
 /**
  * A listing's domain — routes `StoreScene`'s purchase-completion logic to
  * the right domain-specific "mark this owned" persistence call
- * (`persistence/ship-progress.ts`'s `purchaseShip` for `'ship'` today).
- * Single-member today since Milestone 7's ship roster is this project's
- * only `acquisition: { type: 'purchase' }` catalog; Milestone 9 extends
- * this with `'equipment'` when its own purchasable items exist, without
- * `StoreScene`'s generic listing/afford/purchase mechanism needing to
- * change (Milestone 8's own PLAN.md scope text calls for exactly this).
- *
- * @public every `StoreListing` authors a `kind` value satisfying this type
- * structurally (a plain string literal); this named alias isn't imported by
- * name anywhere yet since `StoreScene` doesn't yet need to branch on it with
- * only one member. Not dead code — matches `ships/ship.ts`'s `ShipArchetype`
- * precedent for a field's type alias with no by-name importer yet.
+ * (`purchaseShip`/`purchaseUpgrade`/`purchaseEquipment`). Milestone 8's own
+ * PLAN.md scope text anticipated exactly this extension: `StoreScene`'s
+ * generic listing/afford/purchase mechanism didn't need to change to grow
+ * from one member to three.
  */
-export type StoreListingKind = 'ship';
+export type StoreListingKind = 'ship' | 'upgrade' | 'equipment';
 
 /**
  * One sellable item, generic across domains — a `ShipClass` (Milestone 7)
@@ -57,6 +51,47 @@ export function shipListings(ships: readonly ShipClass[]): readonly StoreListing
       id: ship.id,
       name: ship.name,
       price: ship.acquisition.price,
+    }));
+}
+
+/**
+ * Projects every `PermanentUpgrade` down to a `StoreListing` — unlike ships
+ * and equipment, every permanent upgrade is purchase-only (Decision D14:
+ * "bought once, always active"), so there is no acquisition-type filter to
+ * apply first.
+ */
+export function upgradeListings(upgrades: readonly PermanentUpgrade[]): readonly StoreListing[] {
+  return upgrades.map((upgrade) => ({
+    kind: 'upgrade',
+    id: upgrade.id,
+    name: upgrade.name,
+    price: upgrade.price,
+  }));
+}
+
+/**
+ * Projects every `'purchase'`-type equipment item down to a `StoreListing` —
+ * mirrors `shipListings`'s exact filter-then-project shape for the other
+ * acquisition-gated domain. `'unlock'`-type items never appear in the
+ * store's catalog; they become available once their `requiredBaseId` is
+ * established, surfaced instead on the loadout screen (`scenes/
+ * loadout-scene.ts`) the same way `ShipSelectScene` shows an unlock-type
+ * ship's condition.
+ */
+export function equipmentListings(items: readonly EquipmentItem[]): readonly StoreListing[] {
+  return items
+    .filter(
+      (
+        item,
+      ): item is EquipmentItem & {
+        readonly acquisition: { readonly type: 'purchase'; readonly price: number };
+      } => item.acquisition.type === 'purchase',
+    )
+    .map((item) => ({
+      kind: 'equipment',
+      id: item.id,
+      name: item.name,
+      price: item.acquisition.price,
     }));
 }
 

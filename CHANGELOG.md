@@ -8,6 +8,80 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 9 — Ship Upgrades & Equipment Loadout (Decision D14),
+  certified**: permanent stat upgrades (`src/game/ships/upgrades.ts` — 4 items:
+  Stronger Engines, Lighter Hull Alloy, Extended Fuel Cells, Efficient
+  Injectors — `applyPermanentUpgrades` folds each owned one's signed
+  amount onto a `ShipClass` stat, bought once via the store, always
+  active, no slot cost) and a slotted equipment loadout
+  (`src/game/equipment/` — 7 items: 2 weapons, 5 utility items covering
+  every hazard-countermeasure/boost example named in earlier planning,
+  each carrying a mass cost that feeds the named
+  `effectiveThrustAccel = baseThrustAccel × dryMass / (dryMass +
+carriedMass)` formula M9.5 is scoped to reuse verbatim for cargo).
+  `src/game/equipment/loadout.ts`'s `resolveEquippedItems` reconciles a
+  persisted equip order against whichever ship is currently selected's
+  live slot count/mass budget, so switching to a smaller ship after
+  loading up a bigger one degrades gracefully (carry as much as still
+  fits) instead of erroring. `src/game/bases/fit-check.ts`'s
+  `evaluateBaseFit` facade (mechanical/spatial/combat fit bands plus
+  hazard-countermeasure warnings) is built and unit-tested but not yet
+  called from any scene — noted as an open item in `PLAN.md` §3, real
+  home is likely Milestone 9.5's mission flow. New `LoadoutScene` (pre-
+  mission loadout screen, reachable from a new MenuScene "LOADOUT"
+  button) shows the effective ship's live slots/mass usage line, a
+  one-line owned-upgrades summary, and a two-column (WEAPONS | UTILITY)
+  equipment list following `ShipSelectScene`'s established conventions —
+  locked/owned-equipped/owned-unequipped-fits/owned-unequipped-doesn't-fit,
+  the last rendered as inert muted text (never a button offering an
+  action that would silently no-op). `StoreScene` extended to also sell
+  upgrades and purchase-type equipment (`economy/store.ts`'s
+  `StoreListingKind` gained `'upgrade'`/`'equipment'`), and its rendering
+  was restructured this session from a flat single-column list into one
+  column per listing kind (SHIPS | UPGRADES | EQUIPMENT) after M9's own
+  9-listing catalog was found to overflow the 640px canvas by ~325px in
+  the old layout (see "Fixed" below). `GameScene` now folds owned
+  upgrades onto the ship, resolves carried equipment against its live
+  slot/mass budget, negates corrosive/cold hazards when the matching
+  resistance item is equipped, and adds equipped Fuel Tank capacity
+  bonuses; Q/E cycle the active weapon/utility item, Space/F trigger them
+  (firing a weapon has no gameplay effect yet — hands off to Milestone
+  11; triggering a utility item applies `repairKit`/`thrustBurst`
+  directly). `e2e/loadout.spec.ts` (new, 3 tests): a fresh save's
+  all-locked state plus BACK/ESC navigation, a seeded-ownership test
+  equipping/unequipping several items across two real page reloads,
+  asserting the live usage line, per-item stat tags, the "SLOTS FULL"
+  inert-row case, and the owned-upgrades summary all survive intact —
+  this milestone's own required upgrades/loadout reload test — and an
+  in-flight test that seeds an equipped loadout directly, drives
+  `GameScene` itself (three real `E` presses cycling the active utility
+  item through both ids and back), and confirms a real `F` trigger of
+  the active Repair Kit both fires `lastTriggeredUtilityId` and
+  measurably restores fuel read off the HUD, all while `outcome` stays
+  `'flying'`. Follow-up
+  session extended `e2e/store.spec.ts` (3 new tests, M8's own ship-
+  purchase tests unchanged): a permanent-upgrade purchase and a
+  purchase-type equipment purchase each deduct their price, render
+  `(OWNED)`, and survive a real reload (checked directly against
+  `upgrade-progress.ts`'s/`equipment-progress.ts`'s own storage keys);
+  a third test confirms an unlock-type equipment item never appears in
+  the Store's catalog, at any balance — `equipmentListings()`'s
+  purchase-type-only filter. `pnpm quality` (format/lint/typecheck/
+  test:coverage/build/deadcode/secrets), `pnpm security:audit`, `pnpm
+test:e2e` (75 tests × 3 browsers), and `pnpm lighthouse` all green —
+  see `PLAN.md` for exact numbers.
+- **Fixed** (found during this session's own pre-certification review):
+  `StoreScene`'s BACK button rendered at y≈964 on a fresh save once
+  Milestone 9 grew its catalog to 9 listings — 325px past the 640px
+  canvas, breaking real clicks (`e2e/store.spec.ts` reproducibly timed
+  out clicking BACK). Fixed by splitting the catalog into one column per
+  `StoreListingKind`, the same per-kind-column technique `LoadoutScene`'s
+  own WEAPONS | UTILITY split already uses, re-verified against real
+  screenshots at both worst-case row heights (all-locked and
+  all-affordable). Also updated `e2e/high-scores.spec.ts`'s
+  now-stale exact-match assertion against MenuScene's old standalone
+  `"BEST: <score>"` line, changed by this same milestone's BEST/BALANCE
+  merge, to the new `"BEST: <score> · BALANCE: <n> CREDITS"` format.
 - **Milestone 8 — Economy & Store (Decision D15), certified**: a
   fictional currency ("Credits") earned per
   completed mission, spent in a new store screen. Pure layer:
