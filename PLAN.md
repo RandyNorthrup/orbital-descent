@@ -3750,33 +3750,241 @@ opening "Status" paragraph above for the full writeup. Depended on
 
 ---
 
-### Milestone 12 — Achievements & Notifications (not started)
+### Milestone 12 — Achievements & Notifications (certified)
 
-**Goal**: Achievement definitions (Decision D16 — first landing, first
-upgrade purchased, N hostiles defeated, world fully unlocked, etc.) with
-toast notifications on unlock.
+**Status: certified** (2026-07-09). Built across two stages in one
+session: a first pass built the pure-logic layer (`src/game/achievements/`,
+`src/game/persistence/achievement-progress.ts`) in isolation; a second
+pass wired that registry into `WorldMapScene` (the only place
+`establishBase()`/`resupplyBase()` are ever called, confirmed by grepping
+the whole codebase) and built the toast-notification UI and e2e coverage.
 
-**Scope**: `src/game/achievements/` — achievement registry (id, trigger
-condition, display text), a toast-notification UI component, persisted
-unlocked-achievement state (M4's pattern). Implements the five triggers
-M9.5 §9.5.4 already specified (`first-presence`, `world-pioneer-<id>`,
-`full-claim-<id>`, `resupply-streak-<tier>`, `frontier-claimed`), reading
-the `resupplyCounts`/`establishedAt` records M9.5 already persists rather
-than inventing new counters — this milestone is the consumer of that
-table, not its author.
+**Goal**: Achievement definitions (Decision D16) with toast notifications
+on unlock.
 
-**Acceptance criteria**: completing a defined trigger (including all five
-from M9.5's table) shows a toast and persists the unlock; an
-already-unlocked achievement doesn't re-trigger its toast.
+**Scope, as actually built — narrower than D16's original illustrative
+list on purpose**: exactly the five triggers PLAN.md §9.5.4 itself already
+specifies (`first-presence`, `world-pioneer-<worldId>`,
+`full-claim-<worldId>`, `resupply-streak-<tier>`, `frontier-claimed`) —
+D16's own earlier examples ("first landing", "N hostiles defeated", "first
+upgrade purchased", etc.) are **deliberately not built**; §9.5.4 is the one
+place this project ever committed to a concrete, binding trigger list, and
+this milestone implements exactly that list, nothing more. `src/game/
+achievements/achievements.ts` builds its registry dynamically from
+`bases/bases.ts`'s live roster (`buildAchievementRegistry`) rather than
+hand-listing world/tier ids, so a future base or world added to `bases.ts`
+automatically gets its own `world-pioneer-<id>`/`full-claim-<id>` pair with
+zero changes needed here; `evaluateNewlyUnlockedAchievements(bases,
+progress, alreadyUnlockedIds)` is the one call a caller needs after any
+progress-changing event. `resupply-streak-<tier>`'s three tiers
+("Lifeline"/"Old Reliable"/"Backbone of the Fleet" at 5/10/25) are a
+**global sum of `resupplyCounts` across every base**, not per-base — a
+deliberate reading of §9.5.4's own "(or a global sum)" alternative, chosen
+because the id itself (`resupply-streak-<tier>`, no base component) only
+makes sense as a single counter. `src/game/persistence/
+achievement-progress.ts` follows `high-scores.ts`'s exact validated-
+storage pattern (versioned `:v1` key, whole-value-rejecting type guard,
+fresh-default fallback, best-effort write).
 
-**Required tests**: unit tests for trigger evaluation (including each of
-M9.5's five triggers against its real `resupplyCounts`/`establishedAt`
-shape) and persistence; e2e test triggering at least one achievement and
-confirming the toast appears.
+`WorldMapScene` loads `unlockedAchievementIds` (a `Set<string>`) the same
+null-storage-degrades-to-fresh-defaults way it already loads
+`BaseProgressMap`. Its `acknowledgeConcludedMission` — the sole method in
+the entire codebase that ever calls `establishBase()`/`resupplyBase()` —
+evaluates `evaluateNewlyUnlockedAchievements` against the just-updated
+progress right after persisting it, adds any newly-unlocked ids to the
+in-memory set, persists them via `recordUnlockedAchievements`, and queues
+each for a toast — draining the queue only **after** that call's own
+`renderView()`, so a toast overlays the screen that call just produced
+rather than one about to be replaced. A new `showNextAchievementToastIfIdle`
+shows at most one toast at a time (`activeToast` doubles as the "already
+showing" gate), styled as a `createUiButton`-style panel (reusing
+`UI_TEXT_COLOR`/`UI_BUTTON_BG_COLOR`, not new constants with the same
+values) at a new `ACHIEVEMENT_TOAST_Y_FRACTION` (0.94 — verified via a
+real Playwright screenshot against the densest base-list/mission-option
+screens this project has today, clear of every title/row/button/back-
+button position), a new `ACHIEVEMENT_TOAST_DEPTH` (1000 — `WorldMapScene`
+never otherwise calls `setDepth`, so any positive value already wins; this
+is a deliberately large round number, not a value that could be mistaken
+for participating in `GameScene`'s own cross-scene z-order system), for
+`ACHIEVEMENT_TOAST_DISPLAY_MS` (3000) before draining the next queued one.
+Verified directly against `node_modules/phaser/src/time/Clock.js` (Phaser
+4.2.0) before relying on it: a scene's own `SHUTDOWN` event (fired by
+`this.scene.start()` navigating away, e.g. BACK to `MenuScene` mid-toast)
+runs `Clock#shutdown`, which calls `TimerEvent#destroy` on every
+active/pending timer — `destroy()` sets `callback = undefined` before the
+event could ever be processed again, so a queued `delayedCall` genuinely
+cannot fire against an already-torn-down scene. No extra
+`this.scene.isActive()` guard was needed for that specific class of bug
+(the one that bit an earlier milestone, per this project's own hard-won-
+lessons list) — confirmed from source, not assumed.
 
-**Required quality gates**: full gate list, must stay green.
+**Acceptance criteria**: completing a defined trigger (including all five)
+shows a toast and persists the unlock; an already-unlocked achievement
+does not re-trigger its toast.
 
-**Certification checklist**: not started. Depends on M4 and M9.5.
+**Deliberately not built**: every one of Decision D16's other illustrative
+examples ("first landing", "N hostiles defeated", "first upgrade
+purchased", "world fully unlocked" as its own separate trigger beyond
+`full-claim-<worldId>`, etc.) — confirmed out of scope by this milestone's
+own binding spec (PLAN.md §9.5.4); only the five listed triggers exist in
+`buildAchievementRegistry`.
+
+**An adversarial review pass, and what it found**: after the above shipped
+and passed its own gate list once, a scoped 4-dimension Workflow review
+(`acceptance-criteria`, `architecture-compliance`,
+`state-and-persistence-correctness`, `regression-safety`, each
+independently 3-vote-verified) ran against the real working tree.
+`architecture-compliance` and `regression-safety` found nothing.
+`acceptance-criteria` and `state-and-persistence-correctness` **both
+independently found the same real, high-severity bug** (6/6 verify votes
+confirmed, zero refutations): `WorldMapScene`'s `activeToast`/
+`pendingAchievementToasts` fields are class-field initializers that only
+ever run once, at Scene construction (`WorldMapScene` is registered by
+class reference in `main.ts` and reused as one long-lived instance for the
+page's whole lifetime, same as `GameScene`) — `create()` never reset
+either field. Verified directly against Phaser 4.2.0's own source: a
+scene's `SHUTDOWN` event (fired by `this.scene.start()` navigating away,
+e.g. clicking a mission row while a toast is still up, or BACK to `Menu`)
+runs `DisplayList#shutdown`, which force-destroys the still-showing toast
+`Text` object even though it's deliberately excluded from this scene's own
+`track()`/`viewObjects` convention, **and** `Clock#shutdown`, which calls
+`TimerEvent#destroy` on the pending `delayedCall` — `destroy()` sets
+`callback = undefined`, so the callback that would have reset
+`activeToast` back to `null` can never run. The result: `activeToast` is
+left as a permanently non-null dangling reference the instant a player
+navigates away within the 3-second toast window, which trips
+`showNextAchievementToastIfIdle`'s `if (this.activeToast !== null) return;`
+idle-gate forever — silently swallowing every future achievement toast for
+the rest of the browser session (the achievement itself is never lost,
+already persisted to `localStorage` by the time it's queued — only its
+celebratory toast, and every subsequent one, goes silently missing). This
+is the exact same "per-scene field never reset in `create()`" mistake as
+Milestone 11's own `hullText` bug, recurring here in a field this
+milestone introduced. **Fixed** by resetting both `pendingAchievementToasts`
+and `activeToast` at the top of `create()`, mirroring that exact M11 fix.
+Verified the fix is real (not a false positive) by reverting it locally,
+confirming a new regression test failed with the exact dangling-destroyed-
+`Text`-object state the review described, then restoring the fix and
+reconfirming the test passes. That regression test
+(`e2e/achievements.spec.ts`'s second test) reproduces the finding directly:
+fly the tutorial mission to a real safe landing, let its toast start
+showing, interrupt it via two real `BACK` clicks before its 3-second
+window elapses, re-enter `WorldMap`, and read `activeToast`/
+`pendingAchievementToasts` back out of the scene instance directly (the
+same escape-hatch cast this suite already uses for `scene.base`/
+`scene.terrain`/`scene.flightState`) to confirm both are clean again.
+
+**Required tests**: unit tests for trigger evaluation (all five, against
+real `BaseProgressMap` shapes, including a multi-simultaneous-unlock case
+and a base-absent-from-progress defensive case) and persistence
+(`achievement-progress.test.ts`, mirroring `high-scores.test.ts`'s own
+corruption/quota-failure cases); `e2e/achievements.spec.ts`'s first test
+flies a real, piloted Establish Presence mission (CryoHauler, Anchor
+Station, its full 6-troop manifest carried the entire flight) to a genuine
+safe landing, confirms the `first-presence` toast text appears, reloads
+the page, and reads the unlocked-achievement id back out of real
+`localStorage`; its second test is the activeToast regression test
+described above.
+
+**A cross-browser e2e reliability saga, and two real control-loop bugs
+found in the shared autopilot recipe itself, not just parameter tuning**:
+Establish Presence carries its manifest for the _entire_ flight (unlike a
+relay's unloaded origin leg), so whichever ship carries it has meaningfully
+less thrust margin than any other flight this suite tunes for. A first
+version (Courier, mirroring `missions.spec.ts`'s own tuned values) passed
+reliably under `--project=chromium` but failed consistently — every
+attempt, `MAX_ATTEMPTS` exhausted — under both firefox and webkit, even at
+zero worker contention. A second version (Scout, more thrust margin)
+inverted the problem: reliable in firefox, unstable in chromium via a
+rotation-overshoot pattern. Direct telemetry (a throwaway Node+Playwright
+harness, logging position/velocity/rotation/fuel every ~100-300ms across
+dozens of real runs, deleted once done) traced the real failure modes
+rather than continuing to guess-and-check blindly:
+
+1. **Fuel, not just thrust ratio, is the binding constraint.** Established
+   presence's full manifest, combined with this recipe's own horizontal-
+   phase fuel cost (initial acceleration burst + final approach-braking
+   burst, both real thrust-on time), left as little as ~20% of a tank for
+   the entire final vertical braking burn — regardless of how precisely
+   the braking-distance formula was tuned, a ship with insufficient
+   remaining fuel simply can't decelerate fully before touchdown, since
+   thrust stops working the instant the tank empties. Switched to
+   CryoHauler (dryMass 600, baseThrustAccel 42, fuelCapacity 240 — the
+   largest tank of any cargo-capable ship, `cargoBayCapacity` 280
+   comfortably exceeds the 60 MU manifest) specifically for fuel headroom
+   over raw thrust ratio: `effectiveThrustAccel` = 42 × 600/660 = 38.2,
+   `netUpwardDecel` = 38.2 − 18 = 20.2 (less margin than either earlier
+   ship on paper, but far more fuel budget to spend arresting velocity).
+2. **A real bug in the horizontal phase's `closingIn` check**: once the
+   ship overshot past the pad (moving away from it), the original
+   `closingIn && brakingDistance >= |dx|` gate never re-engaged braking at
+   all — confirmed via telemetry showing final positions hundreds of
+   pixels past either edge of the pad with velocity still pinned near
+   cruise speed. Fixed: braking now triggers unconditionally once
+   overshot (`!closingIn || brakingDistance >= |dx|`), not only while
+   still approaching.
+3. **A real bug in the horizontal phase's tilt-hold logic**: holding the
+   rotate key continuously until crossing the target angle (`atMaxTilt ?
+0 : wantSign`) let real per-poll rotational velocity substantially
+   overshoot the intended `tiltDeg` under a genuine Playwright-launched
+   chromium context specifically (settling as high as ~70° against a 40°
+   target, confirmed via telemetry from the real test runner — a
+   standalone debug harness turned out NOT to be a faithful proxy for
+   chromium's own behavior here, a real methodological lesson in its own
+   right). A tilt that steep both wastes far more thrust on horizontal
+   accel than the tuning assumed and starves the vertical-lift component
+   `netUpwardDecel` depends on. Fixed by actively correcting back toward
+   the target angle (the same tolerance band the vertical phase's own
+   re-uprighting already used) instead of merely halting further rotation
+   past it.
+4. **A related bug once the vertical phase's own re-uprighting was
+   converted to the same continuous-correction style**: the original
+   precisely-timed rotation "pulse" (assuming a fixed pulse duration
+   translates to an exact angle correction) also measurably overshot under
+   real browser-automation-protocol round-trip latency, spiraling as far
+   as ~175° in one confirmed trace. Replacing it with a continuous
+   bang-bang correction fixed the spiral, but introduced a fifth bug:
+   blocking the vertical braking thrust decision entirely while a small
+   (single-digit-degree) rotation oscillation was still converging —
+   confirmed directly via telemetry showing velocity climbing unchecked
+   for many seconds despite being in the correct phase, simply because
+   thrust was gated behind a not-quite-zero rotation error. Fixed by
+   computing the braking thrust decision independently of the rotation
+   correction every poll (a residual few degrees barely affects real
+   vertical thrust).
+
+With all four fixed, this flight lands reliably and quickly (usually
+within the first attempt, well under a minute) and repeatably across
+chromium, firefox, and webkit alike — confirmed via many full repeated
+runs of `e2e/achievements.spec.ts` across all three, and via a full
+105/105 pass of this project's entire e2e suite at `--workers=1`. Some
+residual per-engine timing variance remains (this is still, honestly, a
+fuel-constrained flight, the tightest-margin one in this suite), which is
+exactly why `MAX_ATTEMPTS` (10, larger than this suite's usual 3-4) exists
+— a real, measured safety margin, not a crutch masking a fundamentally
+broken recipe.
+
+**Deliberately not built (continued)**: a re-trigger-suppression e2e test
+(already covered at the unit level by `achievements.test.ts`'s own "does
+not re-fire when already unlocked" cases across every trigger).
+
+**Required quality gates**: full gate list, all green — `pnpm format:check`/
+`pnpm lint`/`pnpm typecheck` clean; `pnpm test:coverage` 509 tests passing,
+99.86%/97.49%/100%/99.86% (statements/branches/functions/lines), all above
+the 90/85/90/90 thresholds (`src/game/achievements/**` was added to
+`vitest.config.ts`'s coverage `include` list in the same change that added
+its first test file, avoiding Milestone 11's own "combat coverage went
+unnoticed for a full milestone" mistake); `pnpm build`/`pnpm deadcode`/
+`pnpm security:secrets`/`pnpm security:audit` all clean; full `test:e2e`
+105/105 at `--workers=1` (this project's default, CPU-core-derived worker
+count still occasionally shows the same chromium-only, physics-timing-test
+contention sensitivity `PLAN.md`'s own Milestone 11 write-up already
+documents for `obstacles.spec.ts` — not a regression, a standing
+characteristic of this local, no-CI (Decision D9) e2e run under heavy
+parallel load, reconfirmed here rather than newly introduced).
+
+**Certification checklist**: **certified**. Depended on **Milestone 4**
+and **Milestone 9.5** (both already certified).
 
 ---
 

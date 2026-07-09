@@ -8,6 +8,78 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 12 — Achievements & Notifications, certified**: achievement
+  definitions (Decision D16) with toast notifications. New
+  `src/game/achievements/achievements.ts` implements exactly the five
+  triggers PLAN.md §9.5.4 specifies (`first-presence`, `world-pioneer-<worldId>`,
+  `full-claim-<worldId>`, `resupply-streak-<tier>` at 5/10/25 — a global
+  sum of `resupplyCounts` across every base, a deliberate reading of
+  §9.5.4's own alternative — and `frontier-claimed`), building its
+  registry dynamically from `bases.ts`'s live roster rather than hand-
+  listing worlds/tiers. New `src/game/persistence/achievement-progress.ts`
+  follows `high-scores.ts`'s exact validated-storage pattern. `WorldMapScene`
+  now loads unlocked-achievement state and evaluates it inside
+  `acknowledgeConcludedMission` (the only place `establishBase()`/
+  `resupplyBase()` are ever called), queuing a `createUiButton`-styled
+  toast per newly-unlocked achievement, drained one at a time via a new
+  `showNextAchievementToastIfIdle` at a verified-clear-of-everything
+  `ACHIEVEMENT_TOAST_Y_FRACTION` (0.94) and a new `ACHIEVEMENT_TOAST_DEPTH`
+  (1000, this scene's first use of `setDepth`). Verified directly against
+  Phaser 4.2.0's own `Clock.js` source before relying on it: a scene's
+  `SHUTDOWN` event tears down every pending `delayedCall`'s callback, so a
+  queued toast timer genuinely cannot fire against an already-torn-down
+  scene — no extra guard needed. New `e2e/achievements.spec.ts` flies a
+  real, piloted Establish Presence mission (CryoHauler, Anchor Station, its
+  full 6-troop manifest carried the whole flight — meaningfully less
+  effective thrust than `missions.spec.ts`'s own unloaded-origin-leg
+  recipe it started from) to a genuine safe landing, confirms the
+  `first-presence` toast text, reloads, and reads the unlock back out of
+  real `localStorage`. Deliberately not built: Decision D16's other
+  illustrative examples ("first landing", "N hostiles defeated", etc.) —
+  out of scope per this milestone's own binding §9.5.4 spec. See
+  `PLAN.md`'s Milestone 12 section for the full writeup.
+
+- **Milestone 12's e2e flight, made reliable across all three browser
+  engines**: getting `e2e/achievements.spec.ts`'s piloted flight to pass
+  chromium/firefox/webkit alike surfaced two real bugs in the shared
+  bang-coast-brake autopilot recipe itself, not just a tuning problem —
+  found via direct telemetry from genuine Playwright-launched browser
+  contexts (a standalone debug harness used for initial tuning turned out
+  not to be a faithful proxy for chromium specifically). The horizontal
+  phase's `closingIn` check never re-engaged braking once the ship
+  overshot past the pad; its tilt-hold logic could overshoot the intended
+  angle substantially with no way to correct back (confirmed settling as
+  high as ~70° against a 40° target). Both fixed in this file's own copy
+  of the recipe. Switched the flight's ship from Courier to CryoHauler for
+  its larger fuel budget (fuel, not raw thrust ratio, turned out to be the
+  real constraint once a full cargo manifest is carried the entire
+  flight). See `PLAN.md`'s Milestone 12 section for the full writeup,
+  including two further related fixes found while converging on this.
+
+- **Milestone 12 adversarial-review fix-up**: a scoped 4-dimension
+  Workflow review, run after M12's initial certification, found the same
+  real, high-severity bug independently from two dimensions (6/6 verify
+  votes, zero refutations): `WorldMapScene`'s `activeToast`/
+  `pendingAchievementToasts` fields were never reset in `create()`, so
+  navigating away (e.g. `BACK` to Menu, or into another mission) while a
+  toast was still showing left `activeToast` as a permanently dangling
+  reference — Phaser's own scene-shutdown destroys the toast `Text`
+  object and kills the pending `delayedCall` that would have reset the
+  field, but nothing ever re-nulled it on the next visit, since
+  `WorldMapScene` is one long-lived instance reused for the page's whole
+  session. The result: every achievement toast for the rest of the
+  session after that point was silently swallowed (the achievement itself
+  was never lost, already persisted to `localStorage` — only its
+  celebratory toast). The exact same "per-scene field never reset in
+  `create()`" mistake as Milestone 11's own `hullText` bug, recurring
+  here. Fixed by resetting both fields at the top of `create()`. Proven
+  with a new second test in `e2e/achievements.spec.ts` that reproduces
+  the interrupt-mid-toast sequence and reads the scene's own toast-queue
+  state back out directly — verified to genuinely catch the bug by
+  reverting the fix locally and confirming the test failed with the exact
+  dangling-destroyed-`Text` state before restoring it. See `PLAN.md`'s
+  Milestone 12 section for the full writeup.
+
 - **Milestone 11 — Weapons & Combat, certified**: a real weapon system
   (Decision D12). New `src/game/combat/` — `damage.ts` (shared
   `effectiveDamage`/shield-then-hull `absorbHit` resolution), `projectile.ts`

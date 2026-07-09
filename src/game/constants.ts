@@ -441,3 +441,45 @@ export const ENCOUNTER_SPAWN_HALF_WIDTH_PX = 150;
  * highest-garrison route) stays infeasible for every ship in this
  * project's roster, matching that example's own worked conclusion. */
 export const RELAY_DESCENT_BRAKING_SECONDS = 3;
+
+/* ---------------------------------------------------------------------- */
+/* Achievements (PLAN.md §9.5.4, Decision D16, Milestone 12)               */
+/* src/game/achievements/**, src/game/persistence/achievement-progress.ts */
+/* ---------------------------------------------------------------------- */
+
+/** Global-sum `resupplyCounts` thresholds (across every base) for the
+ * `resupply-streak-<tier>` achievement's three tiers (PLAN.md §9.5.4's own
+ * "Lifeline" / "Old Reliable" / "Backbone of the Fleet" naming) —
+ * `achievements.ts` derives each tier's id directly from its own threshold
+ * value (`resupply-streak-${threshold}`) rather than a separately
+ * hand-typed string, so the id and the number it checks against can never
+ * drift apart. */
+export const RESUPPLY_STREAK_TIER_1_THRESHOLD = 5;
+export const RESUPPLY_STREAK_TIER_2_THRESHOLD = 10;
+export const RESUPPLY_STREAK_TIER_3_THRESHOLD = 25;
+
+/** How long `WorldMapScene`'s achievement toast stays on screen before the
+ * next queued one (if any) takes its place -- long enough to comfortably
+ * read a short "ACHIEVEMENT UNLOCKED: <text>" line, short enough that a
+ * burst of simultaneous unlocks (e.g. establishing the last critical-path
+ * base fires its own world-pioneer/full-claim/frontier-claimed all at once,
+ * per `achievements.test.ts`'s own worked scenario) drains in a reasonable
+ * span rather than queuing for a full minute. */
+export const ACHIEVEMENT_TOAST_DISPLAY_MS = 3000;
+
+/** Vertical position for `WorldMapScene`'s achievement toast, as a fraction
+ * of GAME_HEIGHT -- verified empirically against a real running build
+ * (Playwright screenshot, this milestone's own scratch verification, not
+ * checked in): sits clear of the title, every world/base list row, the
+ * axis-legend caption, and the fixed `BACK_BUTTON_Y_FRACTION` (0.85) row
+ * every world-list/base-list screen shares. */
+export const ACHIEVEMENT_TOAST_Y_FRACTION = 0.94;
+
+/** `WorldMapScene` never otherwise calls `setDepth` (every object it
+ * creates sits at Phaser's default depth 0), so any strictly-positive value
+ * would already render on top -- this is deliberately a large round number
+ * so it reads, at a glance, as "always above everything this scene draws,"
+ * rather than a value that could be mistaken for participating in the
+ * cross-scene z-order system `SKY_LAYER_DEPTH`..`HUD_LAYER_DEPTH` above
+ * (that ordering is `GameScene`'s own, a different scene entirely). */
+export const ACHIEVEMENT_TOAST_DEPTH = 1000;

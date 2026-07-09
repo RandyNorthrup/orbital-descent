@@ -1,9 +1,14 @@
 import Phaser from 'phaser';
 import {
+  ACHIEVEMENT_TOAST_DEPTH,
+  ACHIEVEMENT_TOAST_DISPLAY_MS,
+  ACHIEVEMENT_TOAST_Y_FRACTION,
   GAME_HEIGHT,
   GAME_WIDTH,
   UI_BODY_FONT_SIZE_PX,
+  UI_BUTTON_BG_COLOR,
   UI_BUTTON_FONT_SIZE_PX,
+  UI_BUTTON_PADDING_X,
   UI_BUTTON_PADDING_Y,
   UI_BUTTON_ROW_HEIGHT_PX,
   UI_MUTED_TEXT_COLOR,
@@ -20,6 +25,14 @@ import {
   saveBaseProgress,
   type BaseProgressMap,
 } from '../persistence/base-progress';
+import {
+  evaluateNewlyUnlockedAchievements,
+  type AchievementDefinition,
+} from '../achievements/achievements';
+import {
+  loadUnlockedAchievements,
+  recordUnlockedAchievements,
+} from '../persistence/achievement-progress';
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
 import { initialShipProgress, loadShipProgress } from '../persistence/ship-progress';
 import {
@@ -249,6 +262,22 @@ export class WorldMapScene extends Phaser.Scene {
   private keyEscape!: Phaser.Input.Keyboard.Key;
   private backGuard!: ArmedKeyGuard;
 
+  /** Every achievement id ever unlocked this save, loaded once in
+   * `create()` -- `evaluateNewlyUnlockedAchievements` filters against this
+   * on every mission conclusion so an already-unlocked achievement never
+   * re-queues its toast. */
+  private unlockedAchievementIds!: Set<string>;
+  /** Definitions queued for toast display, oldest first -- drained one at a
+   * time by `showNextAchievementToastIfIdle` rather than shown all at once,
+   * so a burst of simultaneous unlocks (see that method's own doc comment)
+   * reads as a sequence of distinct notifications, not overlapping text. */
+  private pendingAchievementToasts: AchievementDefinition[] = [];
+  /** Deliberately NOT tracked via `track()`/`viewObjects` -- a toast must
+   * keep showing across a `renderView()` teardown/rebuild triggered by the
+   * player navigating to a different "screen" while it's still up (see
+   * `showNextAchievementToastIfIdle`'s own comment on `setDepth`). */
+  private activeToast: Phaser.GameObjects.Text | null = null;
+
   constructor() {
     super(SCENE_KEY_WORLD_MAP);
   }
@@ -265,6 +294,34 @@ export class WorldMapScene extends Phaser.Scene {
     const storage = getSafeLocalStorage();
     this.progress =
       storage === null ? initialBaseProgress(BASES) : loadBaseProgress(storage, BASES);
+    // Same null-storage-degrades-to-fresh-defaults rule as `this.progress`
+    // above -- a sandboxed/blocked storage means "no achievement ever
+    // unlocked yet," not a thrown error.
+    this.unlockedAchievementIds =
+      storage === null
+        ? new Set()
+        : new Set(loadUnlockedAchievements(storage).map((achievement) => achievement.id));
+    // WorldMapScene is a long-lived instance reused for the page's whole
+    // lifetime (registered by class reference in main.ts) -- create()
+    // reruns on every re-entry, but a class-field initializer only ever
+    // runs once, at construction. Without this reset, navigating away
+    // (this.scene.start() to Loadout or Menu) while a toast was still
+    // showing or queued would leave `activeToast` as a permanently
+    // non-null dangling reference (Phaser's own DisplayList#shutdown
+    // already destroyed the Text object itself, and Clock#shutdown kills
+    // the pending delayedCall that would have nulled this field --
+    // confirmed directly against node_modules/phaser/src/time/Clock.js and
+    // DisplayList.js, same verification standard as
+    // showNextAchievementToastIfIdle's own comment below), permanently
+    // tripping the "one at a time" idle-gate and silently swallowing every
+    // future achievement toast for the rest of the session (found by this
+    // milestone's own adversarial review -- the exact same "per-scene
+    // field never reset in create()" mistake as Milestone 11's hullText
+    // bug, recurring here). The achievement itself is never lost (already
+    // persisted to localStorage by the time it's queued) -- only its
+    // celebratory toast could be silently dropped without this reset.
+    this.pendingAchievementToasts = [];
+    this.activeToast = null;
 
     // A mission left on the registry (by GameScene's post-trip transition,
     // or by TransitScene's stranded-failure conclusion) always wins this
@@ -890,6 +947,28 @@ export class WorldMapScene extends Phaser.Scene {
       }
     }
 
+    // Evaluated against `progress` (the POST-update map just assigned to
+    // `this.progress` above), against BASES's full roster (not just
+    // `base`) -- world-scoped/frontier-wide rules need every base's own
+    // live status, not only the one this mission concluded on. This is the
+    // only place in the codebase establishBase()/resupplyBase() are ever
+    // called (confirmed by grepping the whole src tree), so it's the only
+    // correct hook point for achievement evaluation.
+    const newlyUnlocked = evaluateNewlyUnlockedAchievements(
+      BASES,
+      progress,
+      this.unlockedAchievementIds,
+    );
+    if (newlyUnlocked.length > 0) {
+      for (const achievement of newlyUnlocked) {
+        this.unlockedAchievementIds.add(achievement.id);
+      }
+      if (storage !== null) {
+        recordUnlockedAchievements(storage, newlyUnlocked, Date.now());
+      }
+      this.pendingAchievementToasts.push(...newlyUnlocked);
+    }
+
     this.registry.remove('missionState');
     this.registry.remove('missionStatus');
     this.registry.remove('fuelRemainingAtTouchdown');
@@ -897,6 +976,72 @@ export class WorldMapScene extends Phaser.Scene {
 
     this.view = { mode: 'bases', worldId: base.worldId };
     this.renderView();
+    // Drains AFTER renderView() so a toast overlays the screen that call
+    // just produced, not one about to be replaced.
+    this.showNextAchievementToastIfIdle();
+  }
+
+  /**
+   * Shows the next queued achievement toast, if any, and only if none is
+   * currently showing (`activeToast` doubles as both the "one at a time"
+   * gate and the "still draining" flag) -- safe to call redundantly, which
+   * it is: once right after queuing new unlocks, and again from each
+   * toast's own dismiss timer below.
+   */
+  private showNextAchievementToastIfIdle(): void {
+    if (this.activeToast !== null) {
+      return;
+    }
+    const next = this.pendingAchievementToasts.shift();
+    if (next === undefined) {
+      return;
+    }
+
+    const toast = this.add
+      .text(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT * ACHIEVEMENT_TOAST_Y_FRACTION,
+        `ACHIEVEMENT UNLOCKED: ${next.displayText}`,
+        {
+          fontFamily: 'monospace',
+          fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
+          color: hexToCss(UI_TEXT_COLOR),
+          // Panel look faked via backgroundColor + padding on the Text
+          // object itself -- this project's established way of doing this
+          // without a separate graphics object (see createUiButton, whose
+          // exact colors this reuses rather than inventing new ones).
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_BUTTON_PADDING_X, y: UI_BUTTON_PADDING_Y },
+        },
+      )
+      .setOrigin(ORIGIN_CENTER)
+      // See ACHIEVEMENT_TOAST_DEPTH's own doc comment (constants.ts) for
+      // why this scene needs an explicit depth here (it otherwise never
+      // calls setDepth at all) -- a toast queued while, say, the base list
+      // is up must still read on top even if the player navigates to a
+      // different "screen" before it's dismissed, since renderView()'s
+      // teardown/rebuild never touches `activeToast` (deliberately not
+      // routed through this class's own track()/viewObjects convention).
+      .setDepth(ACHIEVEMENT_TOAST_DEPTH);
+    this.activeToast = toast;
+
+    // Confirmed directly against node_modules/phaser/src/time/Clock.js
+    // (Phaser 4.2.0): a Scene's own SHUTDOWN event -- fired when
+    // this.scene.start() navigates this scene away, e.g. BACK to
+    // MenuScene while a toast is still queued or showing -- runs
+    // Clock#shutdown, which calls TimerEvent#destroy on every
+    // active/pending/pending-removal timer event. TimerEvent#destroy sets
+    // `callback = undefined` before the event could ever be processed
+    // again, so a delayedCall scheduled here can never fire against an
+    // already-torn-down scene. No extra this.scene.isActive() guard is
+    // needed for that class of bug (unlike Milestone 11's own real Clock-
+    // teardown bug elsewhere in this project) -- this comment exists so a
+    // future reader doesn't have to re-derive that from scratch.
+    this.time.delayedCall(ACHIEVEMENT_TOAST_DISPLAY_MS, () => {
+      toast.destroy();
+      this.activeToast = null;
+      this.showNextAchievementToastIfIdle();
+    });
   }
 
   private openLoadout(definition: MissionDefinition, existingState?: MissionState): void {
