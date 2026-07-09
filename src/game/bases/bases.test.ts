@@ -3,8 +3,11 @@ import { BASES, findBodyById } from './bases';
 import { computeDifficultyProfile } from './difficulty';
 import { BODIES } from '../planets/bodies';
 import { findShipById } from '../ships/ships';
+import { generateTerrain } from '../terrain/terrain-generator';
+import { isCollidingWithObstacle } from '../terrain/obstacles';
 import {
   GAME_HEIGHT,
+  LANDER_RADIUS,
   TERRAIN_MAX_HEIGHT_FRACTION,
   TERRAIN_MIN_HEIGHT_FRACTION,
   TERRAIN_SEGMENTS,
@@ -164,6 +167,66 @@ describe('shared terrainOptions fields', () => {
       expect(base.terrainOptions.segments).toBe(TERRAIN_SEGMENTS);
       expect(base.terrainOptions.minHeightFraction).toBe(TERRAIN_MIN_HEIGHT_FRACTION);
       expect(base.terrainOptions.maxHeightFraction).toBe(TERRAIN_MAX_HEIGHT_FRACTION);
+    }
+  });
+});
+
+// Milestone 10: Scarp Outpost/Frostgate's curated obstacle layouts are
+// authored by hand against the pad position generateTerrain actually
+// produces for their real seed/options -- this test proves that against
+// the genuine generator (not just the authoring comment's own arithmetic),
+// so a future change to either base's seed/padSegmentCount/pad-affecting
+// options that silently moves the pad into an obstacle is caught here
+// rather than only discovered in-game.
+describe('Milestone 10 curated obstacle layouts', () => {
+  it('gives Scarp Outpost and Frostgate at least one authored obstacle, and every other base none', () => {
+    const withObstacles = new Set(['scarp-outpost', 'frostgate']);
+    for (const base of BASES) {
+      if (withObstacles.has(base.id)) {
+        expect(base.terrainOptions.obstacles?.length ?? 0).toBeGreaterThan(0);
+      } else {
+        expect(base.terrainOptions.obstacles ?? []).toEqual([]);
+      }
+    }
+  });
+
+  it("never lets a real generated landing pad collide with that base's own authored obstacles", () => {
+    for (const base of BASES) {
+      const obstacles = base.terrainOptions.obstacles ?? [];
+      if (obstacles.length === 0) {
+        continue;
+      }
+      const terrain = generateTerrain(base.terrainOptions);
+      const { landingPad } = terrain;
+      // Sample across the pad's full width, not just its endpoints, so an
+      // obstacle overlapping the pad's middle (but clear of both ends)
+      // would still be caught.
+      const sampleCount = 10;
+      for (let i = 0; i <= sampleCount; i += 1) {
+        const x = landingPad.xStart + (landingPad.xEnd - landingPad.xStart) * (i / sampleCount);
+        const position = { x, y: landingPad.y };
+        for (const obstacle of obstacles) {
+          expect(isCollidingWithObstacle(position, LANDER_RADIUS, obstacle)).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('never lets two obstacles on the same base overlap each other', () => {
+    for (const base of BASES) {
+      const obstacles = base.terrainOptions.obstacles ?? [];
+      for (let i = 0; i < obstacles.length; i += 1) {
+        for (let j = i + 1; j < obstacles.length; j += 1) {
+          const a = obstacles[i];
+          const b = obstacles[j];
+          if (!a || !b) {
+            continue;
+          }
+          const overlapsX = a.xStart < b.xEnd && b.xStart < a.xEnd;
+          const overlapsY = a.yTop < b.yBottom && b.yTop < a.yBottom;
+          expect(overlapsX && overlapsY).toBe(false);
+        }
+      }
     }
   });
 });

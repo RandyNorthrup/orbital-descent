@@ -23,6 +23,8 @@ import {
   LANDING_MAX_SAFE_SPEED,
   LANDING_PAD_FILL_COLOR_BOTTOM,
   LANDING_PAD_FILL_COLOR_TOP,
+  OBSTACLE_FILL_COLOR_BOTTOM,
+  OBSTACLE_FILL_COLOR_TOP,
   RESULT_TRANSITION_DELAY_MS,
   SCORE_BASE_LANDING_BONUS,
   SCORE_MAX_FUEL_BONUS,
@@ -83,10 +85,12 @@ import type { ShipClass } from '../ships/ship';
 import { SHIPS, findShipById } from '../ships/ships';
 import { calculateScore } from '../scoring/score';
 import { isOnLandingPad, isSafeLanding } from '../terrain/landing';
+import { isCollidingWithObstacle } from '../terrain/obstacles';
 import {
   generateTerrain,
   getTerrainHeightAt,
   type GenerateTerrainOptions,
+  type Obstacle,
   type Terrain,
 } from '../terrain/terrain-generator';
 import { hexToCss } from '../rendering/canvas-texture-utils';
@@ -119,6 +123,11 @@ const LANDER_TEXTURE_KEY = 'paper-fill-lander';
 const TERRAIN_TEXTURE_KEY = 'paper-fill-terrain';
 const LANDING_PAD_TEXTURE_KEY = 'paper-fill-landing-pad';
 const ENGINE_GLOW_TEXTURE_KEY = 'lander-engine-glow';
+const OBSTACLE_TEXTURE_KEY_PREFIX = 'paper-fill-obstacle-';
+/** Fewer etched strokes than the full terrain ground (`TERRAIN_ETCH_LINE_COUNT`)
+ * — an obstacle's silhouette is much smaller, so the same density would
+ * read as visual noise rather than texture. */
+const OBSTACLE_ETCH_LINE_COUNT = 5;
 
 type GameOutcome = 'flying' | FlightOutcome;
 
@@ -315,10 +324,14 @@ export class GameScene extends Phaser.Scene {
     this.outcome = 'flying';
     this.data.set('outcome', this.outcome);
     // GameScene is one long-lived Phaser instance reused across restarts
-    // (only create() re-runs, not the constructor), so a stale 'score' from
-    // a previous landing must be explicitly cleared — otherwise a crash
-    // following an earlier safe landing would still report that old score.
+    // (only create() re-runs, not the constructor), so stale keys from a
+    // previous flight must be explicitly cleared — otherwise a crash
+    // following an earlier safe landing would still report that old score,
+    // and (Milestone 10) a flight that never reaches an obstacle would
+    // still read a previous flight's crashedOnObstacle=true while it's
+    // still mid-air, before this flight's own resolution overwrites it.
     this.data.remove('score');
+    this.data.remove('crashedOnObstacle');
     this.data.set('activeWeaponId', this.equipmentProgress.activeWeaponId);
     this.data.set('activeUtilityId', this.equipmentProgress.activeUtilityId);
     this.elapsedMs = 0;
@@ -347,6 +360,7 @@ export class GameScene extends Phaser.Scene {
     };
     this.terrain = generateTerrain(terrainOptions);
     this.buildTerrainVisual();
+    this.buildObstacleVisuals();
 
     this.flightState = new FlightState({
       initial: {
@@ -506,17 +520,29 @@ export class GameScene extends Phaser.Scene {
     this.updateFuelText(snapshot.fuel);
 
     const groundY = getTerrainHeightAt(this.terrain.points, snapshot.position.x);
-    if (snapshot.position.y + LANDER_RADIUS < groundY) {
+    // Milestone 10: checked every frame regardless of ground proximity — a
+    // spire/debris obstacle can sit well above ground level, so a hit can
+    // happen before the ground-contact check below would ever trigger.
+    // Colliding with any obstacle is unconditionally a crash (PLAN.md §10's
+    // own acceptance criteria — Milestone 10 ships no clearable obstacles),
+    // so it always short-circuits `onPad`/`isSafeLanding` below rather than
+    // being folded into their inputs.
+    const hitObstacle = this.terrain.obstacles.some((obstacle) =>
+      isCollidingWithObstacle(snapshot.position, LANDER_RADIUS, obstacle),
+    );
+    if (!hitObstacle && snapshot.position.y + LANDER_RADIUS < groundY) {
       this.lander.container.setPosition(snapshot.position.x, snapshot.position.y);
       this.lander.container.setRotation(snapshot.rotationRadians);
       return;
     }
 
-    const onPad = isOnLandingPad(snapshot.position.x, this.terrain.landingPad);
-    const safe = isSafeLanding(snapshot, onPad, {
-      maxSafeSpeed: LANDING_MAX_SAFE_SPEED,
-      maxSafeAngleRadians: degreesToRadians(LANDING_MAX_SAFE_ANGLE_DEG),
-    });
+    const onPad = !hitObstacle && isOnLandingPad(snapshot.position.x, this.terrain.landingPad);
+    const safe =
+      !hitObstacle &&
+      isSafeLanding(snapshot, onPad, {
+        maxSafeSpeed: LANDING_MAX_SAFE_SPEED,
+        maxSafeAngleRadians: degreesToRadians(LANDING_MAX_SAFE_ANGLE_DEG),
+      });
 
     const outcome: FlightOutcome = safe ? 'landed' : 'crashed';
     this.outcome = outcome;
@@ -524,7 +550,16 @@ export class GameScene extends Phaser.Scene {
     // Playwright e2e suite can observe the outcome without reaching into
     // canvas-rendered text, which isn't visible to DOM-based locators.
     this.data.set('outcome', outcome);
-    this.lander.container.setPosition(snapshot.position.x, groundY - LANDER_RADIUS);
+    // Milestone 10: an obstacle hit and an ordinary off-pad crash both
+    // resolve to the same 'crashed' outcome above — this key is what lets
+    // the e2e suite tell them apart without reaching into canvas-rendered
+    // color, same rationale as 'outcome' itself.
+    this.data.set('crashedOnObstacle', hitObstacle);
+    // An obstacle hit freezes the lander exactly where it collided (often
+    // mid-air) — snapping it to `groundY - LANDER_RADIUS` would be wrong/
+    // misleading for a crash that never touched the ground at all.
+    const touchdownY = hitObstacle ? snapshot.position.y : groundY - LANDER_RADIUS;
+    this.lander.container.setPosition(snapshot.position.x, touchdownY);
     this.lander.setFillColors(
       safe ? LANDED_COLOR_TOP : CRASHED_COLOR_TOP,
       safe ? LANDED_COLOR_BOTTOM : CRASHED_COLOR_BOTTOM,
@@ -691,6 +726,42 @@ export class GameScene extends Phaser.Scene {
       fillBottomColor: LANDING_PAD_FILL_COLOR_BOTTOM,
     });
     pad.container.setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
+  }
+
+  /** Milestone 10: renders every static obstacle this base's `terrainOptions`
+   * authors (empty for every pre-Milestone-10 base and for free flight,
+   * which never sets `obstacles` — this loop is then simply a no-op). A
+   * 'spire' draws as an upward-pointing triangle from its own footprint
+   * (ground-attached rock); 'debris' draws as a plain rectangle (a floating
+   * chunk, not attached to anything). Depth matches the ground/pad's own
+   * `TERRAIN_SHADOW_LAYER_DEPTH` — obstacles are part of the same terrain
+   * layer, not a separate foreground/background plane. */
+  private buildObstacleVisuals(): void {
+    this.terrain.obstacles.forEach((obstacle: Obstacle, index: number) => {
+      const midX = (obstacle.xStart + obstacle.xEnd) / 2;
+      const points =
+        obstacle.kind === 'spire'
+          ? [
+              { x: obstacle.xStart, y: obstacle.yBottom },
+              { x: midX, y: obstacle.yTop },
+              { x: obstacle.xEnd, y: obstacle.yBottom },
+            ]
+          : [
+              { x: obstacle.xStart, y: obstacle.yTop },
+              { x: obstacle.xEnd, y: obstacle.yTop },
+              { x: obstacle.xEnd, y: obstacle.yBottom },
+              { x: obstacle.xStart, y: obstacle.yBottom },
+            ];
+      const shape = createPaperShape(this, {
+        points,
+        textureKey: `${OBSTACLE_TEXTURE_KEY_PREFIX}${index.toString()}`,
+        fillTopColor: OBSTACLE_FILL_COLOR_TOP,
+        fillBottomColor: OBSTACLE_FILL_COLOR_BOTTOM,
+        etchLineCount: OBSTACLE_ETCH_LINE_COUNT,
+        etchStyle: 'rock',
+      });
+      shape.container.setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
+    });
   }
 
   private updateFuelText(fuel: number): void {

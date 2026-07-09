@@ -8,6 +8,54 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 10 — Obstacles & Hazardous Conditions, certified**: static
+  flight hazards in terrain generation. `terrain-generator.ts` gained the
+  merged `Obstacle`/`ObstacleKind` type (`kind: 'spire' | 'debris'`,
+  `xStart`/`xEnd`/`yTop`/`yBottom`, optional `armorRating`/`cleared` for
+  Milestone 11's future clearing mechanic) and three new optional
+  `GenerateTerrainOptions` fields (`padStartIndexOverride`,
+  `terrainOverrides`, `obstacles`) — every field is additive and inert when
+  absent, so every base authored before this milestone (and free flight's
+  own default options) generates byte-for-byte unchanged. New
+  `terrain/obstacles.ts` (`isCollidingWithObstacle`, a pure circle-vs-
+  rectangle test, Phaser-free like `landing.ts`). `bases/difficulty.ts`'s
+  `computeSpatialAxis` gained a third additive term scoring obstacle
+  density, on top of the pre-existing pad-tightness/roughness terms
+  (unchanged). Scarp Outpost and Frostgate (this game's tightest-pad and
+  hardest bases) each gained a real curated obstacle layout — one spire,
+  and one spire plus one floating debris chunk — placed with a confirmed-
+  clear margin from each base's own real generated pad position.
+  `GameScene` checks obstacle collision every frame before the existing
+  ground-contact check; a hit is an unconditional crash, distinguished
+  from an ordinary off-pad crash via a new `crashedOnObstacle` data-manager
+  key; obstacles render as a triangle (spire) or rectangle (debris) via the
+  existing paper-shape renderer. Built directly by the main session (no
+  delegated Workflow build), then independently adversarially reviewed via
+  a scoped 3-dimension Workflow before certifying. The review found and
+  fixed two real defects: `padStartIndexOverride`/`terrainOverrides` had
+  zero real callers (Scarp Outpost/Frostgate's obstacle placement
+  bypassed them, hand-fitting around a random pad draw instead) — fixed
+  by giving both curated bases an explicit `padStartIndexOverride`
+  (confirmed byte-for-byte identical output to the prior random draw);
+  and the new `crashedOnObstacle` data-manager key was never reset in
+  `create()`, unlike `outcome`/`score`, leaking a stale value across an
+  in-session restart — fixed by clearing it alongside `score`. Also found
+  and fixed, while reproducing that restart scenario: a real bug in
+  already-certified Milestone 9.5 code — a crash on any Resupply-flavored
+  **single-trip** mission incorrectly resolved as `'success'` (same root
+  cause as the relay bug Milestone 9.5's own certification already fixed,
+  just never re-checked for single-trip). See `PLAN.md`'s Milestone 9.5
+  and Milestone 10 sections for the full writeup and regression tests.
+  Full gate list green after every fix: 418 unit/integration tests, 90
+  e2e tests (including two new tests covering a real piloted collision
+  and a control crash), Lighthouse clean. Deliberately not built: a
+  procedural/randomized obstacle generator (no procedural/endless game
+  mode exists yet to consume one — see `PLAN.md`'s Milestone 10 section
+  for the full reasoning) and any new _mechanical_ per-world condition
+  (wind/visibility — reclassified as Milestone 5's already-certified
+  territory by this milestone's own Classification rule, not actually in
+  this milestone's binding scope).
+
 - **Milestone 9.5 — Mission & Cargo Delivery System, certified**: turns a base visit into a real
   mission with cargo, not a bare "land safely" clear. Pure layer
   (`src/game/missions/`): `cargo.ts` (troops — discrete squads, 10 MU/25

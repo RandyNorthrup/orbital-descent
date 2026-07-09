@@ -45,13 +45,27 @@ const MECHANICAL_COLD_HAZARD_SCORE = 3;
 const PAD_SEGMENTS_TIGHT = 2;
 const PAD_SEGMENTS_COMFORTABLE = 8;
 
-// The two components summing to the spatial axis (max 10 combined).
+// The three components contributing to the spatial axis. Pad tightness and
+// roughness alone already sum to 10 (unchanged since before Milestone 10,
+// preserving every base authored before obstacles existed); obstacles are
+// a genuinely additive, independent difficulty source on top of that, not
+// a fourth slice carved out of the existing 10-point budget -- `clampAxis`
+// caps the combined total at 10 for a base with both a tight pad and a
+// dense obstacle layout, same as `computeMechanicalAxis`'s own independent
+// terms can already exceed 10 pre-clamp.
 const SPATIAL_PAD_MAX_SCORE = 7;
 const SPATIAL_ROUGHNESS_MAX_SCORE = 3;
+const SPATIAL_OBSTACLE_MAX_SCORE = 3;
 
 // A `maxStepFraction` at/above this is this game's roughest authored
 // terrain (full roughness contribution); scales linearly below it.
 const SPATIAL_ROUGHNESS_REFERENCE = 0.08;
+
+// An obstacle count at/above this is treated as this game's densest
+// authored layout (full obstacle contribution); scales linearly below it,
+// same shape as SPATIAL_ROUGHNESS_REFERENCE above. Milestone 10's own
+// curated bases author at most 2.
+const SPATIAL_OBSTACLE_COUNT_REFERENCE = 3;
 
 // Every axis at/below this value classifies the base as `dominant:
 // 'tutorial'` rather than naming a specific axis.
@@ -119,9 +133,14 @@ export function computeMechanicalAxis(
 
 /**
  * A base's spatial-axis score (0-10): how tight the authored landing pad is
- * relative to this game's tightest/most generous authored pads, plus how
- * rough the authored terrain's bounded-random-walk step is relative to this
- * game's roughest authored terrain.
+ * relative to this game's tightest/most generous authored pads, how rough
+ * the authored terrain's bounded-random-walk step is relative to this
+ * game's roughest authored terrain, and (Milestone 10) how many static
+ * obstacles the base's own `terrainOptions.obstacles` authors relative to
+ * this game's densest authored layout — a base with none (every base
+ * authored before Milestone 10, and any Milestone 10+ base that simply
+ * doesn't opt in) contributes exactly 0 from this term, unchanged from
+ * before this milestone.
  */
 export function computeSpatialAxis(terrainOptions: GenerateTerrainOptions): number {
   const padTightness = clamp01(
@@ -129,8 +148,15 @@ export function computeSpatialAxis(terrainOptions: GenerateTerrainOptions): numb
       (PAD_SEGMENTS_COMFORTABLE - PAD_SEGMENTS_TIGHT),
   );
   const roughness = clamp01(terrainOptions.maxStepFraction / SPATIAL_ROUGHNESS_REFERENCE);
+  const obstacleDensity = clamp01(
+    (terrainOptions.obstacles?.length ?? 0) / SPATIAL_OBSTACLE_COUNT_REFERENCE,
+  );
 
-  return clampAxis(padTightness * SPATIAL_PAD_MAX_SCORE + roughness * SPATIAL_ROUGHNESS_MAX_SCORE);
+  return clampAxis(
+    padTightness * SPATIAL_PAD_MAX_SCORE +
+      roughness * SPATIAL_ROUGHNESS_MAX_SCORE +
+      obstacleDensity * SPATIAL_OBSTACLE_MAX_SCORE,
+  );
 }
 
 /** The dominant-axis score used in the budget formula, per `base.ts`'s own

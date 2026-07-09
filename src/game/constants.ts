@@ -101,6 +101,13 @@ export const CRASHED_COLOR_BOTTOM = 0xb83f3f;
 export const LANDING_PAD_FILL_COLOR_TOP = 0x7fe89a;
 export const LANDING_PAD_FILL_COLOR_BOTTOM = 0x3aa859;
 
+/** Milestone 10's static obstacle fill gradient — one universal rust-red
+ * across every world, deliberately: a consistent "this will crash you"
+ * visual cue, the same "one color means one thing everywhere" principle
+ * `LANDING_PAD_FILL_COLOR_TOP`/`_BOTTOM` above already uses for "safe." */
+export const OBSTACLE_FILL_COLOR_TOP = 0xd97b5a;
+export const OBSTACLE_FILL_COLOR_BOTTOM = 0x8f3b28;
+
 /** Shared near-black outline/shadow color for every cutout shape. */
 export const OUTLINE_COLOR = 0x1a1410;
 export const OUTLINE_WIDTH = 3;

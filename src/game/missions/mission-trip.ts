@@ -82,5 +82,19 @@ export function resolveTripOutcome(
     return { missionState, missionStatus: null };
   }
 
+  if (!safe && structure === 'single-trip') {
+    // Single-trip is strictly binary (PLAN.md §9.5.2): a crash is always
+    // 'failure', never resolved via resolveFinalStatus/isTargetMet. Those
+    // check meetsMinManifest, which is vacuously true when minManifest is
+    // empty (Resupply flavor's intentional "no minimum" — §9.5.4) — a
+    // valid success signal only after the safe branch above has actually
+    // recorded a delivery, never a substitute for "did this trip land
+    // safely at all." Without this branch, a Resupply single-trip mission
+    // crash incorrectly resolved as 'success' against the mission's own
+    // untouched (zeroed) `delivered`, since `meetsMinManifest(zero, {})`
+    // is trivially true.
+    return { missionState, missionStatus: 'failure' };
+  }
+
   return { missionState, missionStatus: resolveFinalStatus(missionState) };
 }

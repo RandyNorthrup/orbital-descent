@@ -7,7 +7,7 @@ import {
 } from './difficulty';
 import type { BaseRequirements, TWRBand } from './base';
 import type { CelestialBody, Hazard } from '../planets/celestial-body';
-import type { GenerateTerrainOptions } from '../terrain/terrain-generator';
+import type { GenerateTerrainOptions, Obstacle } from '../terrain/terrain-generator';
 
 /** Only `minTWR` is exercised by this module — the rest of `BaseRequirements`
  * is filled with arbitrary-but-valid placeholder values so each test can
@@ -39,9 +39,21 @@ function makeBody(gravityAccel: number, hazard: Hazard): CelestialBody {
 /** Only `padSegmentCount`/`maxStepFraction` are exercised by this module —
  * the rest of `GenerateTerrainOptions` is filled with arbitrary-but-valid
  * placeholder values. */
+/** Content is irrelevant -- `computeSpatialAxis` only reads `.length`. */
+function makeObstacles(count: number): Obstacle[] {
+  return Array.from({ length: count }, () => ({
+    kind: 'debris' as const,
+    xStart: 0,
+    xEnd: 0,
+    yTop: 0,
+    yBottom: 0,
+  }));
+}
+
 function makeTerrainOptions(
   padSegmentCount: number,
   maxStepFraction: number,
+  obstacleCount = 0,
 ): GenerateTerrainOptions {
   return {
     seed: 1,
@@ -52,6 +64,7 @@ function makeTerrainOptions(
     maxHeightFraction: 0.85,
     maxStepFraction,
     padSegmentCount,
+    ...(obstacleCount > 0 ? { obstacles: makeObstacles(obstacleCount) } : {}),
   };
 }
 
@@ -116,6 +129,26 @@ describe('computeSpatialAxis', () => {
     // roughness    = 0.04/0.08 = 0.5          -> 0.5*3 = 1.5
     // total = 5.0 -> rounds to 5.
     expect(computeSpatialAxis(makeTerrainOptions(5, 0.04))).toBe(5);
+  });
+
+  it('contributes 0 from obstacles when none are authored (every pre-Milestone-10 base)', () => {
+    expect(computeSpatialAxis(makeTerrainOptions(8, 0, 0))).toBe(0);
+  });
+
+  it('scores the full obstacle component at/above the density reference (Milestone 10)', () => {
+    // padTightness = 0; roughness = 0; obstacleDensity = 3/3 = 1 -> 1*3 = 3.
+    expect(computeSpatialAxis(makeTerrainOptions(8, 0, 3))).toBe(3);
+  });
+
+  it('scales obstacle contribution linearly below the density reference', () => {
+    // obstacleDensity = 1/3 -> (1/3)*3 = 1.
+    expect(computeSpatialAxis(makeTerrainOptions(8, 0, 1))).toBe(1);
+  });
+
+  it('caps the combined total at 10 for a base with both a tight pad and a dense obstacle layout', () => {
+    // padTightness = 1 -> 7; roughness = 1 -> 3; obstacleDensity = 1 -> 3.
+    // Raw total = 13, clamped to 10.
+    expect(computeSpatialAxis(makeTerrainOptions(2, 0.08, 3))).toBe(10);
   });
 });
 

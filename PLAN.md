@@ -2808,6 +2808,20 @@ full gate list plus `pnpm lighthouse` (points 3-4), this file and
 
 ### Milestone 9.5 — Mission & Cargo Delivery System (certified)
 
+**Post-certification correction (2026-07-08, during Milestone 10 work)**:
+a real bug survived this milestone's own certification — `mission-trip.ts`'s
+`resolveTripOutcome` let a crash on any Resupply-flavored **single-trip**
+mission resolve as `'success'` (same root cause as the relay bug this
+section's own certification pass already fixed: `meetsMinManifest` is
+vacuously true against an empty `minManifest`, and the crash path never
+re-checked that the mission structure was single-trip specifically).
+Found and fixed during Milestone 10's own adversarial-review follow-up,
+not by this milestone's own certification process — see Milestone 10's
+section below for the full writeup, regression tests, and reproduction
+steps. Flagging it here too since the defect itself lived in this
+milestone's own files (`mission-trip.ts`, `mission-trip.test.ts`), not
+Milestone 10's.
+
 **Status: certified** (2026-07-08). Every subsystem in this section's own
 Scope (§9.5.1-9.5.6) is built: the pure-logic layer
 (`src/game/missions/cargo.ts`/`mission.ts`/`mission-trip.ts`/`reward.ts`/
@@ -3223,7 +3237,158 @@ Result: this mission is currently uncompletable by the entire existing roster. I
 
 ---
 
-### Milestone 10 — Obstacles & Hazardous Conditions (not started)
+### Milestone 10 — Obstacles & Hazardous Conditions (certified)
+
+**Status: certified** (2026-07-08). Built entirely by the main session
+directly (no delegated Workflow build — this milestone's surface area is
+almost entirely pure-logic/physics-adjacent code, the main session's
+established role all along this project), then independently adversarially
+reviewed via a scoped Workflow (3 dimensions: acceptance-criteria-fidelity,
+architecture-compliance, state-and-collision-correctness) before
+certifying.
+
+**What shipped**: `src/game/terrain/terrain-generator.ts` gained the merged
+`Obstacle`/`ObstacleKind` type and three new optional `GenerateTerrainOptions`
+fields (`padStartIndexOverride`, `terrainOverrides`, `obstacles`) exactly
+per §6b.2's spec; `generateTerrain()` applies authored `terrainOverrides`
+before pad flattening (so a pad-flattening step always wins any conflict),
+honors `padStartIndexOverride` by skipping the random pad-index draw
+entirely rather than merely overriding its result, and echoes
+`options.obstacles` verbatim onto the returned `Terrain.obstacles` (always
+an array, empty when absent). New `src/game/terrain/obstacles.ts` exports
+`isCollidingWithObstacle`, a pure circle-vs-rectangle test matching
+§6b.2's exact reference implementation, Phaser-free like `landing.ts`.
+`bases/difficulty.ts`'s `computeSpatialAxis` gained a third, purely
+additive term (obstacle count relative to this game's densest authored
+layout) on top of the pre-existing pad-tightness/roughness terms, which
+are numerically unchanged — every base without obstacles (every base
+authored before this milestone) scores identically to before.
+Scarp Outpost and Frostgate (this game's tightest-pad and hardest bases,
+respectively) each gained a real curated obstacle layout — one spire, and
+one spire plus one floating debris chunk — placed by directly running
+`generateTerrain` against each base's real seed/options to compute its
+actual pad position first, then choosing coordinates with a comfortable
+margin from it (`bases.test.ts` proves this non-overlap against the real
+generator, not just the authoring comment's own arithmetic). `GameScene`
+now checks `isCollidingWithObstacle` every frame, before the existing
+ground-contact early-return (so an obstacle positioned above ground level
+is never silently skipped mid-fall); a hit forces an unconditional crash,
+bypassing `onPad`/`isSafeLanding` entirely, and freezes the lander at its
+real collision position rather than a ground-derived one. A new
+`this.data.set('crashedOnObstacle', ...)` key (mirroring the existing
+`outcome` pattern) lets e2e/observers distinguish an obstacle hit from an
+ordinary off-pad crash, since both otherwise resolve to the same
+`outcome: 'crashed'`. `create()` renders every obstacle (a triangle for
+`'spire'`, a rectangle for `'debris'`) via the existing `createPaperShape`
+helper — visually confirmed via fresh screenshots at both curated bases
+(both shapes render correctly, positioned as designed, colored via new
+`OBSTACLE_FILL_COLOR_TOP`/`_BOTTOM` constants).
+
+**Deliberately not built, and why**: a procedural/randomized obstacle
+generator. §10's own Scope text describes "randomized obstacle placement
+(for non-curated/procedural bases)... drawing from the same seeded PRNG
+stream" — but no procedural/endless game mode exists anywhere in this
+codebase to consume one (the only two `generateTerrain` callers are
+curated `Base` records, all now either static-obstacle or no-obstacle, and
+free flight's own default options, which never set `obstacles` and so
+still generates zero obstacles, byte-for-byte unchanged from before this
+milestone). Building a speculative generator with zero real callers would
+be exactly the "no placeholder/speculative code" AGENTS.md forbids.
+`GenerateTerrainOptions.obstacles` is designed so this remains a live,
+un-blocked future option: a later procedural mode computes its own
+`Obstacle[]` once (from its own seed) and passes it through the same
+field like any other curated content — no separate "procedural" code path
+inside `generateTerrain` would ever need to be kept in sync with the
+curated one. Also not built: a new _mechanical_ per-world condition (wind
+gusts, visibility). §10's own "Classification rule" paragraph reclassifies
+that category as Milestone 5's (already-certified) territory, not this
+milestone's — and §10's binding "Scope" paragraph only ever describes the
+`Obstacle`/terrain-generator extension, never a new mechanical mechanic —
+so this was never actually in scope despite the Goal text's looser
+"visibility, wind gusts" phrasing.
+
+**Adversarial review found 2 real defects, both fixed before certifying**:
+
+1. **`padStartIndexOverride`/`terrainOverrides` had zero real (non-test)
+   callers.** Both fields were built and unit-tested exactly per §6b.2's
+   spec, but Scarp Outpost/Frostgate's obstacle placement was instead done
+   by directly running `generateTerrain` against the plain random-drawn
+   pad position and hand-fitting obstacle coordinates around it — exactly
+   the manual work `padStartIndexOverride`'s own doc comment says the
+   field exists to avoid. Fixed for `padStartIndexOverride`: both curated
+   bases now set it explicitly (57 for Scarp Outpost, 44 for Frostgate —
+   confirmed byte-for-byte identical `generateTerrain` output to the prior
+   random draw before authoring it), giving the field a genuine caller and
+   making the pad an authored constant instead of an emergent property of
+   the seed. `terrainOverrides` remains unused by design, not fixed: no
+   currently-shipped base has a real design need for an authored cliff/
+   plateau beyond its own pad, and manufacturing one solely to give the
+   field a caller would be exactly the "content padding for its own sake"
+   AGENTS.md warns against — left honestly as a named, non-blocking gap,
+   the same posture this project already takes with `evaluateBaseFit`
+   (Milestone 9's own certification note, still unwired as of Milestone
+   9.5's certification too).
+2. **`this.data`'s new `crashedOnObstacle` key was never reset in
+   `create()`**, unlike `outcome`/`score`, even though `GameScene` is one
+   long-lived Scene instance reused across in-session restarts (a real
+   path — `ResultScene`'s RESTART, and relaunching a fresh mission from
+   `WorldMapScene`, both call `scene.start(SCENE_KEY_GAME)` without a page
+   reload). A flight that crashed on an obstacle, followed by an in-session
+   relaunch, would leak that stale `true` into the next flight's own
+   `'flying'` phase before its own resolution overwrote it. Fixed:
+   `create()` now also calls `this.data.remove('crashedOnObstacle')`
+   alongside the existing `score` removal. Reproduced the exact scenario
+   directly (crash on Scarp Outpost's spire → acknowledge → relaunch
+   in-session without steering → confirmed `crashedOnObstacle` reads
+   `undefined`, not stale `true`, while the new flight is still `'flying'`)
+   both before the fix (reproduced the bug) and after (confirmed fixed).
+
+**Also found and fixed during this same verification pass: a real,
+previously-shipped bug in already-certified Milestone 9.5 code**, not a
+Milestone 10 defect itself — surfaced only because testing the
+`crashedOnObstacle` in-session-restart scenario above happened to fly a
+Resupply single-trip mission through a crash. `mission-trip.ts`'s
+`resolveTripOutcome` let a **crash on any Resupply-flavored single-trip
+mission resolve as `'success'`** (rewarding the full 100-credit completion
+bonus for crashing), because its crash-fallback path called
+`resolveFinalStatus`/`isTargetMet` against the mission's untouched
+(zeroed) `delivered` state, and `meetsMinManifest(zero, {})` — Resupply's
+intentional "no minimum" `minManifest` — is vacuously true. The exact same
+root cause as the relay bug fixed during Milestone 9.5's own certification
+(§9.5's `isTargetMet` `cargoMass(state.delivered) > 0` guard), but that
+fix only covered `structure === 'relay'`, never re-checked
+`'single-trip'`. Reproduced directly (a real piloted crash into Scarp
+Outpost's obstacle on a Resupply single-trip mission showed "MISSION
+SUCCESS / REWARD: 100 CREDITS" before the fix) and confirmed fixed the
+same way ("MISSION FAILURE / REWARD: 0 CREDITS" after). Fixed with a
+dedicated `!safe && structure === 'single-trip'` branch in
+`resolveTripOutcome` that resolves straight to `'failure'`, never
+consulting `isTargetMet` at all for a crash — deliberately _not_ reusing
+relay's `cargoMass > 0` guard shape, since (unlike relay) a single-trip
+Resupply mission's own **safe**-landing-with-zero-cargo case must keep
+succeeding (PLAN.md §9.5's own documented intentional behavior); the bug
+was specifically the crash path's mistaken reliance on the same success
+check, not the check itself. Regression tests added to
+`mission-trip.test.ts` (a new `SINGLE_TRIP_RESUPPLY` fixture: crash →
+`'failure'`, safe zero-cargo landing → `'success'`, pinning both the fix
+and the still-intentional adjacent behavior). Establish Presence
+single-trip missions were never affected (their `minManifest` already
+names a real nonzero troop count, so `meetsMinManifest` was never
+vacuously true for them).
+
+Full gate list re-confirmed clean after every fix above: `pnpm quality`
+(418 tests, coverage 99.14%/95.62%/100%/99.1%, thresholds 90/85/90/90),
+`pnpm test:e2e` (90/90 across chromium/firefox/webkit, including the two
+new `e2e/obstacles.spec.ts` tests — a real piloted flight steered directly
+into Scarp Outpost's spire, and a control straight-fall crash confirming
+`crashedOnObstacle` genuinely discriminates rather than being true for
+every crash at that base), `pnpm lighthouse` clean. The obstacle-collision
+e2e test uses a bounded 3-attempt retry (mirroring `missions.spec.ts`'s
+own precedented `MAX_ORIGIN_ATTEMPTS` pattern) since a real timed-keyboard
+maneuver aimed at a 24px-wide target is measurably sensitive to per-frame
+timing jitter under full parallel-browser load (confirmed directly: an
+isolated single-browser run passed reliably; a small fraction of full
+3-browser runs needed a second attempt before centering the hit).
 
 **Goal**: Static obstacles (rock spires, floating debris) placed in
 terrain generation, and per-world environmental conditions beyond
@@ -3275,7 +3440,9 @@ M10's data — see M11's own section.)
 
 **Required quality gates**: full gate list, must stay green.
 
-**Certification checklist**: not started. Depends on M5.
+**Certification checklist**: **certified** — see this section's own
+opening "Status" paragraph above for the full writeup. Depends on
+**Milestone 5** (already certified).
 
 ---
 

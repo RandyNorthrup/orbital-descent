@@ -3,6 +3,7 @@ import {
   generateTerrain,
   getTerrainHeightAt,
   type GenerateTerrainOptions,
+  type Obstacle,
 } from './terrain-generator';
 
 const BASE_OPTIONS: GenerateTerrainOptions = {
@@ -76,6 +77,54 @@ describe('generateTerrain', () => {
     const terrain = generateTerrain(BASE_OPTIONS);
     expect(terrain.landingPad.xStart).toBeGreaterThan(0);
     expect(terrain.landingPad.xEnd).toBeLessThan(BASE_OPTIONS.width);
+  });
+
+  it('returns an empty obstacles array when none are configured (every pre-Milestone-10 base)', () => {
+    const terrain = generateTerrain(BASE_OPTIONS);
+    expect(terrain.obstacles).toEqual([]);
+  });
+
+  it('echoes configured obstacles verbatim onto the returned Terrain', () => {
+    const obstacles: Obstacle[] = [
+      { kind: 'spire', xStart: 500, xEnd: 524, yTop: 200, yBottom: 400 },
+    ];
+    const terrain = generateTerrain({ ...BASE_OPTIONS, obstacles });
+    expect(terrain.obstacles).toEqual(obstacles);
+  });
+
+  it('pins the pad to padStartIndexOverride instead of the random draw, without consuming randomness for it', () => {
+    const overridden = generateTerrain({ ...BASE_OPTIONS, padStartIndexOverride: 10 });
+    const segmentWidth = BASE_OPTIONS.width / BASE_OPTIONS.segments;
+    expect(overridden.landingPad.xStart).toBe(10 * segmentWidth);
+    expect(overridden.landingPad.xEnd).toBe((10 + BASE_OPTIONS.padSegmentCount - 1) * segmentWidth);
+  });
+
+  it('is still deterministic given the same seed when padStartIndexOverride is set', () => {
+    const options = { ...BASE_OPTIONS, padStartIndexOverride: 10 };
+    expect(generateTerrain(options)).toEqual(generateTerrain(options));
+  });
+
+  it('applies terrainOverrides before pad flattening, so an override inside the pad range is superseded', () => {
+    const segmentWidth = BASE_OPTIONS.width / BASE_OPTIONS.segments;
+    const withOverride = generateTerrain({
+      ...BASE_OPTIONS,
+      padStartIndexOverride: 10,
+      terrainOverrides: [{ index: 5, y: 999 }],
+    });
+    // Index 5 is outside the pinned pad range [10, 12] -- the override applies as-is.
+    expect(withOverride.points[5]?.y).toBe(999);
+    expect(withOverride.points[5]?.x).toBe(5 * segmentWidth);
+
+    const overriddenInsidePad = generateTerrain({
+      ...BASE_OPTIONS,
+      padStartIndexOverride: 10,
+      terrainOverrides: [{ index: 11, y: 999 }],
+    });
+    // Index 11 is inside the pinned pad's range [10, 12] but not its start
+    // index (padHeight is read from index 10) -- pad flattening supersedes
+    // the override here, so index 11 ends up at padHeight, not 999.
+    expect(overriddenInsidePad.points[11]?.y).toBe(overriddenInsidePad.landingPad.y);
+    expect(overriddenInsidePad.points[11]?.y).not.toBe(999);
   });
 });
 

@@ -3,7 +3,7 @@ import { computeDifficultyProfile, type DifficultyShipReference } from './diffic
 import type { CelestialBody } from '../planets/celestial-body';
 import { BODIES } from '../planets/bodies';
 import { findShipById } from '../ships/ships';
-import type { GenerateTerrainOptions } from '../terrain/terrain-generator';
+import type { GenerateTerrainOptions, Obstacle } from '../terrain/terrain-generator';
 import {
   GAME_HEIGHT,
   TERRAIN_MAX_HEIGHT_FRACTION,
@@ -66,6 +66,28 @@ const COMMON_REQUIREMENTS: Omit<BaseRequirements, 'hazardCounterTags' | 'recomme
   handling: null,
   combat: { minWeaponTier: 0, minShieldTier: 0 },
 };
+
+/** Milestone 10's curated obstacle layout for Scarp Outpost (this game's
+ * already-tightest authored pad, `padSegmentCount: 3`). Placement was
+ * computed by directly running `generateTerrain` with this base's exact
+ * `terrainOptions` (seed 602, this file's own `COMMON_TERRAIN_OPTIONS`),
+ * not eyeballed — the pad lands at x=[1368, 1416]; this spire sits 54px
+ * clear of its right edge, well outside a 14px-radius lander's collision
+ * margin. `bases.test.ts` pins this non-overlap with a real
+ * `generateTerrain` call, not just this comment's own arithmetic. */
+const SCARP_OUTPOST_OBSTACLES: readonly Obstacle[] = [
+  { kind: 'spire', xStart: 1470, xEnd: 1494, yTop: 180, yBottom: 430 },
+];
+
+/** Milestone 10's curated obstacle layout for Frostgate (this game's
+ * hardest base — PLAN.md §9.5.7 Example F, infeasible for the entire ship
+ * roster via relay). Placement computed the same way as Scarp Outpost's
+ * above: the pad lands at x=[1056, 1176] for this exact seed (605); both
+ * obstacles sit well clear of it and of each other. */
+const FROSTGATE_OBSTACLES: readonly Obstacle[] = [
+  { kind: 'spire', xStart: 1240, xEnd: 1264, yTop: 180, yBottom: 430 },
+  { kind: 'debris', xStart: 1330, xEnd: 1370, yTop: 260, yBottom: 330 },
+];
 
 /** Everything about a base except its computed `difficulty`/always-empty
  * `encounters` — `buildBase` derives those two from the rest so every
@@ -137,6 +159,20 @@ export const BASES: readonly Base[] = [
       seed: 602,
       maxStepFraction: 0.05,
       padSegmentCount: 3,
+      // Milestone 10: pins the pad to the exact index this seed/options
+      // combination already produced (confirmed by directly running
+      // generateTerrain before authoring this), byte-for-byte identical
+      // output to the pre-Milestone-10 random draw -- but now an explicit,
+      // authored constant rather than an emergent property of the seed,
+      // so SCARP_OUTPOST_OBSTACLES below can be placed relative to a
+      // *known* pad position, exactly this field's own documented purpose.
+      padStartIndexOverride: 57,
+      // One spire just past the pad's own right edge (pad is x=[1368,
+      // 1416] for the pinned index above) -- this spire sits 54px clear
+      // of it, well outside a 14px-radius lander's collision margin -- so
+      // this already-tightest-pad base (padSegmentCount 3) also carries
+      // real spatial obstacle difficulty.
+      obstacles: SCARP_OUTPOST_OBSTACLES,
     },
     requirements: { ...COMMON_REQUIREMENTS, hazardCounterTags: [], recommendedTags: [] },
     // PLAN.md §9.5.7 Example D's same-world relay establishes this base.
@@ -200,6 +236,16 @@ export const BASES: readonly Base[] = [
       seed: 605,
       maxStepFraction: 0.03,
       padSegmentCount: 6,
+      // Milestone 10: pins the pad to the exact index this seed/options
+      // combination already produced (same rationale as Scarp Outpost's
+      // own padStartIndexOverride above) -- byte-for-byte identical output
+      // to the pre-Milestone-10 random draw, now an authored constant.
+      padStartIndexOverride: 44,
+      // This game's hardest base (Example F: infeasible for the entire
+      // ship roster via relay) also carries its densest obstacle layout --
+      // a spire and a floating debris chunk, both placed relative to the
+      // pinned pad above (x=[1056, 1176]).
+      obstacles: FROSTGATE_OBSTACLES,
     },
     // Glacian Drift's hazard is cold (`planets/bodies.ts`).
     requirements: {

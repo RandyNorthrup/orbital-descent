@@ -15,6 +15,25 @@ const SINGLE_TRIP: MissionDefinition = {
   crashPolicy: null,
 };
 
+/** A Resupply-flavored single-trip's `minManifest` is `{}` (no minimum) —
+ * regression fixture for the crash-trivially-resolves-as-success bug
+ * `resolveTripOutcome`'s explicit `!safe && structure === 'single-trip'`
+ * branch now guards against (a crash never reached resolveFinalStatus's
+ * own isTargetMet check before, which — like relay's identical empty-
+ * minManifest hazard — was vacuously true against the untouched, zeroed
+ * `delivered` a crash never updates). */
+const SINGLE_TRIP_RESUPPLY: MissionDefinition = {
+  id: 'single-trip--resupply--meridian-yard',
+  structure: 'single-trip',
+  flavor: 'resupply',
+  originBaseId: 'meridian-yard',
+  destinationBaseId: null,
+  minManifest: {},
+  cargoTarget: null,
+  timeLimitMs: null,
+  crashPolicy: null,
+};
+
 const MULTI_TRIP_LOSE_TRIP_ONLY: MissionDefinition = {
   id: 'multi-trip--resupply--meridian-yard',
   structure: 'multi-trip-same-base',
@@ -78,6 +97,19 @@ describe('resolveTripOutcome — single-trip', () => {
     const state = createMissionState(SINGLE_TRIP, 0);
     const result = resolveTripOutcome(state, false, EMPTY_MANIFEST, 0, 0, 1000);
     expect(result.missionStatus).toBe('failure');
+  });
+
+  it('regression: a crash on a Resupply single-trip (minManifest {}) is still failure, never a vacuous success', () => {
+    const state = createMissionState(SINGLE_TRIP_RESUPPLY, 0);
+    const result = resolveTripOutcome(state, false, EMPTY_MANIFEST, 0, 0, 1000);
+    expect(result.missionStatus).toBe('failure');
+    expect(result.missionState.delivered).toEqual({ troops: 0, supplies: 0 });
+  });
+
+  it('a safe landing on a Resupply single-trip with zero cargo still concludes success (intentional "no minimum" rule)', () => {
+    const state = createMissionState(SINGLE_TRIP_RESUPPLY, 0);
+    const result = resolveTripOutcome(state, true, EMPTY_MANIFEST, 0, 500, 1000);
+    expect(result.missionStatus).toBe('success');
     expect(result.missionState.delivered).toEqual({ troops: 0, supplies: 0 });
   });
 });

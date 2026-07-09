@@ -8,9 +8,14 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 9.5 (Mission & Cargo Delivery System)
-certified — see `PLAN.md`'s Milestone 9.5 section for the full
-certification writeup. Selecting a reachable
+**Current status**: Milestone 10 (Obstacles & Hazardous Conditions)
+certified — see `PLAN.md`'s Milestone 10 section for the full
+certification writeup. Two curated bases (Scarp Outpost, Frostgate) now
+carry static flight hazards (rock spires, floating debris) alongside their
+terrain — colliding with one is an unconditional crash, and each base's
+computed difficulty badge on the world map now factors obstacle density
+into its spatial score. On top of: Milestone 9.5 (Mission & Cargo Delivery
+System, certified) — selecting a reachable
 base on the WORLD MAP screen now opens that base's own mission options
 instead of launching a flight directly: **Establish Presence** (a new
 base's one-time founding mission, requiring a per-base troop garrison),
