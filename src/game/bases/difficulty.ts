@@ -1,20 +1,23 @@
-import type { BaseDifficultyProfile, BaseRequirements } from './base';
+import type { BaseDifficultyProfile, BaseRequirements, EncounterSpec } from './base';
 import type { CelestialBody } from '../planets/celestial-body';
 import type { GenerateTerrainOptions } from '../terrain/terrain-generator';
 
 /**
- * The one ship-intrinsic number this module needs (the bare thrust
- * acceleration used to compute a base's mechanical TWR-deficit term) —
- * passed in explicitly rather than imported from `../constants`, matching
- * this project's established "pure logic module takes every tunable as an
+ * The reference numbers this module needs but must not import from
+ * `constants.ts` directly — passed in explicitly instead, matching this
+ * project's established "pure logic module takes every tunable as an
  * explicit parameter, never reaches into `constants.ts` for a balance dial
  * itself" pattern (see `terrain-generator.ts`'s `GenerateTerrainOptions`).
- * Milestone 7's real `ShipClass` roster supplies this at the real call
- * site; this module doesn't need (and must not import) the rest of that
- * type.
+ * `thrustAccel` is genuinely ship-intrinsic (Milestone 7's `ShipClass`
+ * roster supplies it at the real call site; this module doesn't need, and
+ * must not import, the rest of that type). `hullPoints` (Milestone 11) is
+ * actually a flat, ship-independent constant (`constants.ts`'s
+ * `SHIP_BASE_HULL_POINTS`) threaded through this same parameter object
+ * rather than imported directly, for the same reason.
  */
 export interface DifficultyShipReference {
   readonly thrustAccel: number;
+  readonly hullPoints: number;
 }
 
 // Every base's inherent "gravity exists at all" baseline mechanical
@@ -66,6 +69,29 @@ const SPATIAL_ROUGHNESS_REFERENCE = 0.08;
 // same shape as SPATIAL_ROUGHNESS_REFERENCE above. Milestone 10's own
 // curated bases author at most 2.
 const SPATIAL_OBSTACLE_COUNT_REFERENCE = 3;
+
+// The two components contributing to the combat axis (Milestone 11): how
+// much of the player's baseline hull an encounter could threaten within
+// its own clearWindowMs, worst case, and how far the toughest combatant's
+// armorRating pushes past this game's own current armor ceiling -- the
+// same additive, independently-clamped-at-the-end shape as the mechanical/
+// spatial axes above.
+const COMBAT_THREAT_MAX_SCORE = 6;
+const COMBAT_ARMOR_MAX_SCORE = 4;
+
+// A worst-case encounter threat at/above this multiple of the player's
+// baseline hull (DifficultyShipReference.hullPoints) scores the maximum
+// threat contribution; scales linearly below it. >1 (rather than exactly
+// 1) deliberately leaves room to differentiate encounters that could kill
+// the player several times over from ones that merely could kill once.
+const COMBAT_THREAT_HULL_MULTIPLE = 3;
+
+// An armorRating at/above this value scores the maximum armor
+// contribution; scales linearly below it, same shape as
+// SPATIAL_OBSTACLE_COUNT_REFERENCE above. Milestone 11's own toughest
+// authored combatant (Glacian Warden, armorRating 20) sits comfortably
+// below this, leaving headroom for a future, tougher encounter.
+const COMBAT_ARMOR_REFERENCE = 25;
 
 // Every axis at/below this value classifies the base as `dominant:
 // 'tutorial'` rather than naming a specific axis.
@@ -159,6 +185,65 @@ export function computeSpatialAxis(terrainOptions: GenerateTerrainOptions): numb
   );
 }
 
+/** Every hit `combatant.contactDamage`/`attack` could land against a
+ * target it never leaves alive for less than `clearWindowMs`, worst case —
+ * a one-shot contact hit (if any) plus as many ranged `attack` hits as its
+ * own `cooldownMs` allows inside the full window. `+ 1` on the ranged-hit
+ * count for the same reason `combat/encounter.ts`'s `applyRangedAttacks`
+ * doc comment gives: a freshly spawned combatant's `attackCooldownRemainingMs`
+ * starts at 0 ("ready to fire immediately," `combatant.ts`'s own doc
+ * comment), and this game's real spawn geometry keeps it well within its
+ * own `attack.range` at that moment — so the first hit lands at t=0, not
+ * after a full `cooldownMs`, and a bare `Math.floor` division would
+ * undercount this worst-case estimate by exactly one hit. */
+function worstCaseThreat(encounter: EncounterSpec): number {
+  return encounter.combatants.reduce((total, group) => {
+    const { definition } = group;
+    const rangedHits =
+      definition.attack === null
+        ? 0
+        : Math.floor(encounter.clearWindowMs / definition.attack.cooldownMs) + 1;
+    const rangedDamage =
+      definition.attack === null ? 0 : rangedHits * definition.attack.damagePerHit;
+    return total + group.count * (definition.contactDamage + rangedDamage);
+  }, 0);
+}
+
+/**
+ * A base's combat-axis score (0-10, Milestone 11): the worst-case damage
+ * its toughest single `EncounterSpec` could inflict on an unshielded ship
+ * within that encounter's own `clearWindowMs`, relative to this project's
+ * flat combat hull pool (`shipReference.hullPoints`), plus how far the
+ * toughest combatant's `armorRating` pushes past this game's own current
+ * armor ceiling — the same "Bruiser hard-fail" archetype
+ * `terrain/obstacles.ts`'s own `armorRating` already models for a static
+ * obstacle. A base with `encounters: []` (every base before Milestone 11,
+ * and any Milestone 11+ base that doesn't opt in) contributes exactly 0,
+ * unchanged from before this milestone.
+ */
+export function computeCombatAxis(
+  encounters: readonly EncounterSpec[],
+  shipReference: DifficultyShipReference,
+): number {
+  if (encounters.length === 0) {
+    return 0;
+  }
+
+  const worstThreat = Math.max(...encounters.map(worstCaseThreat));
+  const toughestArmor = Math.max(
+    ...encounters.flatMap((encounter) =>
+      encounter.combatants.map((group) => group.definition.armorRating),
+    ),
+  );
+
+  const threatScore = clamp01(
+    worstThreat / (COMBAT_THREAT_HULL_MULTIPLE * shipReference.hullPoints),
+  );
+  const armorScore = clamp01(toughestArmor / COMBAT_ARMOR_REFERENCE);
+
+  return clampAxis(threatScore * COMBAT_THREAT_MAX_SCORE + armorScore * COMBAT_ARMOR_MAX_SCORE);
+}
+
 /** The dominant-axis score used in the budget formula, per `base.ts`'s own
  * doc comment: for `dominant === 'tutorial'` this is the `mechanical` axis
  * specifically (every tutorial base's one nonzero axis is mechanical by
@@ -195,26 +280,20 @@ function computeBudget(
 
 /**
  * Computes a base's full `BaseDifficultyProfile` from its own authored
- * `requirements`/`terrainOptions` plus the target body's own authored
- * hazard/gravity — never a hardcoded, independent number (this milestone's
- * own acceptance criterion).
+ * `requirements`/`terrainOptions`/`encounters` plus the target body's own
+ * authored hazard/gravity — never a hardcoded, independent number (this
+ * project's own acceptance criterion since Milestone 6).
  */
 export function computeDifficultyProfile(
   requirements: BaseRequirements,
   terrainOptions: GenerateTerrainOptions,
+  encounters: readonly EncounterSpec[],
   body: CelestialBody,
   shipReference: DifficultyShipReference,
 ): BaseDifficultyProfile {
   const mechanical = computeMechanicalAxis(requirements, body, shipReference);
   const spatial = computeSpatialAxis(terrainOptions);
-  // Unconditionally 0: a base's `encounters` array is always empty until
-  // Milestone 11 populates real combatant/encounter data (base.ts's own
-  // "empty until Milestone 11" convention; PLAN.md §6b.3's amendment
-  // explicitly assigns "populates Base.difficulty.axes.combat" to
-  // Milestone 11, not Milestone 6). This function deliberately doesn't even
-  // take `encounters` as a parameter — there is nothing meaningful to
-  // compute from an array that's always empty today.
-  const combat = 0;
+  const combat = computeCombatAxis(encounters, shipReference);
   const axes = { mechanical, spatial, combat };
 
   const highest = Math.max(mechanical, spatial, combat);

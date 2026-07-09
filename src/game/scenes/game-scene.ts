@@ -1,7 +1,11 @@
 import Phaser from 'phaser';
 import {
+  COMBATANT_COLLISION_RADIUS,
+  COMBATANT_FILL_COLOR_BOTTOM,
+  COMBATANT_FILL_COLOR_TOP,
   CRASHED_COLOR_BOTTOM,
   CRASHED_COLOR_TOP,
+  ENCOUNTER_SPAWN_HALF_WIDTH_PX,
   ENGINE_GLOW_COLOR,
   ENGINE_GLOW_MAX_ALPHA,
   ENGINE_GLOW_RADIUS,
@@ -25,12 +29,15 @@ import {
   LANDING_PAD_FILL_COLOR_TOP,
   OBSTACLE_FILL_COLOR_BOTTOM,
   OBSTACLE_FILL_COLOR_TOP,
+  PROJECTILE_COLOR,
+  PROJECTILE_RADIUS,
   RESULT_TRANSITION_DELAY_MS,
   SCORE_BASE_LANDING_BONUS,
   SCORE_MAX_FUEL_BONUS,
   SCORE_MAX_PRECISION_BONUS,
   SCORE_MAX_TIME_BONUS,
   SCORE_TIME_PAR_MS,
+  SHIP_BASE_HULL_POINTS,
   TERRAIN_ETCH_LINE_COUNT,
   TERRAIN_MAX_HEIGHT_FRACTION,
   TERRAIN_MIN_HEIGHT_FRACTION,
@@ -42,10 +49,22 @@ import {
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
+  WEAPON_PROJECTILE_RANGE,
+  WEAPON_PROJECTILE_SPEED,
   WORLD_WIDTH,
 } from '../constants';
 import { FlightState } from '../flight/flight-state';
-import { degreesToRadians } from '../physics/lander-physics';
+import { degreesToRadians, type Vector2 } from '../physics/lander-physics';
+import { advanceCombatantState, type CombatantState } from '../combat/combatant';
+import { encounterSpawnY, spawnEncounterCombatants } from '../combat/encounter';
+import {
+  advanceProjectile,
+  isProjectileExpired,
+  spawnProjectile,
+  type Projectile,
+} from '../combat/projectile';
+import { absorbHit, effectiveDamage, type ShipCombatState } from '../combat/damage';
+import { isWithinRadius } from '../combat/collision';
 import { recordHighScore } from '../persistence/high-scores';
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
 import { loadShipProgress } from '../persistence/ship-progress';
@@ -118,6 +137,10 @@ import { ArmedKeyGuard, requireKeyboard } from './scene-utils';
 
 const MILLISECONDS_PER_SECOND = 1000;
 const FUEL_PERCENT_MULTIPLIER = 100;
+const HULL_PERCENT_MULTIPLIER = 100;
+/** Vertical spacing between stacked top-left HUD text lines (Milestone 11
+ * adds the second one, `hullText`, below `fuelText`). */
+const HUD_ROW_HEIGHT_PX = UI_BODY_FONT_SIZE_PX + HUD_MARGIN;
 const ORIGIN_CENTER = 0.5;
 const LANDER_TEXTURE_KEY = 'paper-fill-lander';
 const TERRAIN_TEXTURE_KEY = 'paper-fill-terrain';
@@ -128,8 +151,36 @@ const OBSTACLE_TEXTURE_KEY_PREFIX = 'paper-fill-obstacle-';
  * — an obstacle's silhouette is much smaller, so the same density would
  * read as visual noise rather than texture. */
 const OBSTACLE_ETCH_LINE_COUNT = 5;
+/** One texture key per spawned combatant instance (Milestone 11), keyed by
+ * `combatantSpawnCounter` below, not shared across instances — a single
+ * shared key rebaked once per simultaneously-spawned combatant (this
+ * milestone's first attempt) corrupts Phaser's WebGL texture state when
+ * two or more images reference a key still being rebaked the same frame
+ * (confirmed directly: a real browser run crashed the render loop with
+ * "Cannot read properties of null (reading 'resolution')" the instant a
+ * 4-combatant swarm spawned). Mirrors `OBSTACLE_TEXTURE_KEY_PREFIX`'s own
+ * per-index-key precedent, just keyed by spawn order instead of array
+ * index since combatants are created/destroyed throughout a flight, not
+ * all up front. */
+const COMBATANT_TEXTURE_KEY_PREFIX = 'paper-fill-combatant-';
+const COMBATANT_ETCH_LINE_COUNT = 3;
 
 type GameOutcome = 'flying' | FlightOutcome;
+
+/** One live projectile in flight plus the Phaser display object tracking it
+ * — `state` is reassigned each tick (immutable data, mutable box), matching
+ * this scene's existing `equipmentProgress`-style plain-field convention. */
+interface LiveProjectile {
+  state: Projectile;
+  readonly visual: Phaser.GameObjects.Arc;
+}
+
+/** One live combatant plus its paper-shape visual — same mutable-box
+ * convention as `LiveProjectile` above. */
+interface LiveCombatant {
+  state: CombatantState;
+  readonly visual: PaperShape;
+}
 
 /**
  * Milestone 9.5's per-trip mission payload — deliberately just the one
@@ -224,6 +275,10 @@ export class GameScene extends Phaser.Scene {
    * doesn't count against it. */
   private elapsedMs = 0;
   private fuelText!: Phaser.GameObjects.Text;
+  /** Only created for a base with real `encounters` (Milestone 11) — `null`
+   * for every pre-Milestone-11 base and free flight, which never take
+   * combat damage at all. */
+  private hullText: Phaser.GameObjects.Text | null = null;
   private outcomeText!: Phaser.GameObjects.Text;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keyA!: Phaser.Input.Keyboard.Key;
@@ -242,6 +297,34 @@ export class GameScene extends Phaser.Scene {
   private keyTriggerWeapon!: Phaser.Input.Keyboard.Key;
   private keyTriggerUtility!: Phaser.Input.Keyboard.Key;
   private pauseGuard!: ArmedKeyGuard;
+  /** Sum of every equipped shield item's `hitsAbsorbed`
+   * (`equipment/equipment.ts`'s `summarizePassiveEffects`) — resolved once
+   * in `init()`, seeded into `shipCombat.shieldHitsRemaining` fresh in
+   * `create()` each flight. */
+  private shieldHitsAvailable = 0;
+  /** Milestone 11's per-flight combat state — hull starts at the flat,
+   * ship-independent `SHIP_BASE_HULL_POINTS` every flight (`constants.ts`'s
+   * own doc comment on why hull isn't a per-ship stat). */
+  private shipCombat: ShipCombatState = { hull: 0, shieldHitsRemaining: 0 };
+  private weaponCooldownRemainingMs = 0;
+  private liveProjectiles: LiveProjectile[] = [];
+  private liveCombatants: LiveCombatant[] = [];
+  /** `EncounterSpec.id`s already spawned this flight — an encounter
+   * triggers exactly once, the moment the player first descends to its own
+   * `triggerAltitude` (checked every frame, since altitude only ever
+   * crosses that threshold moving downward). */
+  private triggeredEncounterIds = new Set<string>();
+  /** Runtime-only "has this obstacle been weapon-cleared this flight"
+   * tracking — kept separate from `this.terrain.obstacles` itself (the
+   * same array reference `bases.ts`'s curated `Obstacle[]` constants
+   * export) so clearing one in a live flight never mutates that shared,
+   * module-level authored data. */
+  private clearedObstacleIndices = new Set<number>();
+  private obstacleVisuals: PaperShape[] = [];
+  /** Monotonically increasing, never reused within a flight -- see
+   * `COMBATANT_TEXTURE_KEY_PREFIX`'s own doc comment for why each spawned
+   * combatant needs a distinct texture key. */
+  private combatantSpawnCounter = 0;
 
   constructor() {
     super(SCENE_KEY_GAME);
@@ -273,6 +356,7 @@ export class GameScene extends Phaser.Scene {
 
     const passiveEffects = summarizePassiveEffects(this.carriedItems);
     this.effectiveFuelCapacity = this.effectiveShip.fuelCapacity + passiveEffects.fuelCapacityBonus;
+    this.shieldHitsAvailable = passiveEffects.shieldHitsAvailable;
     this.totalCarriedMassThisFlight =
       totalCarriedMass(this.carriedItems) +
       cargoMass(this.missionContext?.manifestThisTrip ?? EMPTY_MANIFEST);
@@ -332,9 +416,40 @@ export class GameScene extends Phaser.Scene {
     // still mid-air, before this flight's own resolution overwrites it.
     this.data.remove('score');
     this.data.remove('crashedOnObstacle');
+    this.data.remove('destroyedInCombat');
+    this.data.remove('shipHull');
+    this.data.remove('shieldHitsRemaining');
+    this.data.remove('liveCombatantCount');
     this.data.set('activeWeaponId', this.equipmentProgress.activeWeaponId);
     this.data.set('activeUtilityId', this.equipmentProgress.activeUtilityId);
     this.elapsedMs = 0;
+
+    // Milestone 11: fresh per-flight combat state -- see this class's own
+    // field doc comments (`shipCombat`/`weaponCooldownRemainingMs`/
+    // `liveProjectiles`/`liveCombatants`/`triggeredEncounterIds`/
+    // `clearedObstacleIndices`) for why each must be reset explicitly
+    // rather than left over from a previous flight, same rationale as the
+    // `this.data.remove` calls above.
+    this.shipCombat = {
+      hull: SHIP_BASE_HULL_POINTS,
+      shieldHitsRemaining: this.shieldHitsAvailable,
+    };
+    this.weaponCooldownRemainingMs = 0;
+    this.liveProjectiles = [];
+    this.liveCombatants = [];
+    this.triggeredEncounterIds = new Set();
+    this.clearedObstacleIndices = new Set();
+    this.combatantSpawnCounter = 0;
+    // The Text object itself (if any) was already destroyed by Phaser's own
+    // scene-shutdown display-list teardown when the previous flight ended
+    // (confirmed directly: GameObject.destroy() doesn't throw on a later
+    // .setText() call, so this wasn't a crash -- just a stale reference
+    // quietly doing wasted, undefined-behavior-adjacent work against a torn
+    // -down object). Resetting the field itself here, unconditionally, is
+    // what every sibling combat field above already does; the conditional
+    // block further down in this method recreates a fresh one only for a
+    // base with real encounters.
+    this.hullText = null;
 
     buildBackground(this);
 
@@ -439,6 +554,22 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0);
     this.updateFuelText(this.effectiveFuelCapacity);
 
+    // Milestone 11: only a base with real encounters ever moves this value
+    // away from full, so the readout only exists at all when it can mean
+    // something -- every pre-Milestone-11 base/free flight renders exactly
+    // the HUD it always has.
+    if ((this.base?.encounters.length ?? 0) > 0) {
+      this.hullText = this.add
+        .text(HUD_MARGIN, HUD_MARGIN + HUD_ROW_HEIGHT_PX, '', {
+          fontFamily: 'monospace',
+          fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
+          color: hexToCss(UI_TEXT_COLOR),
+        })
+        .setDepth(HUD_LAYER_DEPTH)
+        .setScrollFactor(0);
+      this.updateHullText();
+    }
+
     this.add
       .text(GAME_WIDTH - HUD_MARGIN, HUD_MARGIN, 'ESC: pause', {
         fontFamily: 'monospace',
@@ -506,6 +637,9 @@ export class GameScene extends Phaser.Scene {
     if (this.thrustBoostRemainingMs > 0) {
       this.thrustBoostRemainingMs = Math.max(0, this.thrustBoostRemainingMs - deltaMs);
     }
+    if (this.weaponCooldownRemainingMs > 0) {
+      this.weaponCooldownRemainingMs = Math.max(0, this.weaponCooldownRemainingMs - deltaMs);
+    }
     const thrustAccelThisTick =
       this.thrustBoostRemainingMs > 0
         ? this.baseEffectiveThrustAccel + this.thrustBoostBonusAccel
@@ -518,27 +652,30 @@ export class GameScene extends Phaser.Scene {
     );
     this.elapsedMs += deltaMs;
     this.updateFuelText(snapshot.fuel);
+    this.advanceCombat(snapshot.position, deltaMs / MILLISECONDS_PER_SECOND);
 
     const groundY = getTerrainHeightAt(this.terrain.points, snapshot.position.x);
     // Milestone 10: checked every frame regardless of ground proximity — a
     // spire/debris obstacle can sit well above ground level, so a hit can
     // happen before the ground-contact check below would ever trigger.
-    // Colliding with any obstacle is unconditionally a crash (PLAN.md §10's
-    // own acceptance criteria — Milestone 10 ships no clearable obstacles),
-    // so it always short-circuits `onPad`/`isSafeLanding` below rather than
-    // being folded into their inputs.
-    const hitObstacle = this.terrain.obstacles.some((obstacle) =>
-      isCollidingWithObstacle(snapshot.position, LANDER_RADIUS, obstacle),
-    );
-    if (!hitObstacle && snapshot.position.y + LANDER_RADIUS < groundY) {
+    // Colliding with any *live* (not weapon-cleared, Milestone 11) obstacle
+    // is unconditionally a crash, so it always short-circuits
+    // `onPad`/`isSafeLanding` below rather than being folded into their
+    // inputs. Milestone 11: a ship whose combat hull just reached 0
+    // (`advanceCombat` above) is the same kind of forced, unconditional
+    // crash, from a different cause.
+    const hitObstacle = this.findLiveObstacleIndexAt(snapshot.position, LANDER_RADIUS) !== -1;
+    const destroyedInCombat = this.shipCombat.hull <= 0;
+    const forcedCrash = hitObstacle || destroyedInCombat;
+    if (!forcedCrash && snapshot.position.y + LANDER_RADIUS < groundY) {
       this.lander.container.setPosition(snapshot.position.x, snapshot.position.y);
       this.lander.container.setRotation(snapshot.rotationRadians);
       return;
     }
 
-    const onPad = !hitObstacle && isOnLandingPad(snapshot.position.x, this.terrain.landingPad);
+    const onPad = !forcedCrash && isOnLandingPad(snapshot.position.x, this.terrain.landingPad);
     const safe =
-      !hitObstacle &&
+      !forcedCrash &&
       isSafeLanding(snapshot, onPad, {
         maxSafeSpeed: LANDING_MAX_SAFE_SPEED,
         maxSafeAngleRadians: degreesToRadians(LANDING_MAX_SAFE_ANGLE_DEG),
@@ -550,15 +687,17 @@ export class GameScene extends Phaser.Scene {
     // Playwright e2e suite can observe the outcome without reaching into
     // canvas-rendered text, which isn't visible to DOM-based locators.
     this.data.set('outcome', outcome);
-    // Milestone 10: an obstacle hit and an ordinary off-pad crash both
-    // resolve to the same 'crashed' outcome above — this key is what lets
-    // the e2e suite tell them apart without reaching into canvas-rendered
-    // color, same rationale as 'outcome' itself.
+    // Milestone 10/11: an obstacle hit, a combat destruction, and an
+    // ordinary off-pad crash all resolve to the same 'crashed' outcome
+    // above — these two keys are what let the e2e suite tell them apart
+    // without reaching into canvas-rendered color, same rationale as
+    // 'outcome' itself.
     this.data.set('crashedOnObstacle', hitObstacle);
-    // An obstacle hit freezes the lander exactly where it collided (often
-    // mid-air) — snapping it to `groundY - LANDER_RADIUS` would be wrong/
-    // misleading for a crash that never touched the ground at all.
-    const touchdownY = hitObstacle ? snapshot.position.y : groundY - LANDER_RADIUS;
+    this.data.set('destroyedInCombat', destroyedInCombat);
+    // A forced crash (obstacle or combat) freezes the lander exactly where
+    // it happened (often mid-air) — snapping it to `groundY - LANDER_RADIUS`
+    // would be wrong/misleading for a crash that never touched the ground.
+    const touchdownY = forcedCrash ? snapshot.position.y : groundY - LANDER_RADIUS;
     this.lander.container.setPosition(snapshot.position.x, touchdownY);
     this.lander.setFillColors(
       safe ? LANDED_COLOR_TOP : CRASHED_COLOR_TOP,
@@ -735,9 +874,12 @@ export class GameScene extends Phaser.Scene {
    * (ground-attached rock); 'debris' draws as a plain rectangle (a floating
    * chunk, not attached to anything). Depth matches the ground/pad's own
    * `TERRAIN_SHADOW_LAYER_DEPTH` — obstacles are part of the same terrain
-   * layer, not a separate foreground/background plane. */
+   * layer, not a separate foreground/background plane. Milestone 11: shapes
+   * are kept in `this.obstacleVisuals`, indexed the same as
+   * `this.terrain.obstacles`, so a weapon-cleared obstacle
+   * (`advanceProjectiles`) can destroy its own visual by index. */
   private buildObstacleVisuals(): void {
-    this.terrain.obstacles.forEach((obstacle: Obstacle, index: number) => {
+    this.obstacleVisuals = this.terrain.obstacles.map((obstacle: Obstacle, index: number) => {
       const midX = (obstacle.xStart + obstacle.xEnd) / 2;
       const points =
         obstacle.kind === 'spire'
@@ -761,7 +903,32 @@ export class GameScene extends Phaser.Scene {
         etchStyle: 'rock',
       });
       shape.container.setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
+      return shape;
     });
+  }
+
+  /** Milestone 11: renders one live combatant — a small diamond silhouette,
+   * distinct from the lander/obstacles/terrain shapes, positioned at its
+   * initial spawn point (`advanceCombatants` repositions it every frame
+   * after). Depth matches the lander's own layer — a combatant is airborne,
+   * not part of the ground plane. */
+  private buildCombatantVisual(state: CombatantState): PaperShape {
+    const shape = createPaperShape(this, {
+      points: [
+        { x: 0, y: -COMBATANT_COLLISION_RADIUS },
+        { x: COMBATANT_COLLISION_RADIUS, y: 0 },
+        { x: 0, y: COMBATANT_COLLISION_RADIUS },
+        { x: -COMBATANT_COLLISION_RADIUS, y: 0 },
+      ],
+      textureKey: `${COMBATANT_TEXTURE_KEY_PREFIX}${(this.combatantSpawnCounter++).toString()}`,
+      fillTopColor: COMBATANT_FILL_COLOR_TOP,
+      fillBottomColor: COMBATANT_FILL_COLOR_BOTTOM,
+      etchLineCount: COMBATANT_ETCH_LINE_COUNT,
+      etchStyle: 'rock',
+    });
+    shape.container.setPosition(state.position.x, state.position.y);
+    shape.container.setDepth(LANDER_LAYER_DEPTH);
+    return shape;
   }
 
   private updateFuelText(fuel: number): void {
@@ -769,15 +936,185 @@ export class GameScene extends Phaser.Scene {
     this.fuelText.setText(`FUEL: ${percent.toString()}%`);
   }
 
-  /** Space fires the currently-active weapon. Milestone 11 owns actual
-   * combat resolution (PLAN.md's own M9 scope note: "hands off to M11") --
-   * this only exposes which weapon fired and when, via the data manager,
-   * for the e2e suite and for a future combat system to consume. */
+  private updateHullText(): void {
+    const percent = Math.round(
+      (this.shipCombat.hull / SHIP_BASE_HULL_POINTS) * HULL_PERCENT_MULTIPLIER,
+    );
+    this.hullText?.setText(`HULL: ${percent.toString()}%`);
+  }
+
+  /** Finds the index of a still-live (not weapon-cleared) obstacle
+   * colliding with a circle at `position`/`radius` — shared by the lander's
+   * own crash check and `advanceProjectiles`'s weapon-hit check, so both
+   * read `this.clearedObstacleIndices` through the exact same test. Returns
+   * -1 when nothing live collides (mirrors `Array.prototype.findIndex`). */
+  private findLiveObstacleIndexAt(position: Vector2, radius: number): number {
+    return this.terrain.obstacles.findIndex(
+      (obstacle, index) =>
+        !this.clearedObstacleIndices.has(index) &&
+        isCollidingWithObstacle(position, radius, obstacle),
+    );
+  }
+
+  /**
+   * Milestone 11's real-time combat step, run once per frame (from
+   * `update()`, after this frame's `flightState.tick`) with the lander's
+   * freshly-ticked position: spawns any encounter the flight has just
+   * descended past its own `triggerAltitude`, advances every live
+   * projectile (resolving a hit against an obstacle or a combatant), then
+   * advances every live combatant (movement, contact, and ranged attacks
+   * against the player). Order matters: a projectile landing a killing
+   * blow this frame must remove that combatant before it gets a chance to
+   * also attack/contact the player this same frame.
+   */
+  private advanceCombat(playerPosition: Vector2, deltaSeconds: number): void {
+    this.spawnTriggeredEncounters(playerPosition);
+    this.advanceProjectiles(deltaSeconds);
+    this.advanceCombatants(playerPosition, deltaSeconds);
+    this.updateHullText();
+    // Exposed via Phaser's data manager (same rationale as 'outcome'/
+    // 'crashedOnObstacle') so the e2e suite can observe live combat state
+    // without reaching into canvas-rendered text or private scene fields.
+    this.data.set('shipHull', this.shipCombat.hull);
+    this.data.set('shieldHitsRemaining', this.shipCombat.shieldHitsRemaining);
+    this.data.set('liveCombatantCount', this.liveCombatants.length);
+  }
+
+  private spawnTriggeredEncounters(playerPosition: Vector2): void {
+    for (const encounter of this.base?.encounters ?? []) {
+      if (this.triggeredEncounterIds.has(encounter.id)) {
+        continue;
+      }
+      if (playerPosition.y < encounter.triggerAltitude) {
+        continue;
+      }
+      this.triggeredEncounterIds.add(encounter.id);
+      const spawned = spawnEncounterCombatants(
+        encounter,
+        playerPosition.x,
+        ENCOUNTER_SPAWN_HALF_WIDTH_PX,
+        encounterSpawnY(encounter),
+      );
+      for (const state of spawned) {
+        this.liveCombatants.push({ state, visual: this.buildCombatantVisual(state) });
+      }
+    }
+  }
+
+  private advanceProjectiles(deltaSeconds: number): void {
+    const survivors: LiveProjectile[] = [];
+    for (const entry of this.liveProjectiles) {
+      const advanced = advanceProjectile(entry.state, deltaSeconds);
+      entry.visual.setPosition(advanced.position.x, advanced.position.y);
+
+      const obstacleIndex = this.findLiveObstacleIndexAt(advanced.position, PROJECTILE_RADIUS);
+      if (obstacleIndex !== -1) {
+        const obstacle = this.terrain.obstacles[obstacleIndex];
+        if (
+          obstacle?.armorRating !== undefined &&
+          effectiveDamage(advanced.damage, obstacle.armorRating) > 0
+        ) {
+          this.clearedObstacleIndices.add(obstacleIndex);
+          this.obstacleVisuals[obstacleIndex]?.container.destroy();
+        }
+        entry.visual.destroy();
+        continue;
+      }
+
+      const hitCombatant = this.liveCombatants.find((combatant) =>
+        isWithinRadius(
+          advanced.position,
+          combatant.state.position,
+          COMBATANT_COLLISION_RADIUS + PROJECTILE_RADIUS,
+        ),
+      );
+      if (hitCombatant) {
+        const damage = effectiveDamage(advanced.damage, hitCombatant.state.definition.armorRating);
+        hitCombatant.state = { ...hitCombatant.state, health: hitCombatant.state.health - damage };
+        entry.visual.destroy();
+        continue;
+      }
+
+      if (isProjectileExpired(advanced, WEAPON_PROJECTILE_RANGE)) {
+        entry.visual.destroy();
+        continue;
+      }
+
+      entry.state = advanced;
+      survivors.push(entry);
+    }
+    this.liveProjectiles = survivors;
+  }
+
+  private advanceCombatants(playerPosition: Vector2, deltaSeconds: number): void {
+    const survivors: LiveCombatant[] = [];
+    for (const entry of this.liveCombatants) {
+      if (entry.state.health <= 0) {
+        entry.visual.container.destroy();
+        continue;
+      }
+
+      const state = advanceCombatantState(entry.state, playerPosition, deltaSeconds);
+      const { definition } = state;
+
+      if (
+        definition.contactDamage > 0 &&
+        isWithinRadius(playerPosition, state.position, COMBATANT_COLLISION_RADIUS + LANDER_RADIUS)
+      ) {
+        this.shipCombat = absorbHit(this.shipCombat, definition.contactDamage);
+        entry.visual.container.destroy();
+        continue;
+      }
+
+      let attackCooldownRemainingMs = Math.max(
+        0,
+        state.attackCooldownRemainingMs - deltaSeconds * MILLISECONDS_PER_SECOND,
+      );
+      if (
+        definition.attack !== null &&
+        attackCooldownRemainingMs <= 0 &&
+        isWithinRadius(playerPosition, state.position, definition.attack.range)
+      ) {
+        this.shipCombat = absorbHit(this.shipCombat, definition.attack.damagePerHit);
+        attackCooldownRemainingMs = definition.attack.cooldownMs;
+      }
+
+      entry.state = { ...state, attackCooldownRemainingMs };
+      entry.visual.container.setPosition(state.position.x, state.position.y);
+      survivors.push(entry);
+    }
+    this.liveCombatants = survivors;
+  }
+
+  /** Space fires the currently-active weapon (Milestone 9's cycle/trigger
+   * input, PLAN.md's own scope note: "hands off to M11"). Gated on the
+   * weapon's own `cooldownMs` (its "fire rate") -- a press while still on
+   * cooldown is a silent no-op, matching a real semi-/burst-fire weapon
+   * rather than every keypress guaranteeing a shot. */
   private triggerActiveWeapon(): void {
     const weaponId = this.equipmentProgress.activeWeaponId;
-    if (weaponId === null) {
+    if (weaponId === null || this.weaponCooldownRemainingMs > 0) {
       return;
     }
+    const item = findEquipmentById(weaponId);
+    if (item.slotType !== 'weapon') {
+      return;
+    }
+    const { position, rotationRadians } = this.flightState.snapshot;
+    const projectile = spawnProjectile(
+      position,
+      rotationRadians,
+      WEAPON_PROJECTILE_SPEED,
+      item.damage,
+    );
+    const visual = this.add.circle(
+      projectile.position.x,
+      projectile.position.y,
+      PROJECTILE_RADIUS,
+      PROJECTILE_COLOR,
+    );
+    this.liveProjectiles.push({ state: projectile, visual });
+    this.weaponCooldownRemainingMs = item.cooldownMs;
     this.data.set('lastTriggeredWeaponId', weaponId);
   }
 

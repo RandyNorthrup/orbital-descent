@@ -3446,7 +3446,268 @@ opening "Status" paragraph above for the full writeup. Depends on
 
 ---
 
-### Milestone 11 — Weapons & Combat (not started)
+### Milestone 11 — Weapons & Combat (certified)
+
+**Status: certified** (2026-07-08). Built entirely by the main session
+directly (no delegated Workflow build — this milestone's surface area is
+almost entirely pure-logic/physics-adjacent code, same as every milestone
+since M7), then independently adversarially reviewed via a scoped Workflow
+before certifying.
+
+**What shipped**: a new `src/game/combat/` module — `damage.ts`
+(`effectiveDamage`, `absorbHit`/`ShipCombatState`, shared by both real-time
+combat and the closed-form fit-check estimate below), `projectile.ts`
+(`spawnProjectile`/`advanceProjectile`/`isProjectileExpired`, plain
+straight-line motion — no gravity/drag, a fired shot isn't subject to this
+game's flight physics), `combatant.ts` (`advanceCombatantState`'s three
+movement patterns — `'static'` never moves, `'homing'` turns toward the
+player at a bounded `turnRateDegPerSec` then moves forward, `'diveStrafe'`
+closes straight-line distance to the player while holding its own authored
+altitude — plus the two authored `CombatantDefinition`s, `VERDALIS_WASP`
+and `GLACIAN_WARDEN`), and `encounter.ts` (`spawnEncounterCombatants`,
+`simulateEncounter`'s closed-form pre-flight estimate, and the two authored
+`EncounterSpec`s). `physics/lander-physics.ts` gained a small shared
+`headingVector` primitive (the same heading-to-vector trig `thrustVector`
+already used, now also reused by a fired projectile's muzzle velocity — the
+weapon fires along whichever heading the ship already faces, not a
+separately-invented aiming model). `equipment/equipment.ts`'s
+`WeaponEquipmentItem` gained `cooldownMs` (a weapon's fire rate — Pulse
+Cannon 300ms, Autocannon 500ms) and `UtilityEffect` gained a `'shield'`
+variant plus a new "Barrier Shield" item (tier 1, absorbs 1 hit, the first
+real item satisfying `BaseRequirements.combat.minShieldTier` — D14 named
+"Shields" as an M9 upgrade category, but M9 never shipped one; M11 is the
+first milestone that actually needs one live). `bases/difficulty.ts` gained
+`computeCombatAxis` (worst-case encounter threat relative to
+`SHIP_BASE_HULL_POINTS`, plus how far the toughest combatant's `armorRating`
+pushes past this game's own armor ceiling — the same two-term, additively-
+clamped shape as the mechanical/spatial axes) and `computeDifficultyProfile`
+now takes real `encounters` instead of hardcoding `combat: 0`.
+`bases/fit-check.ts`'s `resolveCombatOutcome` now really calls
+`simulateEncounter` (against the loadout's strongest carried weapon, a
+documented heuristic — a real pilot can cycle to whichever weapon they
+want) instead of throwing. Meridian Yard (Verdalis, hazard-free, no
+obstacles) got this project's first encounter — a swarm of four unarmored
+Verdalis Wasps, introduced alone per §6b.1's pacing rule, any weapon at all
+clears them instantly (`armorRating: 0`) and bare-handed survival is also
+possible (4 × 6 = 24 contact damage against 30 hull). Frostgate (already
+this game's hardest base — cold hazard, tightest-among-obstacle-bases pad,
+two M10 obstacles) got a single Glacian Warden whose `armorRating: 20`
+hard-fails the tier-1 Pulse Cannon's 15 damage entirely (the "Bruiser"
+archetype), forcing the tier-2 Autocannon — and its own spire obstacle
+gained `armorRating: 20` too, becoming this project's first weapon-
+clearable obstacle (exactly the "M10 ships obstacles as pure hazards first,
+M11 makes some of them clearable" sequencing `Obstacle.armorRating`'s own
+doc comment always anticipated); its debris chunk stays a permanent hazard.
+With these real numbers, Frostgate now classifies as `dominant: 'combat'`
+(`{mechanical: 4, spatial: 5, combat: 7}`) — see this section's own later
+"adversarial review" write-up below for why this is `combat`, not
+`'capstone-balanced'` as originally computed (a same-session off-by-one
+fix in the ranged-attack estimate raised Frostgate's `combat` axis from 6
+to 7, past `capstone-balanced`'s max spread). `GameScene` gained real-time
+combat: `Q`/`E`/Space/`F`'s
+existing M9 cycle/trigger input now does something — Space spawns a real
+projectile (gated on the weapon's own `cooldownMs`, its fire rate);
+per-frame, `advanceCombat` spawns any encounter the flight has just
+descended past its own `triggerAltitude`, advances every live projectile
+(resolving a hit against an obstacle — clearing it if `armorRating`
+permits — or a combatant), then advances every live combatant (movement,
+contact, and ranged attacks against the player, all through the same
+`absorbHit`/shield-then-hull resolution). A depleted hull is a new forced-
+crash cause, generalizing M10's `hitObstacle`-only short-circuit into
+`forcedCrash = hitObstacle || destroyedInCombat`, with a new
+`destroyedInCombat` data-manager key mirroring `crashedOnObstacle`'s own
+pattern. A small "HULL: N%" HUD readout (mirroring the existing fuel
+readout) only renders for a base with real `encounters`.
+
+**Deliberately not built, and why**: a dedicated e2e test proving weapon
+fire clears an obstacle specifically (as opposed to damaging a hostile).
+The acceptance criterion is an OR ("clears an obstacle or damages a
+hostile"), already proven in a real browser by `e2e/combat.spec.ts`'s
+weapon test against Meridian Yard's swarm; orchestrating a second real
+piloted flight that both survives Frostgate's Warden _and_ precisely hits
+its spire would add substantial maneuver-tuning fragility (the same class
+of difficulty M10's own obstacle-collision e2e test already documents) for
+a behavior whose pure logic (`effectiveDamage`, `isCollidingWithObstacle`,
+the projectile-vs-obstacle branch's own unit-level equivalents) and a real
+end-to-end `simulateEncounter` proof against the actual curated Frostgate
+data (`bases.test.ts`) are already thoroughly covered. A genuine, named gap
+— not silently dropped — revisit if a future milestone's own test needs
+push this further. Also not built: per-combatant health bars or any other
+combat HUD beyond the hull percentage (this milestone's own "simple
+behavior, not necessarily complex AI" scope note; a defeated combatant's
+visual simply disappears, matching the paper-cutout style's existing
+"outcome is legible from color/presence, not a numeric overlay" convention
+elsewhere in this project).
+
+**A real defect found and fixed via direct testing (not the adversarial
+review, which ran after this was already fixed)**: the first real-browser
+run of the swarm encounter froze the entire render loop the instant the
+4-wasp swarm spawned, throwing `Cannot read properties of null (reading
+'resolution')` inside Phaser's WebGL renderer. Root cause: `buildCombatant
+Visual` originally reused **one shared texture key** across every live
+combatant (reasoned, incorrectly, that combatants share the same
+silhouette so one rebaked texture should serve all of them, unlike
+obstacles' own per-index-key precedent). `createPaperShape` **rebakes**
+its texture on every call — spawning 4 combatants in the same synchronous
+loop meant 4 back-to-back rebakes of the _same_ WebGL texture while
+earlier calls' `Image` objects still referenced it mid-frame, corrupting
+Phaser's texture state. Fixed by giving each spawned combatant instance
+its own texture key, keyed by a monotonically increasing
+`combatantSpawnCounter` (reset per flight) — mirroring `buildObstacleVisuals`'s
+own per-index-key precedent, just keyed by spawn order instead of array
+index since combatants are created/destroyed throughout a flight rather
+than all up front. Confirmed fixed by re-running the exact same real
+browser scenario (position/health telemetry logged every 200ms) clean
+through a full encounter.
+
+**A real design correction, found via the same direct testing**:
+`spawnEncounterCombatants` originally spread a triggered encounter's
+combatants across `[0, WORLD_WIDTH)` — this game's full 3-screen-wide world
+(Decision D19). Confirmed directly that most of a swarm spawned too far
+from the player to ever plausibly reach it before the flight concluded,
+which would read as "the encounter mostly doesn't happen" in practice, not
+a real ambush. Fixed before it ever shipped: combatants now spawn within
+`spawnCenterX Β± spawnHalfWidth` (150px), centered on the player's own
+position at trigger time — still deterministic given the encounter's own
+seed, just centered on wherever the player actually is instead of the
+whole world.
+
+**A real, pre-existing-screen layout regression, caught by the full e2e
+suite (not the adversarial review)**: adding the Barrier Shield equipment
+item pushed both `LoadoutScene`'s utility column (5 β†’ 6 rows) and
+`StoreScene`'s equipment column (4 β†’ 5 purchase-type items) past
+`GAME_HEIGHT`, landing each screen's `BACK` button off-canvas — six e2e
+tests across `loadout.spec.ts`/`store.spec.ts` failed with `<html>`/`<body>`
+intercepting the click, since Playwright's canvas-relative click landed
+below the visible 640px-tall canvas. Both screens' own layout constants
+were originally hand-tuned and screenshot-verified for an _exact_ item
+count (their own doc comments say so explicitly), so a new equipment item
+was always going to require a real fix, not a tolerance built in from the
+start. Fixed two different ways matching each screen's own remaining
+slack: `LoadoutScene` tightened `ROW_GAP_PX` (12β†’6) and
+`BACK_BUTTON_GAP_PX` (24β†’12), reclaiming enough vertical room for a 6th
+row without touching `INFO_LINE_GAP_PX` (the one spacing constant already
+documented as having caused a real visual overlap once before, at a value
+this fix never approaches). `StoreScene` had no such vertical slack left
+for a 5th row in a single column, so its `'equipment'` column split into
+its own `WEAPONS`/`UTILITY` sub-columns instead — mirroring
+`LoadoutScene`'s own established weapon/utility split precedent — moving
+from 3 to 4 horizontal columns and re-deriving every column's x-position
+(re-verified against real screenshots, both the "everything locked" and
+"everything affordable" render states, the tallest/widest cases for
+height and width respectively). One stale e2e assertion
+(`store.spec.ts`'s `waitForSceneText(..., 'EQUIPMENT', ...)`) was updated
+to wait for the new `'WEAPONS'` header instead. All 27
+`loadout.spec.ts`/`store.spec.ts` tests pass across chromium/firefox/
+webkit after the fix.
+
+**An adversarial review pass, and what it found**: after the above shipped
+and passed its own full gate list once, a scoped 4-dimension Workflow
+review (`acceptance-criteria`, `architecture-compliance`,
+`state-and-collision-correctness`, `regression-safety`, each independently
+3-vote-verified) ran against this milestone's real working tree. It
+correctly refuted some over-broad claims (e.g. an exaggerated version of
+the `hullText` finding below, claiming the stale `Text` object stayed
+"visibly rendered" — refuted because Phaser's own scene-shutdown
+display-list teardown does destroy it; the real bug is narrower, see
+below) and confirmed several genuine defects, all fixed same-session:
+
+- `vitest.config.ts`'s coverage `include` list never gained
+  `src/game/combat/**` — every combat module's coverage was invisible to
+  the 90/85/90/90 gate despite tests existing for most of it.
+  `collision.ts`'s `isWithinRadius` in particular had zero coverage
+  anywhere. Fixed: added the include entry, wrote `collision.test.ts` (7
+  cases), and closed one more real gap the fix exposed (`combatant.ts`'s
+  `diveStrafe` branch for `distance === 0`, previously untested).
+- `game-scene.ts`'s `this.hullText` was the one M11 per-flight field never
+  reset in `create()` (its 7 siblings all are). Not a crash and not a
+  visible rendering leak (the `Text` object itself is genuinely destroyed
+  by Phaser's own teardown) — the real bug is the dangling _reference_
+  still getting `.setText()` called on it every frame by `advanceCombat`
+  during a subsequent non-combat flight, silent undefined-behavior-
+  adjacent busywork against a torn-down object. Fixed: `this.hullText =
+null;` added to the reset block.
+- The closed-form ranged-attack estimate (`combat/encounter.ts`'s
+  `applyRangedAttacks`, and independently `bases/difficulty.ts`'s
+  `worstCaseThreat`) undercounted hits by exactly one relative to the real
+  rule `combatant.ts`'s `spawnCombatant` establishes (`attackCooldown
+RemainingMs: 0` — ready to fire immediately) combined with this game's
+  actual spawn geometry (max spawn distance β‰ˆ155px, well inside the
+  Glacian Warden's 280px range at t=0). Fixed: both formulas changed from
+  `Math.floor(durationMs / cooldownMs)` to `+ 1`. This cascaded:
+  Frostgate's `computeCombatAxis` recomputed from 6 to 7 (Warden's real
+  worst-case threat is 3 hits Γ— 18 damage, not 2 Γ— 18), which broke the
+  `'capstone-balanced'` classification this section originally described
+  above (spread went from 2 to 3) — Frostgate now correctly classifies as
+  `dominant: 'combat'`. `difficulty.test.ts`/`bases.test.ts` updated to
+  match the corrected numbers.
+- A **critical, pre-existing bug not introduced by this milestone**:
+  `menu-scene.ts`'s `startFlight()` and `result-scene.ts`'s `restart()`
+  both called `this.scene.start(SCENE_KEY_GAME)` with no data argument.
+  Confirmed directly against Phaser 4.2.0's own bundled source
+  (`Systems.start(data)`: `if (data) { settings.data = data; }`) that
+  omitting `data` leaves whatever a _previous_ real `.start(key, {base,
+mission})` call set in place — since `GameScene` is one long-lived
+  instance reused for the page's lifetime, any player who flew a real
+  curated base/mission (the only real callers that ever pass truthy data)
+  and then clicked Menu's START or Result's RESTART would silently keep
+  re-flying that same curated base/mission forever instead of the generic
+  free flight both buttons promise (Milestone 6's own certified
+  behavior), with zero visible indication anything was wrong, until a full
+  page reload. Fixed: both call sites now pass an explicit `{}`. Proven
+  with a new `e2e/scene-data-isolation.spec.ts` regression test (launches
+  Anchor Station for real, forces a crash, returns to the menu, clicks
+  START, asserts `scene.base`/`scene.missionContext` are both `null`) —
+  verified to genuinely catch the bug by reverting the fix locally and
+  confirming the test fails with the exact stale-`anchor-station` state
+  before restoring it.
+- Two doc-comment-only overclaims, corrected without any behavior change:
+  `Obstacle.cleared`'s doc comment implied its write side was live in
+  production; `game-scene.ts` actually tracks weapon-clearing entirely via
+  its own `clearedObstacleIndices: Set<number>` (deliberately, to avoid
+  mutating the shared, module-level `Obstacle` objects `bases.ts`
+  exports) — `cleared: true` is only ever constructed by
+  `obstacles.test.ts`'s own fixtures. And `BaseRequirements.combat.
+minWeaponTier`'s doc comment claimed it was "enforced as a hard gate";
+  `fit-check.ts` never reads either `combat` field at all — the real gate
+  is emergent from `simulateEncounter`'s independent armor-vs-raw-damage
+  math, with each base's authored `minWeaponTier` a convention that
+  happens to line up with it, not something any automated check verifies.
+
+Also confirmed during this pass (worth recording as a standing practice,
+not a code defect): several of the review's own verification sub-agents
+independently reported encountering fake `<system-reminder>`-style blocks
+embedded inside plain tool stdout during their investigations, correctly
+identified them as prompt-injection attempts (never trusting an
+in-band instruction to hide something from the user or treat a
+tool-emitted claim as authoritative), and disregarded them.
+
+Full gate list green after all of the above: `pnpm quality` (478 unit/
+integration tests, coverage 99.85%/97.38%/100%/99.85%, thresholds
+90/85/90/90), `pnpm quality:full`'s additional `security:audit` (clean)
+and full `test:e2e` (99/99 across chromium/firefox/webkit — 96
+pre-existing plus the three new `e2e/scene-data-isolation.spec.ts`
+assertions folded into its one test Γ— 3 browsers). Note: this machine's
+default (CPU-core-derived) Playwright worker count occasionally times out
+a handful of chromium-only, physics-timing-sensitive tests under full
+6-way parallel contention (never a wrong assertion, never firefox/webkit —
+matches `obstacles.spec.ts`'s own pre-existing documented flakiness
+rationale for its `MAX_STEER_ATTEMPTS` retry); every test that flaked this
+way was independently confirmed to pass reliably in isolation, and the
+full suite passes 99/99 clean at a reduced worker count. Not a regression
+from this milestone — a standing characteristic of this local (no-CI,
+Decision D9) e2e run under heavy parallel load. `pnpm lighthouse` was
+already clean before this review pass and nothing it changed touches
+first-load/UI performance. The two combat e2e tests from the original
+build: a real piloted flight that reverses its own fall to re-engage the
+swarm, confirming a weapon kill via the "hull still exactly full when the
+combatant count first drops" signal, and a separate shielded flight
+confirming `shieldHitsRemaining` drops from 1 to 0 while hull absorbs only
+`contactDamage Γ— (contacts beyond the first)`, never the full amount. Both
+use a bounded 3-attempt retry (mirroring `missions.spec.ts`'s
+`MAX_ORIGIN_ATTEMPTS`/`obstacles.spec.ts`'s `MAX_STEER_ATTEMPTS`
+precedent) since a real timed-keyboard maneuver against a homing target is
+measurably sensitive to per-frame timing jitter under worker contention.
 
 **Goal**: A weapons system per Decision D12 (landing + active combat, not
 open-ended) — projectile physics, collision with obstacles (clearing
@@ -3483,7 +3744,9 @@ outcome).
 
 **Required quality gates**: full gate list, must stay green.
 
-**Certification checklist**: not started. Depends on M9 and M10.
+**Certification checklist**: **certified** — see this section's own
+opening "Status" paragraph above for the full writeup. Depended on
+**Milestone 9** and **Milestone 10** (both already certified).
 
 ---
 

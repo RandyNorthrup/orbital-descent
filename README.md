@@ -8,14 +8,25 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 10 (Obstacles & Hazardous Conditions)
-certified — see `PLAN.md`'s Milestone 10 section for the full
-certification writeup. Two curated bases (Scarp Outpost, Frostgate) now
-carry static flight hazards (rock spires, floating debris) alongside their
-terrain — colliding with one is an unconditional crash, and each base's
-computed difficulty badge on the world map now factors obstacle density
-into its spatial score. On top of: Milestone 9.5 (Mission & Cargo Delivery
-System, certified) — selecting a reachable
+**Current status**: Milestone 11 (Weapons & Combat) certified — see
+`PLAN.md`'s Milestone 11 section for the full certification writeup. The
+weapon/utility trigger input Milestone 9 already wired now does something:
+Space fires a real, cooldown-gated projectile along whichever heading the
+ship is currently facing. Meridian Yard carries this project's first
+hostile encounter (a weak, unarmored swarm); Frostgate — already this
+game's hardest base — carries a tougher single hostile whose armor plating
+hard-fails the starter weapon, forcing the tier-2 Autocannon, and one of
+its own static obstacles is now weapon-clearable. A shielded ship absorbs
+one hit before taking hull damage; a depleted hull ends the flight the same
+way colliding with an obstacle does. On top of: Milestone 10 (Obstacles &
+Hazardous Conditions, certified) — two curated bases (Scarp Outpost,
+Frostgate) carry static flight hazards (rock spires, floating debris)
+alongside their terrain — colliding with an uncleared one is an
+unconditional crash, and each base's computed difficulty badge on the
+world map factors obstacle density into its spatial score (and, as of
+Milestone 11, real encounter data into its combat score). On top of:
+Milestone 9.5 (Mission & Cargo Delivery System, certified) — selecting a
+reachable
 base on the WORLD MAP screen now opens that base's own mission options
 instead of launching a flight directly: **Establish Presence** (a new
 base's one-time founding mission, requiring a per-base troop garrison),

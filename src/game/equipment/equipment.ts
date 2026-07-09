@@ -1,5 +1,5 @@
 import type { ShipClass } from '../ships/ship';
-import type { LoadoutTag, WeaponTier } from '../bases/base';
+import type { LoadoutTag, ShieldTier, WeaponTier } from '../bases/base';
 
 export type EquipmentSlotType = 'weapon' | 'utility';
 
@@ -30,28 +30,37 @@ export interface WeaponEquipmentItem {
   readonly acquisition: EquipmentAcquisition;
   readonly tier: WeaponTier;
   /** Benefit stat paired with `mass` per M9's "pros-and-cons bundle" rule —
-   * consumed by M11's `damagePerHit − armorRating` combat math, not read by
-   * anything in this milestone. */
+   * consumed by M11's `damagePerHit − armorRating` combat math. */
   readonly damage: number;
+  /** Milliseconds between shots (this weapon's "fire rate") — Milestone
+   * 11's `scenes/game-scene.ts` gates `triggerActiveWeapon` on this, and
+   * `combat/encounter.ts`'s `simulateEncounter` uses it identically for
+   * its closed-form estimate, so a weapon's fire rate measurably changes
+   * both real gameplay and the pre-flight advisory the same way. */
+  readonly cooldownMs: number;
   readonly tags: readonly LoadoutTag[];
 }
 
 /**
  * A utility item's effect (Decision D14's "boost" category). Two shapes:
  * **passive** effects (`fuelCapacityBonus`/`corrosionResistance`/
- * `coldResistance`) apply automatically for the whole flight the moment the
- * item is equipped, with no cycle/trigger involved — these are the exact
- * named countermeasures PLAN.md §6b.1's puzzle table already calls for
- * (`Fuel Tank`, `Corrosion Coating`, `Thermal Lining`). **Active** effects
- * (`repairKit`/`thrustBurst`) are the ones the cycle/trigger mechanic
- * actually selects and fires — `GameScene` "applies the utility effect
- * directly" (M9's own scope note) only for this half of the union; the
- * passive half has nothing left to do at trigger time; it's already active.
+ * `coldResistance`/`shield`) apply automatically for the whole flight the
+ * moment the item is equipped, with no cycle/trigger involved — these are
+ * the exact named countermeasures PLAN.md §6b.1's puzzle table already
+ * calls for (`Fuel Tank`, `Corrosion Coating`, `Thermal Lining`), plus
+ * Milestone 11's `shield` (a "Barrier Shield" absorbs a hit outright the
+ * instant it lands — there's nothing to select/trigger, unlike a weapon).
+ * **Active** effects (`repairKit`/`thrustBurst`) are the ones the
+ * cycle/trigger mechanic actually selects and fires — `GameScene` "applies
+ * the utility effect directly" (M9's own scope note) only for this half of
+ * the union; the passive half has nothing left to do at trigger time; it's
+ * already active.
  */
 export type UtilityEffect =
   | { readonly kind: 'fuelCapacityBonus'; readonly amount: number }
   | { readonly kind: 'corrosionResistance' }
   | { readonly kind: 'coldResistance' }
+  | { readonly kind: 'shield'; readonly tier: ShieldTier; readonly hitsAbsorbed: number }
   | { readonly kind: 'repairKit'; readonly fuelRestored: number }
   | {
       readonly kind: 'thrustBurst';
@@ -76,11 +85,11 @@ export type EquipmentItem = WeaponEquipmentItem | UtilityEquipmentItem;
  * exact items PLAN.md §6b.1's puzzle-countermeasure table already names for
  * the fuel-margin, corrosive-drain, and cold-penalty archetypes (`Fuel
  * Tank`, `Corrosion Coating`, `Thermal Lining`), plus a repair kit and
- * thrust booster for the "boost" utility examples in M9's own Goal text, and
- * two weapons (tiers 1/2) so Milestone 11 has real gear to resolve combat
- * against. Every `EquipmentAcquisition` variant is represented at least
- * once across both slot types, mirroring `ships/ships.ts`'s own roster
- * convention.
+ * thrust booster for the "boost" utility examples in M9's own Goal text,
+ * two weapons (tiers 1/2), and (Milestone 11) a Barrier Shield so
+ * `BaseRequirements.combat.minShieldTier` has a real item to satisfy.
+ * Every `EquipmentAcquisition` variant is represented at least once across
+ * both slot types, mirroring `ships/ships.ts`'s own roster convention.
  */
 export const EQUIPMENT_ITEMS: readonly EquipmentItem[] = [
   {
@@ -91,6 +100,7 @@ export const EQUIPMENT_ITEMS: readonly EquipmentItem[] = [
     acquisition: { type: 'purchase', price: 200 },
     tier: 1,
     damage: 15,
+    cooldownMs: 300,
     tags: ['combat-capable'],
   },
   {
@@ -105,6 +115,7 @@ export const EQUIPMENT_ITEMS: readonly EquipmentItem[] = [
     },
     tier: 2,
     damage: 30,
+    cooldownMs: 500,
     tags: ['combat-capable'],
   },
   {
@@ -141,6 +152,15 @@ export const EQUIPMENT_ITEMS: readonly EquipmentItem[] = [
     },
     effect: { kind: 'coldResistance' },
     tags: ['cold-hardened'],
+  },
+  {
+    slotType: 'utility',
+    id: 'barrier-shield',
+    name: 'Barrier Shield',
+    mass: 10,
+    acquisition: { type: 'purchase', price: 110 },
+    effect: { kind: 'shield', tier: 1, hitsAbsorbed: 1 },
+    tags: ['combat-capable'],
   },
   {
     slotType: 'utility',
@@ -208,12 +228,20 @@ export interface EquippedPassiveEffects {
   readonly fuelCapacityBonus: number;
   readonly corrosionResistant: boolean;
   readonly coldResistant: boolean;
+  /** Sum of every equipped shield item's `hitsAbsorbed` (Milestone 11) —
+   * summed rather than capped at one, matching `fuelCapacityBonus`'s own
+   * additive-stacking convention, even though this project's roster ships
+   * only one shield item today. Consumed by `combat/damage.ts`'s
+   * `absorbHit` (via `ShipCombatState.shieldHitsRemaining`), seeded from
+   * this value once per flight. */
+  readonly shieldHitsAvailable: number;
 }
 
 export function summarizePassiveEffects(items: readonly EquipmentItem[]): EquippedPassiveEffects {
   let fuelCapacityBonus = 0;
   let corrosionResistant = false;
   let coldResistant = false;
+  let shieldHitsAvailable = 0;
 
   for (const item of items) {
     if (item.slotType !== 'utility') {
@@ -229,11 +257,14 @@ export function summarizePassiveEffects(items: readonly EquipmentItem[]): Equipp
       case 'coldResistance':
         coldResistant = true;
         break;
+      case 'shield':
+        shieldHitsAvailable += item.effect.hitsAbsorbed;
+        break;
       case 'repairKit':
       case 'thrustBurst':
         break;
     }
   }
 
-  return { fuelCapacityBonus, corrosionResistant, coldResistant };
+  return { fuelCapacityBonus, corrosionResistant, coldResistant, shieldHitsAvailable };
 }

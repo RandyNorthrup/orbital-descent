@@ -133,7 +133,13 @@ export class ResultScene extends Phaser.Scene {
   }
 
   private restart(): void {
-    this.scene.start(SCENE_KEY_GAME);
+    // An explicit empty object, not an omitted argument -- see
+    // menu-scene.ts's `startFlight()` doc comment for why: Phaser's own
+    // `Systems.start(data)` only overwrites `settings.data` when `data` is
+    // truthy, so omitting it here would silently leave whatever curated
+    // `base`/`mission` a previous real flight launched with in place,
+    // re-flying it forever instead of the free flight RESTART promises.
+    this.scene.start(SCENE_KEY_GAME, {});
   }
 
   private toMainMenu(): void {

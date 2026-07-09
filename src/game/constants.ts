@@ -108,6 +108,21 @@ export const LANDING_PAD_FILL_COLOR_BOTTOM = 0x3aa859;
 export const OBSTACLE_FILL_COLOR_TOP = 0xd97b5a;
 export const OBSTACLE_FILL_COLOR_BOTTOM = 0x8f3b28;
 
+/** Milestone 11's living hostiles — a hostile violet, deliberately distinct
+ * from every other palette color already in use (lander's cool blue-teal,
+ * landed green, crashed/obstacle red-orange) so "this is alive and
+ * attacking" reads as its own visual category. */
+export const COMBATANT_FILL_COLOR_TOP = 0xc57ad9;
+export const COMBATANT_FILL_COLOR_BOTTOM = 0x6b3f8f;
+
+/** A fired projectile's small, bright "energy bolt" look — a plain filled
+ * circle (`Phaser.GameObjects.Arc`), not a full paper-shape (shadow +
+ * gradient fill + outline): at this size, and at whatever rate a fast
+ * weapon fires, the full paper-cutout treatment would read as visual noise
+ * rather than texture, and cost far more to bake/rebake per shot. */
+export const PROJECTILE_COLOR = 0xf5e050;
+export const PROJECTILE_RADIUS = 4;
+
 /** Shared near-black outline/shadow color for every cutout shape. */
 export const OUTLINE_COLOR = 0x1a1410;
 export const OUTLINE_WIDTH = 3;
@@ -367,6 +382,46 @@ export const TRANSIT_LAUNCH_OVERHEAD = 8;
  * multi-trip Resupply mission, rather than a per-base authored number. */
 export const MULTI_TRIP_RESUPPLY_TARGET_SUPPLIES = 60;
 export const MULTI_TRIP_RESUPPLY_TIME_LIMIT_MS = 300000;
+
+/* ---------------------------------------------------------------------- */
+/* Combat (PLAN.md Milestone 11) — src/game/combat/**, scenes/game-scene.ts */
+/* ---------------------------------------------------------------------- */
+
+/** Every ship's hull-point pool for combat purposes — a flat,
+ * ship-independent constant, not a `ShipClass` field: PLAN.md's own worked
+ * combat examples (§6b.5) apply the same baseline hull regardless of which
+ * ship class is flown (a Falcon and a Hauler facing the same hostile both
+ * work from "hull 30"), matching this project's "arcade game, not a
+ * physics sandbox" stance (§4) rather than adding a per-ship armor stat
+ * this roster doesn't otherwise need. */
+export const SHIP_BASE_HULL_POINTS = 30;
+
+/** A fired projectile's muzzle speed, px/s — shared across every weapon
+ * (only `damage`/`cooldownMs` vary per weapon, `equipment/equipment.ts`'s
+ * `WeaponEquipmentItem`); one fewer authored dial than modeling per-weapon
+ * speed, and this project's acceptance criteria only asks that a weapon's
+ * damage/fire-rate measurably change outcomes, not its projectile speed. */
+export const WEAPON_PROJECTILE_SPEED = 500;
+
+/** How far a projectile travels, px, before despawning unspent — bounds an
+ * indefinitely-missed shot to a lifetime proportionate to this game's
+ * combat encounter ranges (`bases/combat` registry's own `attack.range`
+ * values are all well under this). */
+export const WEAPON_PROJECTILE_RANGE = 400;
+
+/** Shared collision/contact radius, px, for every combatant — this
+ * milestone's roster is small and deliberately simple (PLAN.md's own
+ * "simple behavior, not necessarily complex AI" scope note), so one shared
+ * size (comparable to `LANDER_RADIUS`) stands in for a per-combatant
+ * hitbox rather than adding an authored dial no design currently needs. */
+export const COMBATANT_COLLISION_RADIUS = 16;
+
+/** Half-width, px, of the box a triggered encounter's combatants spawn
+ * within, centered on the player's own x position at trigger time
+ * (`combat/encounter.ts`'s `spawnEncounterCombatants`) — keeps a "swarm"
+ * feeling like a close, real ambush rather than scattered across this
+ * game's full multi-screen-wide world (Decision D19). */
+export const ENCOUNTER_SPAWN_HALF_WIDTH_PX = 150;
 
 /** Reference duration (seconds) `missions/relay.ts`'s pre-launch
  * feasibility gate assumes for each of a relay's two flown descent legs —

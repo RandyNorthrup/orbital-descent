@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateBaseFit } from './fit-check';
-import type { Base, BaseRequirements, HandlingBand, TWRBand } from './base';
+import type { Base, BaseRequirements, CombatantDefinition, HandlingBand, TWRBand } from './base';
 import type { CelestialBody, Hazard } from '../planets/celestial-body';
 import type { ShipClass } from '../ships/ship';
 import type { PermanentUpgrade } from '../ships/upgrades';
@@ -118,6 +118,7 @@ describe('evaluateBaseFit — mechanical (TWR) branch', () => {
       acquisition: { type: 'purchase', price: 1 },
       tier: 1,
       damage: 1,
+      cooldownMs: 300,
       tags: [],
     };
     const unloaded = evaluateBaseFit(ship, [], [], body, makeBase());
@@ -248,24 +249,153 @@ describe('evaluateBaseFit — spatial (handling) branch', () => {
 });
 
 describe('evaluateBaseFit — combat branch', () => {
-  it("is 'not-applicable' for a base with no encounters (every base authored before Milestone 11)", () => {
-    const result = evaluateBaseFit(makeShip(), [], [], makeBody(18), makeBase());
-    expect(result.combatOutcome).toBe('not-applicable');
-  });
+  const WEAK_COMBATANT: CombatantDefinition = {
+    id: 'test-weak',
+    health: 10,
+    armorRating: 0,
+    contactDamage: 4,
+    attack: null,
+    movement: { kind: 'static' },
+  };
+  const ARMORED_COMBATANT: CombatantDefinition = {
+    id: 'test-armored',
+    health: 10,
+    armorRating: 50,
+    contactDamage: 0,
+    attack: null,
+    movement: { kind: 'static' },
+  };
 
-  it('throws for a base with a non-empty encounters list (Milestone 11 does not exist yet)', () => {
-    const base = makeBase({
+  function makeEncounterBase(combatant: CombatantDefinition): Base {
+    return makeBase({
       encounters: [
         {
           id: 'test-encounter',
-          combatants: [],
-          clearWindowMs: 1000,
+          combatants: [{ definition: combatant, count: 1 }],
+          clearWindowMs: 5000,
           triggerAltitude: 100,
           seed: 1,
         },
       ],
     });
-    expect(() => evaluateBaseFit(makeShip(), [], [], makeBody(18), base)).toThrow(/Milestone 11/);
+  }
+
+  it("is 'not-applicable' for a base with no encounters (every base authored before Milestone 11)", () => {
+    const result = evaluateBaseFit(makeShip(), [], [], makeBody(18), makeBase());
+    expect(result.combatOutcome).toBe('not-applicable');
+  });
+
+  it('is uncleared with no weapon equipped', () => {
+    const base = makeEncounterBase(WEAK_COMBATANT);
+    const result = evaluateBaseFit(makeShip(), [], [], makeBody(18), base);
+    expect(result.combatOutcome).not.toBe('not-applicable');
+    if (result.combatOutcome !== 'not-applicable') {
+      expect(result.combatOutcome.cleared).toBe(false);
+    }
+  });
+
+  it('clears once a weapon strong enough to clear the armor floor is equipped', () => {
+    const base = makeEncounterBase(WEAK_COMBATANT);
+    const weapon: EquipmentItem = {
+      slotType: 'weapon',
+      id: 'test-weapon',
+      name: 'Test Weapon',
+      mass: 1,
+      acquisition: { type: 'purchase', price: 1 },
+      tier: 1,
+      damage: 20,
+      cooldownMs: 100,
+      tags: [],
+    };
+    const result = evaluateBaseFit(makeShip(), [], [weapon], makeBody(18), base);
+    expect(result.combatOutcome).not.toBe('not-applicable');
+    if (result.combatOutcome !== 'not-applicable') {
+      expect(result.combatOutcome.cleared).toBe(true);
+    }
+  });
+
+  it('picks the strongest of several equipped weapons, regardless of listed order', () => {
+    const base = makeEncounterBase(ARMORED_COMBATANT);
+    const weak: EquipmentItem = {
+      slotType: 'weapon',
+      id: 'test-weak-weapon',
+      name: 'Weak Weapon',
+      mass: 1,
+      acquisition: { type: 'purchase', price: 1 },
+      tier: 1,
+      damage: 10,
+      cooldownMs: 100,
+      tags: [],
+    };
+    const strong: EquipmentItem = {
+      slotType: 'weapon',
+      id: 'test-strong-weapon',
+      name: 'Strong Weapon',
+      mass: 1,
+      acquisition: { type: 'purchase', price: 1 },
+      tier: 2,
+      damage: 60,
+      cooldownMs: 100,
+      tags: [],
+    };
+    // Weak-then-strong: bestCarriedWeapon's reduce must swap to the later,
+    // stronger item -- not just default to whichever came first.
+    const weakFirst = evaluateBaseFit(makeShip(), [], [weak, strong], makeBody(18), base);
+    // Strong-then-weak: the reduce must also correctly *keep* the earlier,
+    // already-strongest item rather than overwriting it with a weaker one.
+    const strongFirst = evaluateBaseFit(makeShip(), [], [strong, weak], makeBody(18), base);
+    for (const result of [weakFirst, strongFirst]) {
+      expect(result.combatOutcome).not.toBe('not-applicable');
+      if (result.combatOutcome !== 'not-applicable') {
+        // Only the 60-damage weapon clears ARMORED_COMBATANT's 50 armor.
+        expect(result.combatOutcome.cleared).toBe(true);
+      }
+    }
+  });
+
+  it('stays uncleared when every equipped weapon’s damage cannot clear the combatant’s armor floor', () => {
+    const base = makeEncounterBase(ARMORED_COMBATANT);
+    const weapon: EquipmentItem = {
+      slotType: 'weapon',
+      id: 'test-weapon',
+      name: 'Test Weapon',
+      mass: 1,
+      acquisition: { type: 'purchase', price: 1 },
+      tier: 1,
+      damage: 20,
+      cooldownMs: 100,
+      tags: [],
+    };
+    const result = evaluateBaseFit(makeShip(), [], [weapon], makeBody(18), base);
+    expect(result.combatOutcome).not.toBe('not-applicable');
+    if (result.combatOutcome !== 'not-applicable') {
+      expect(result.combatOutcome.cleared).toBe(false);
+    }
+  });
+
+  it('an equipped shield raises hullRemaining against the same encounter', () => {
+    const base = makeEncounterBase(WEAK_COMBATANT);
+    const shield: EquipmentItem = {
+      slotType: 'utility',
+      id: 'test-shield',
+      name: 'Test Shield',
+      mass: 1,
+      acquisition: { type: 'purchase', price: 1 },
+      effect: { kind: 'shield', tier: 1, hitsAbsorbed: 1 },
+      tags: [],
+    };
+    const without = evaluateBaseFit(makeShip(), [], [], makeBody(18), base);
+    const withShield = evaluateBaseFit(makeShip(), [], [shield], makeBody(18), base);
+    if (
+      without.combatOutcome !== 'not-applicable' &&
+      withShield.combatOutcome !== 'not-applicable'
+    ) {
+      expect(withShield.combatOutcome.hullRemaining).toBeGreaterThan(
+        without.combatOutcome.hullRemaining,
+      );
+    } else {
+      expect.fail('expected both combatOutcome results to be applicable');
+    }
   });
 });
 

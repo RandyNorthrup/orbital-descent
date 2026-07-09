@@ -79,6 +79,7 @@ describe('summarizePassiveEffects', () => {
       fuelCapacityBonus: 0,
       corrosionResistant: false,
       coldResistant: false,
+      shieldHitsAvailable: 0,
     });
   });
 
@@ -92,6 +93,7 @@ describe('summarizePassiveEffects', () => {
       fuelCapacityBonus: 40,
       corrosionResistant: true,
       coldResistant: true,
+      shieldHitsAvailable: 0,
     });
   });
 
@@ -105,6 +107,12 @@ describe('summarizePassiveEffects', () => {
       fuelCapacityBonus: 0,
       corrosionResistant: false,
       coldResistant: false,
+      shieldHitsAvailable: 0,
     });
+  });
+
+  it('sums shieldHitsAvailable from equipped Barrier Shield items (Milestone 11)', () => {
+    const items: readonly EquipmentItem[] = [findEquipmentById('barrier-shield')];
+    expect(summarizePassiveEffects(items).shieldHitsAvailable).toBe(1);
   });
 });

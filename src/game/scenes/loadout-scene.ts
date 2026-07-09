@@ -81,12 +81,13 @@ const UPGRADES_LINE_Y_FRACTION = 0.19;
 const COLUMN_HEADER_Y_FRACTION = 0.23;
 const LIST_START_Y_FRACTION = 0.27;
 
-/** How far left/right of center each equipment column sits (2 weapons vs 5
- * utility items split into their own column, per LAYOUT SAFETY guidance —
- * halves the tallest column from 7 rows to 5). Leaves ~220px of half-width
- * budget on each side before the two columns' text could ever meet at
- * center, comfortably more than this roster's longest row string (`"UNLOCK:
- * ESTABLISH SCARP OUTPOST"` at `UI_BODY_FONT_SIZE_PX`, ~300px wide) needs. */
+/** How far left/right of center each equipment column sits (2 weapons vs 6
+ * utility items, Milestone 11's Barrier Shield the latest addition, split
+ * into their own column per LAYOUT SAFETY guidance — halves the tallest
+ * column from 8 rows to 6). Leaves ~220px of half-width budget on each side
+ * before the two columns' text could ever meet at center, comfortably more
+ * than this roster's longest row string (`"UNLOCK: ESTABLISH SCARP
+ * OUTPOST"` at `UI_BODY_FONT_SIZE_PX`, ~300px wide) needs. */
 const WEAPON_COLUMN_X_FRACTION = 0.27;
 const UTILITY_COLUMN_X_FRACTION = 0.73;
 
@@ -103,8 +104,12 @@ const UTILITY_COLUMN_X_FRACTION = 0.73;
 const INFO_LINE_GAP_PX = 6;
 /** Breathing room between one row's info line and the next row's main line —
  * widened alongside `INFO_LINE_GAP_PX` above for the same real-screenshot
- * reason. */
-const ROW_GAP_PX = 12;
+ * reason, then reduced again by Milestone 11 (12 -> 6) once a 6th utility
+ * item (Barrier Shield) pushed the utility column's `BACK` button past
+ * `GAME_HEIGHT` -- re-verified against a real screenshot that this smaller
+ * gap alone (not `INFO_LINE_GAP_PX`, which stays at its own already-tight
+ * proven value) keeps every row visually separated. */
+const ROW_GAP_PX = 6;
 /** Half of a real `createUiButton`'s own painted height (font + padding on
  * each side) — the largest a row's main line can be, since a locked/no-fit
  * row's plain-text main line (`UI_BODY_FONT_SIZE_PX`) is always shorter.
@@ -132,8 +137,9 @@ const ROW_HEIGHT_PX =
 /** Gap between the taller column's last row and the BACK button — computed
  * off the actual accumulated column height (see `renderEquipmentColumn`)
  * rather than a fixed fraction, matching every other list scene's identical
- * convention. */
-const BACK_BUTTON_GAP_PX = 24;
+ * convention. Reduced by Milestone 11 (24 -> 12) alongside `ROW_GAP_PX`,
+ * same reason. */
+const BACK_BUTTON_GAP_PX = 12;
 
 /* ---------------------------------------------------------------------- */
 /* Milestone 9.5's mission/cargo extension                                 */
@@ -280,6 +286,8 @@ function equipmentStatTag(item: EquipmentItem): string {
       return `${mass} · CORROSION RESIST (UTILITY)`;
     case 'coldResistance':
       return `${mass} · COLD RESIST (UTILITY)`;
+    case 'shield':
+      return `${mass} · BLOCKS ${effect.hitsAbsorbed.toString()} HIT (SHIELD T${effect.tier.toString()}, UTILITY)`;
     case 'repairKit':
       return `${mass} · +${effect.fuelRestored.toString()} FUEL ON USE (UTILITY)`;
     case 'thrustBurst': {

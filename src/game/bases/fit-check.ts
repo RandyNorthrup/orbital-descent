@@ -5,9 +5,11 @@ import {
   summarizePassiveEffects,
   totalCarriedMass,
   type EquipmentItem,
+  type EquippedPassiveEffects,
 } from '../equipment/equipment';
 import type { CelestialBody } from '../planets/celestial-body';
-import { SCORE_TIME_PAR_MS } from '../constants';
+import { SCORE_TIME_PAR_MS, SHIP_BASE_HULL_POINTS } from '../constants';
+import { simulateEncounter, type SimulatedWeapon } from '../combat/encounter';
 import type { Base, HandlingBand, TWRBand } from './base';
 
 const MILLISECONDS_PER_SECOND = 1000;
@@ -81,29 +83,61 @@ function estimateFuelNeeded(ship: ShipClass, passiveDrainRate: number): number {
   return (ship.burnRate + passiveDrainRate) * referenceDescentSeconds;
 }
 
-/** Milestone 11 replaces this with a real `simulateEncounter(...)` call —
- * every base authored before that milestone ships has an empty
- * `encounters` array (`Base.encounters`'s own doc comment), so reaching a
- * non-empty one here is a real data-authoring bug, not a reachable,
- * silently-wrong result to paper over. */
-function resolveCombatOutcome(base: Base): BaseFitResult['combatOutcome'] {
+/** The loadout's single most-effective weapon by raw damage, or `null` if
+ * none is equipped — a simple, documented heuristic (not a full per-
+ * encounter optimization over every equipped weapon) for this advisory
+ * estimate: a real pilot can cycle (M9's Q key) to whichever weapon they
+ * want mid-flight, so "the best one carried" is the fit-relevant question,
+ * not "whichever happens to be active right now." */
+function bestCarriedWeapon(loadout: readonly EquipmentItem[]): SimulatedWeapon | null {
+  const weapons = loadout.filter(
+    (item): item is Extract<EquipmentItem, { slotType: 'weapon' }> => item.slotType === 'weapon',
+  );
+  if (weapons.length === 0) {
+    return null;
+  }
+  const strongest = weapons.reduce((best, item) => (item.damage > best.damage ? item : best));
+  return { damage: strongest.damage, cooldownMs: strongest.cooldownMs };
+}
+
+/**
+ * Milestone 11's real combat branch: `base.encounters.length === 0` for
+ * every base authored before this milestone (`Base.encounters`'s own doc
+ * comment) stays `'not-applicable'`, unchanged; a non-empty roster is
+ * simulated via `combat/encounter.ts`'s `simulateEncounter` against the
+ * loadout's best carried weapon and its summarized passive shield effect —
+ * `cleared` requires every one of the base's encounters to clear, and
+ * `hullRemaining` is the worst (lowest) result across them, matching this
+ * project's "pessimistic advisory" philosophy elsewhere in this file
+ * (`estimateFuelNeeded`'s own doc comment).
+ */
+function resolveCombatOutcome(
+  base: Base,
+  loadout: readonly EquipmentItem[],
+  passiveEffects: EquippedPassiveEffects,
+): BaseFitResult['combatOutcome'] {
   if (base.encounters.length === 0) {
     return 'not-applicable';
   }
-  throw new Error(
-    'evaluateBaseFit: base.encounters is non-empty, but Milestone 11 combat simulation does not exist yet.',
+  const weapon = bestCarriedWeapon(loadout);
+  const results = base.encounters.map((encounter) =>
+    simulateEncounter(encounter, weapon, passiveEffects.shieldHitsAvailable, SHIP_BASE_HULL_POINTS),
   );
+  return {
+    cleared: results.every((result) => result.cleared),
+    hullRemaining: Math.min(...results.map((result) => result.hullRemaining)),
+  };
 }
 
 /**
  * The three-branch facade (PLAN.md §6b.2): mechanical (thrust-to-weight,
- * fuel margin), spatial (handling), and combat (currently always
- * `'not-applicable'` — see `resolveCombatOutcome`). `upgrades`/`loadout` are
- * folded onto `ship` via `applyPermanentUpgrades`/
- * `equipment.ts`'s mass-and-passive-effect math before any comparison
- * against `base.requirements`, so this is the one place those thresholds
- * are ever evaluated against a ship's stats — never a second, independently
- * computed verdict elsewhere.
+ * fuel margin), spatial (handling), and combat (`'not-applicable'` for a
+ * base with no encounters, otherwise `resolveCombatOutcome`'s real
+ * `simulateEncounter` estimate). `upgrades`/`loadout` are folded onto
+ * `ship` via `applyPermanentUpgrades`/`equipment.ts`'s mass-and-passive-
+ * effect math before any comparison against `base.requirements`, so this
+ * is the one place those thresholds are ever evaluated against a ship's
+ * stats — never a second, independently computed verdict elsewhere.
  */
 export function evaluateBaseFit(
   ship: ShipClass,
@@ -133,7 +167,7 @@ export function evaluateBaseFit(
       ? 'not-applicable'
       : bandFor(upgradedShip.handling, base.requirements.handling);
 
-  const combatOutcome = resolveCombatOutcome(base);
+  const combatOutcome = resolveCombatOutcome(base, loadout, passiveEffects);
 
   const warnings: string[] = [];
   if (twrBand === 'impossible') {

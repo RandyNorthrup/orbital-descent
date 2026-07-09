@@ -5,9 +5,12 @@ import { BODIES } from '../planets/bodies';
 import { findShipById } from '../ships/ships';
 import { generateTerrain } from '../terrain/terrain-generator';
 import { isCollidingWithObstacle } from '../terrain/obstacles';
+import { simulateEncounter } from '../combat/encounter';
+import { findEquipmentById } from '../equipment/equipment';
 import {
   GAME_HEIGHT,
   LANDER_RADIUS,
+  SHIP_BASE_HULL_POINTS,
   TERRAIN_MAX_HEIGHT_FRACTION,
   TERRAIN_MIN_HEIGHT_FRACTION,
   TERRAIN_SEGMENTS,
@@ -135,9 +138,11 @@ describe('BASES', () => {
     const expectedDifficulty = computeDifficultyProfile(
       base.requirements,
       base.terrainOptions,
+      base.encounters,
       body,
       {
         thrustAccel: findShipById('falcon').baseThrustAccel,
+        hullPoints: SHIP_BASE_HULL_POINTS,
       },
     );
 
@@ -228,5 +233,80 @@ describe('Milestone 10 curated obstacle layouts', () => {
         }
       }
     }
+  });
+});
+
+// Milestone 11: Meridian Yard and Frostgate carry this project's first two
+// real EncounterSpecs -- proves the curated roster end-to-end against the
+// real combat/difficulty/equipment modules, not just each module's own
+// isolated unit tests.
+describe('Milestone 11 curated encounters', () => {
+  it('gives Meridian Yard and Frostgate at least one authored encounter, and every other base none', () => {
+    const withEncounters = new Set(['meridian-yard', 'frostgate']);
+    for (const base of BASES) {
+      if (withEncounters.has(base.id)) {
+        expect(base.encounters.length).toBeGreaterThan(0);
+      } else {
+        expect(base.encounters).toEqual([]);
+      }
+    }
+  });
+
+  it("every base's combat difficulty axis is nonzero if and only if it has encounters", () => {
+    for (const base of BASES) {
+      if (base.encounters.length > 0) {
+        expect(base.difficulty.axes.combat).toBeGreaterThan(0);
+      } else {
+        expect(base.difficulty.axes.combat).toBe(0);
+      }
+    }
+  });
+
+  it("Frostgate's Glacian Warden hard-fails the tier-1 Pulse Cannon but is clearable by the tier-2 Autocannon", () => {
+    const frostgate = findBaseById('frostgate');
+    const pulseCannon = findEquipmentById('pulse-cannon');
+    const autocannon = findEquipmentById('autocannon');
+    if (pulseCannon.slotType !== 'weapon' || autocannon.slotType !== 'weapon') {
+      throw new Error('expected pulse-cannon and autocannon to both be weapons');
+    }
+
+    for (const encounter of frostgate.encounters) {
+      const withPulseCannon = simulateEncounter(
+        encounter,
+        { damage: pulseCannon.damage, cooldownMs: pulseCannon.cooldownMs },
+        0,
+        SHIP_BASE_HULL_POINTS,
+      );
+      expect(withPulseCannon.cleared).toBe(false);
+
+      const withAutocannon = simulateEncounter(
+        encounter,
+        { damage: autocannon.damage, cooldownMs: autocannon.cooldownMs },
+        0,
+        SHIP_BASE_HULL_POINTS,
+      );
+      expect(withAutocannon.cleared).toBe(true);
+    }
+
+    expect(frostgate.requirements.combat.minWeaponTier).toBe(2);
+  });
+
+  it("classifies Frostgate as 'combat'-dominant now that Milestone 11 populates its combat axis", () => {
+    // mechanical 4, spatial 5 (both unchanged since Milestone 10). combat:
+    // Glacian Warden's attack (damagePerHit 18, cooldownMs 2200) against
+    // FROSTGATE_ENCOUNTER's clearWindowMs (6000) -> floor(6000/2200) + 1
+    // (the "+1" is the guaranteed immediate hit at t=0, see
+    // computeCombatAxis's own doc comment) = 3 hits -> 54 threat.
+    // threatScore = 54/(3*30) = 0.6 -> 0.6*6 = 3.6. armorRating 20 vs the
+    // 25 reference -> armorScore 0.8 -> 0.8*4 = 3.2. Sum 6.8 -> rounds to 7.
+    const frostgate = findBaseById('frostgate');
+    expect(frostgate.difficulty.axes).toEqual({ mechanical: 4, spatial: 5, combat: 7 });
+    // Spread (7-4=3) exceeds CAPSTONE_MAX_SPREAD(2), so this base is
+    // combat-dominant rather than capstone-balanced -- difficulty.test.ts's
+    // own synthetic "classifies a base with every axis at 4" test already
+    // proves the capstone-balanced classification itself is reachable in
+    // principle; Frostgate's own real, corrected numbers just don't happen
+    // to land in that band.
+    expect(frostgate.difficulty.dominant).toBe('combat');
   });
 });

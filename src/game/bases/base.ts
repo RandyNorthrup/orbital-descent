@@ -1,20 +1,16 @@
 import type { GenerateTerrainOptions } from '../terrain/terrain-generator';
 
 /**
- * Defined here, not imported from Milestone 11's combat module — `Base`
- * needs this type from Milestone 6's first line of code (the `encounters`
- * field below), and a type-only import of a file that doesn't exist until
- * Milestone 11 (four milestones later) is a real compile failure, not a
- * "populate later" deferral (that pattern only works for *values*, e.g.
- * `encounters: []`, not for the *type* of a field). Milestone 11's own
- * `src/game/combat/encounter.ts`/`combatant.ts` import these types from
- * here (a backward reference) and are where real combatant instances get
- * authored and movement/attack/damage resolution actually runs — this file
- * only owns the shape.
- *
- * @public not imported anywhere yet (nothing authors a real combatant
- * until Milestone 11) — deliberately forward-declared, not dead code;
- * this tag tells knip so it isn't flagged as an unused export.
+ * Defined here, not in Milestone 11's combat module — `Base` needed this
+ * type from Milestone 6's first line of code (the `encounters` field
+ * below), well before Milestone 11's `src/game/combat/` existed, and a
+ * type-only import of a file that didn't exist yet would have been a real
+ * compile failure, not a "populate later" deferral (that pattern only
+ * works for *values*, e.g. `encounters: []`, not for the *type* of a
+ * field). `src/game/combat/encounter.ts`/`combatant.ts` import these types
+ * from here (a backward reference) and are where real combatant instances
+ * are authored and movement/attack/damage resolution actually runs — this
+ * file only owns the shape.
  */
 export interface CombatantDefinition {
   readonly id: string;
@@ -33,8 +29,8 @@ export interface CombatantDefinition {
     | { readonly kind: 'diveStrafe'; readonly speed: number; readonly diveAltitude: number };
 }
 
-/** @public forward-declared for Milestone 11, same rationale as
- * `CombatantDefinition` above — not dead code. */
+/** Same rationale as `CombatantDefinition` above for being defined here
+ * rather than in `src/game/combat/`. */
 export interface EncounterSpec {
   readonly id: string;
   readonly combatants: readonly {
@@ -97,6 +93,16 @@ export interface HandlingBand {
  */
 export type WeaponTier = 0 | 1 | 2 | 3;
 
+/**
+ * Shield-tier scale (PLAN.md §6b.2), same rationale as `WeaponTier` above
+ * for being pulled out as its own alias rather than left inline. Milestone
+ * 11 authors the one real shield item this project ships
+ * (`equipment/equipment.ts`'s "Barrier Shield", tier 1) against this same
+ * type, so a shield item's own tier and a base's `minShieldTier`
+ * requirement below compare directly with no conversion.
+ */
+export type ShieldTier = 0 | 1 | 2;
+
 export interface BaseRequirements {
   readonly minTWR: TWRBand;
   /** null = this base places no spatial precision demand beyond the
@@ -110,11 +116,20 @@ export interface BaseRequirements {
   readonly combat: {
     /** The tier below which every equipped weapon deals zero effective
      * damage against this base's toughest combatant. 0 = no weapon
-     * required at all (obstacle-avoidable or zero-combat base). Enforced
-     * as a hard gate once Milestone 9's `evaluateBaseFit` lands. */
+     * required at all (obstacle-avoidable or zero-combat base). Documents
+     * intent, not an enforced gate: `fit-check.ts`'s `evaluateBaseFit`
+     * never reads this field directly. The real gate is emergent —
+     * `resolveCombatOutcome` calls `simulateEncounter`'s own
+     * armor-vs-raw-damage math against whatever weapon is actually carried,
+     * which independently hard-fails an under-tier weapon (e.g. Frostgate's
+     * Glacian Warden's `armorRating: 20` zeroing out the tier-1 Pulse
+     * Cannon's 15 damage). Authoring this value to line up with that
+     * emergent outcome (as every base here does) is a convention, not
+     * something any automated check verifies. */
     readonly minWeaponTier: WeaponTier;
-    /** Soft, UI-only recommendation — never enforced as a gate. */
-    readonly minShieldTier: 0 | 1 | 2;
+    /** Soft, UI-only recommendation — never enforced as a gate, emergent or
+     * otherwise. Nothing in `fit-check.ts` reads this field. */
+    readonly minShieldTier: ShieldTier;
   };
 }
 

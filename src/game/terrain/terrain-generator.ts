@@ -33,12 +33,18 @@ export interface Obstacle {
   readonly yTop: number; // smaller y = higher (Phaser y-down)
   readonly yBottom: number;
   /** Absent = a pure flight hazard (crash on contact, unconditionally).
-   * Present once Milestone 11 ships = combat-clearable: `armorRating` is
-   * the effective-damage floor, `cleared` flips once its own health (not
-   * modeled here) reaches zero. Milestone 10 itself never sets either
-   * field — every obstacle it authors or generates is, by construction,
-   * uncleared (PLAN.md §10's own acceptance criteria). */
+   * Present = combat-clearable: `armorRating` is the effective-damage floor
+   * a weapon must exceed to damage it at all (debris stays a pure permanent
+   * hazard, never given an `armorRating`, PLAN.md §6b.2). */
   readonly armorRating?: number;
+  /** Never written in production: `Obstacle` objects are shared,
+   * module-level data exported from `bases.ts`, so mutating one's own
+   * `cleared` field to record a real weapon-clear would corrupt that shared
+   * state for every other flight against the same base. `game-scene.ts`
+   * tracks per-flight clearing in its own `clearedObstacleIndices:
+   * Set<number>` instead and never sets this field. It exists purely as
+   * `isCollidingWithObstacle`'s general-purpose "already cleared" escape
+   * hatch, exercised directly by `obstacles.test.ts`'s own fixtures. */
   readonly cleared?: boolean;
 }
 

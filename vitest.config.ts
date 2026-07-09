@@ -33,15 +33,16 @@ export default defineConfig({
       // ship-progress/currency-progress/upgrade-progress/equipment-progress
       // persistence, the celestial-body registry, the base/difficulty/
       // fit-check registry, the ship/upgrade registry, the equipment
-      // registry, the economy layer, and the mission/cargo/relay/reward
-      // layer) that unit + integration tests actually exercise. Scene glue
-      // and Phaser-dependent rendering (src/game/scenes/**, most of
-      // src/game/rendering/**, src/main.ts) wire that logic into Phaser/the
-      // DOM and are verified by the Playwright e2e smoke test instead — no
-      // meaningful behavior to unit-test in isolation. starfield.ts and
-      // ridgeline.ts are the exception within rendering/: pure, seeded
-      // layout generators (same shape as terrain-generator.ts), so they're
-      // included here rather than under the untested rendering blanket.
+      // registry, the economy layer, the mission/cargo/relay/reward layer,
+      // and (Milestone 11) the combat layer) that unit + integration tests
+      // actually exercise. Scene glue and Phaser-dependent rendering
+      // (src/game/scenes/**, most of src/game/rendering/**, src/main.ts)
+      // wire that logic into Phaser/the DOM and are verified by the
+      // Playwright e2e smoke test instead — no meaningful behavior to
+      // unit-test in isolation. starfield.ts and ridgeline.ts are the
+      // exception within rendering/: pure, seeded layout generators (same
+      // shape as terrain-generator.ts), so they're included here rather
+      // than under the untested rendering blanket.
       include: [
         'src/game/physics/**/*.ts',
         'src/game/flight/**/*.ts',
@@ -55,6 +56,7 @@ export default defineConfig({
         'src/game/equipment/**/*.ts',
         'src/game/economy/**/*.ts',
         'src/game/missions/**/*.ts',
+        'src/game/combat/**/*.ts',
         'src/game/rendering/starfield.ts',
         'src/game/rendering/ridgeline.ts',
       ],

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeCombatAxis,
   computeDifficultyProfile,
   computeMechanicalAxis,
   computeSpatialAxis,
   type DifficultyShipReference,
 } from './difficulty';
-import type { BaseRequirements, TWRBand } from './base';
+import type { BaseRequirements, CombatantDefinition, EncounterSpec, TWRBand } from './base';
 import type { CelestialBody, Hazard } from '../planets/celestial-body';
 import type { GenerateTerrainOptions, Obstacle } from '../terrain/terrain-generator';
 
@@ -68,7 +69,7 @@ function makeTerrainOptions(
   };
 }
 
-const SHIP_REFERENCE: DifficultyShipReference = { thrustAccel: 46 };
+const SHIP_REFERENCE: DifficultyShipReference = { thrustAccel: 46, hullPoints: 30 };
 
 // The bands from PLAN.md §6b.5's "Aerthos Flats" worked example — generous
 // enough that bareTWR never approaches hardFloor for any gravityAccel used
@@ -152,15 +153,100 @@ describe('computeSpatialAxis', () => {
   });
 });
 
+/** Only `armorRating`/`contactDamage`/`attack` are exercised by
+ * `computeCombatAxis` — the rest of `CombatantDefinition` is filled with
+ * arbitrary-but-valid placeholder values. */
+function makeCombatant(overrides: Partial<CombatantDefinition> = {}): CombatantDefinition {
+  return {
+    id: 'test-combatant',
+    health: 10,
+    armorRating: 0,
+    contactDamage: 0,
+    attack: null,
+    movement: { kind: 'static' },
+    ...overrides,
+  };
+}
+
+function makeEncounter(
+  combatant: CombatantDefinition,
+  clearWindowMs = 5000,
+  count = 1,
+): EncounterSpec {
+  return {
+    id: 'test-encounter',
+    combatants: [{ definition: combatant, count }],
+    clearWindowMs,
+    triggerAltitude: 100,
+    seed: 1,
+  };
+}
+
+describe('computeCombatAxis', () => {
+  it('scores 0 for a base with no encounters (every base before Milestone 11)', () => {
+    expect(computeCombatAxis([], SHIP_REFERENCE)).toBe(0);
+  });
+
+  it('scores the full threat component when worst-case contact threat meets the hull multiple', () => {
+    // threat = 90 (contactDamage * count); reference = 3 * hullPoints(30) = 90 -> threatScore = 1 -> 1*6 = 6.
+    const encounter = makeEncounter(makeCombatant({ contactDamage: 90 }));
+    expect(computeCombatAxis([encounter], SHIP_REFERENCE)).toBe(6);
+  });
+
+  it('scores the full armor component when armorRating meets the armor reference', () => {
+    // armorScore = 25/25 = 1 -> 1*4 = 4; threat = 0.
+    const encounter = makeEncounter(makeCombatant({ armorRating: 25 }));
+    expect(computeCombatAxis([encounter], SHIP_REFERENCE)).toBe(4);
+  });
+
+  it('scales both components linearly below their references and sums them', () => {
+    // threat = 45 -> threatScore = 45/90 = 0.5 -> 0.5*6 = 3.
+    // armor = 12.5 -> armorScore = 12.5/25 = 0.5 -> 0.5*4 = 2. Total = 5.
+    const encounter = makeEncounter(makeCombatant({ contactDamage: 45, armorRating: 12.5 }));
+    expect(computeCombatAxis([encounter], SHIP_REFERENCE)).toBe(5);
+  });
+
+  it('sums ranged-attack damage across only the hits landable within clearWindowMs, plus the guaranteed immediate hit', () => {
+    // damagePerHit 18, cooldownMs 2000, clearWindowMs 6000 -> floor(6000/2000) + 1
+    // (the "+1" is the guaranteed t=0 hit -- a freshly spawned combatant's
+    // attackCooldownRemainingMs starts at 0) = 4 hits -> 72 threat.
+    // threatScore = 72/90 = 0.8 -> 0.8*6 = 4.8; armor = 0 -> total rounds to 5.
+    const encounter = makeEncounter(
+      makeCombatant({ attack: { damagePerHit: 18, cooldownMs: 2000, range: 200 } }),
+      6000,
+    );
+    expect(computeCombatAxis([encounter], SHIP_REFERENCE)).toBe(5);
+  });
+
+  it('takes the worst single encounter across multiple, not their sum', () => {
+    const weak = makeEncounter(makeCombatant({ contactDamage: 10 }));
+    const strong = makeEncounter(makeCombatant({ contactDamage: 90, armorRating: 25 }));
+    expect(computeCombatAxis([weak, strong], SHIP_REFERENCE)).toBe(
+      computeCombatAxis([strong], SHIP_REFERENCE),
+    );
+  });
+
+  it('clamps at 10 when both components exceed their references', () => {
+    const encounter = makeEncounter(makeCombatant({ contactDamage: 200, armorRating: 200 }));
+    expect(computeCombatAxis([encounter], SHIP_REFERENCE)).toBe(10);
+  });
+});
+
 describe('computeDifficultyProfile', () => {
   it('classifies a low-every-axis base as tutorial with the correctly-computed budget', () => {
     const body = makeBody(18, null);
     const requirements = makeRequirements(GENEROUS_TWR);
     const terrainOptions = makeTerrainOptions(8, 0);
-    // mechanical = 1, spatial = 0, combat = 0 (always).
+    // mechanical = 1, spatial = 0, combat = 0 (no encounters).
     // highest = 1 <= TUTORIAL_MAX_AXIS(1) -> 'tutorial'.
     // budget uses mechanical as the dominant score: 1.0*1 + 0.4*(0+0) = 1.
-    const profile = computeDifficultyProfile(requirements, terrainOptions, body, SHIP_REFERENCE);
+    const profile = computeDifficultyProfile(
+      requirements,
+      terrainOptions,
+      [],
+      body,
+      SHIP_REFERENCE,
+    );
     expect(profile).toEqual({
       axes: { mechanical: 1, spatial: 0, combat: 0 },
       dominant: 'tutorial',
@@ -174,7 +260,13 @@ describe('computeDifficultyProfile', () => {
     const terrainOptions = makeTerrainOptions(8, 0);
     // mechanical = 5, spatial = 0, combat = 0.
     // budget = 1.0*5 (dominant) + 0.4*(0+0) (others) = 5.
-    const profile = computeDifficultyProfile(requirements, terrainOptions, body, SHIP_REFERENCE);
+    const profile = computeDifficultyProfile(
+      requirements,
+      terrainOptions,
+      [],
+      body,
+      SHIP_REFERENCE,
+    );
     expect(profile).toEqual({
       axes: { mechanical: 5, spatial: 0, combat: 0 },
       dominant: 'mechanical',
@@ -188,7 +280,13 @@ describe('computeDifficultyProfile', () => {
     const terrainOptions = makeTerrainOptions(2, 0);
     // mechanical = 1, spatial = 7, combat = 0.
     // budget = 1.0*7 (dominant) + 0.4*(1+0) (others) = 7.4.
-    const profile = computeDifficultyProfile(requirements, terrainOptions, body, SHIP_REFERENCE);
+    const profile = computeDifficultyProfile(
+      requirements,
+      terrainOptions,
+      [],
+      body,
+      SHIP_REFERENCE,
+    );
     expect(profile.axes).toEqual({ mechanical: 1, spatial: 7, combat: 0 });
     expect(profile.dominant).toBe('spatial');
     expect(profile.budget).toBeCloseTo(7.4);
@@ -203,12 +301,39 @@ describe('computeDifficultyProfile', () => {
     // combat = 0. mechanical and spatial are jointly highest -> tie-break
     // picks mechanical first (mechanical, then spatial, then combat).
     // budget = 1.0*5 (dominant) + 0.4*(5+0) (others) = 5 + 2 = 7.
-    const profile = computeDifficultyProfile(requirements, terrainOptions, body, SHIP_REFERENCE);
+    const profile = computeDifficultyProfile(
+      requirements,
+      terrainOptions,
+      [],
+      body,
+      SHIP_REFERENCE,
+    );
     expect(profile).toEqual({
       axes: { mechanical: 5, spatial: 5, combat: 0 },
       dominant: 'mechanical',
       budget: 7,
     });
+  });
+
+  it('classifies a base whose combat axis strictly exceeds both others as combat-dominant', () => {
+    const body = makeBody(18, null);
+    const requirements = makeRequirements(GENEROUS_TWR);
+    const terrainOptions = makeTerrainOptions(8, 0);
+    // mechanical = 1, spatial = 0.
+    // combat: armorRating at the armor reference (25) alone -> 4*1 = 4 (see
+    // computeCombatAxis's own "scores the full armor component" test).
+    const encounters = [makeEncounter(makeCombatant({ armorRating: 25 }))];
+    const profile = computeDifficultyProfile(
+      requirements,
+      terrainOptions,
+      encounters,
+      body,
+      SHIP_REFERENCE,
+    );
+    expect(profile.axes).toEqual({ mechanical: 1, spatial: 0, combat: 4 });
+    expect(profile.dominant).toBe('combat');
+    // budget = 1.0*4 (dominant) + 0.4*(1+0) (others) = 4.4.
+    expect(profile.budget).toBeCloseTo(4.4);
   });
 
   it('classifies exactly-at-threshold as tutorial and just-above as dominant-axis, proving the branches are mutually exclusive and correctly ordered', () => {
@@ -217,6 +342,7 @@ describe('computeDifficultyProfile', () => {
     const atThreshold = computeDifficultyProfile(
       makeRequirements(GENEROUS_TWR),
       terrainOptions,
+      [],
       makeBody(18, null),
       SHIP_REFERENCE,
     );
@@ -227,6 +353,7 @@ describe('computeDifficultyProfile', () => {
     const aboveThreshold = computeDifficultyProfile(
       makeRequirements({ hardFloor: 1.0, comfortable: 3.0 }),
       terrainOptions,
+      [],
       makeBody(20, null),
       SHIP_REFERENCE,
     );
@@ -235,19 +362,29 @@ describe('computeDifficultyProfile', () => {
     // NOT read tutorial; it must fall through to the dominant-axis branch.
     expect(aboveThreshold.axes.mechanical).toBe(2);
     expect(aboveThreshold.dominant).toBe('mechanical');
+  });
 
-    // A true 'capstone-balanced' classification (every axis >=
-    // CAPSTONE_MIN_AXIS with a spread <= CAPSTONE_MAX_SPREAD) is NOT
-    // reachable through computeDifficultyProfile's public inputs today:
-    // `combat` is unconditionally 0 inside the function (Milestone 11 has
-    // not landed), so `lowest` is always <= 0 -- below CAPSTONE_MIN_AXIS(4)
-    // -- and the capstone branch's condition can never be satisfied until
-    // Milestone 11 gives combat a real nonzero value. The two assertions
-    // above still prove the tutorial check and the dominant-axis fallback
-    // are mutually exclusive and evaluated in the right order (tutorial
-    // checked, and wins, before the dominant-axis fallback is ever reached;
-    // the capstone check sits between the two in source order and is
-    // implemented completely, just unreachable given today's always-zero
-    // combat axis).
+  it("classifies a base with every axis at 4 as 'capstone-balanced' (Milestone 11 makes this reachable for the first time)", () => {
+    // mechanical: cold hazard + generous TWR -> 1 (base) + 0 (deficit) + 3 (cold) = 4.
+    const body = makeBody(18, { type: 'cold', thrustEfficiency: 0.7 });
+    const requirements = makeRequirements(GENEROUS_TWR);
+    // spatial: comfortable pad (padTightness 0) + roughness at its reference
+    // (3) + one obstacle (obstacleDensity 1/3 * 3 = 1) = 4.
+    const terrainOptions = makeTerrainOptions(8, 0.08, 1);
+    // combat: armorRating at the armor reference (25) alone -> 4 (see
+    // computeCombatAxis's own "scores the full armor component" test above).
+    const encounters = [makeEncounter(makeCombatant({ armorRating: 25 }))];
+
+    const profile = computeDifficultyProfile(
+      requirements,
+      terrainOptions,
+      encounters,
+      body,
+      SHIP_REFERENCE,
+    );
+    expect(profile.axes).toEqual({ mechanical: 4, spatial: 4, combat: 4 });
+    expect(profile.dominant).toBe('capstone-balanced');
+    // budget = 0.7 * (4+4+4) = 8.4.
+    expect(profile.budget).toBeCloseTo(8.4);
   });
 });

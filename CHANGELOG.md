@@ -8,6 +8,82 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 11 — Weapons & Combat, certified**: a real weapon system
+  (Decision D12). New `src/game/combat/` — `damage.ts` (shared
+  `effectiveDamage`/shield-then-hull `absorbHit` resolution), `projectile.ts`
+  (straight-line projectile physics, no gravity/drag), `combatant.ts`
+  (three movement patterns — static/homing/diveStrafe — plus two authored
+  hostiles, Verdalis Wasp and Glacian Warden), and `encounter.ts`
+  (deterministic swarm spawning, plus `simulateEncounter`'s closed-form
+  pre-flight estimate). `equipment.ts`'s weapons gained a `cooldownMs` fire
+  rate; a new "Barrier Shield" utility item (absorbs 1 hit) gives
+  `BaseRequirements.combat.minShieldTier` a real item to satisfy for the
+  first time. `difficulty.ts`'s `computeCombatAxis` replaces the
+  hardcoded-zero combat axis with a real worst-case-threat/armor-ceiling
+  formula. Meridian Yard got this project's first encounter (a weak,
+  unarmored swarm, introduced alone); Frostgate (already this game's
+  hardest base) got a tougher single hostile whose armor hard-fails the
+  tier-1 weapon, plus its own M10 spire became this project's first
+  weapon-clearable obstacle — Frostgate now classifies as `dominant:
+'combat'` for the first time (a real nonzero combat axis was previously
+  unreachable). `GameScene`'s existing M9
+  cycle/trigger input now does something real: Space fires a cooldown-
+  gated projectile; every frame, live projectiles/combatants
+  advance and resolve hits (obstacle-clearing, combatant damage, contact/
+  ranged attacks against the player) through the same shield-then-hull
+  resolution; a depleted hull is a new forced-crash cause
+  (`destroyedInCombat`, mirroring `crashedOnObstacle`). Built directly by
+  the main session, then independently adversarially reviewed via a scoped
+  Workflow before certifying. Direct testing (before the review) caught
+  and fixed two real issues: a shared WebGL texture key rebaked once per
+  simultaneously-spawned combatant corrupted Phaser's renderer entirely
+  (froze the game the instant a swarm spawned) — fixed by giving every
+  spawned combatant its own texture key, mirroring the obstacle renderer's
+  own per-index-key precedent; and a triggered encounter's combatants
+  originally spawned across this game's full 3-screen-wide world, most too
+  far from the player to ever plausibly close the distance — fixed to
+  spawn within a fixed radius of the player's own position at trigger time
+  instead. See `PLAN.md`'s Milestone 11 section for the full writeup.
+  Deliberately not built: a dedicated e2e test proving weapon fire clears
+  an obstacle specifically (the acceptance criterion is an OR, already
+  proven via a real hostile-damage e2e test and a real end-to-end
+  `simulateEncounter` proof against the actual curated Frostgate data) and
+  per-combatant health bars/other combat HUD beyond a hull percentage
+  readout.
+
+- **Milestone 11 adversarial-review fix-up pass**: a scoped 4-dimension
+  Workflow review, run after M11's initial certification, confirmed five
+  real defects (all fixed same-session) and two doc-only overclaims.
+  `vitest.config.ts` was missing `src/game/combat/**` from its coverage
+  `include` list, hiding `collision.ts`'s zero test coverage from the
+  90/85/90/90 gate (fixed, plus a `combatant.ts` `diveStrafe`
+  zero-distance branch the same audit exposed as untested). `game-
+scene.ts`'s `this.hullText` was the only M11 per-flight field never
+  reset in `create()`, leaving a stale reference to a Phaser-destroyed
+  `Text` object still receiving `.setText()` calls after a subsequent
+  non-combat flight (fixed). The closed-form ranged-attack estimate
+  (`combat/encounter.ts`, `bases/difficulty.ts`) undercounted hits by one
+  relative to the real "ready to fire at spawn" rule, which cascaded into
+  reclassifying Frostgate from `capstone-balanced` to `dominant: 'combat'`
+  once corrected (fixed, with matching test updates). A **critical,
+  pre-existing bug predating this milestone**: `menu-scene.ts`'s
+  `startFlight()` and `result-scene.ts`'s `restart()` both called
+  `this.scene.start(SCENE_KEY_GAME)` with no data argument — since Phaser
+  only overwrites a scene's retained data when a truthy value is passed,
+  this silently kept re-flying whatever curated base/mission was last
+  launched for real instead of a genuine free flight, with no visible
+  symptom short of a page reload. Fixed by passing an explicit `{}` at
+  both call sites; proven with a new `e2e/scene-data-isolation.spec.ts`
+  regression test. Two doc-comment overclaims corrected with no behavior
+  change: `Obstacle.cleared`'s write side is never used in production
+  (clearing is tracked via `game-scene.ts`'s own `Set`, to avoid mutating
+  shared `bases.ts` data) and `BaseRequirements.combat.minWeaponTier`/
+  `minShieldTier` are never read by `fit-check.ts` at all — the real
+  combat gate is emergent from `simulateEncounter`'s armor math. Full gate
+  list re-confirmed green after all fixes (478 unit tests, 99/99 e2e
+  across chromium/firefox/webkit). See `PLAN.md`'s Milestone 11 section
+  for the full writeup.
+
 - **Milestone 10 — Obstacles & Hazardous Conditions, certified**: static
   flight hazards in terrain generation. `terrain-generator.ts` gained the
   merged `Obstacle`/`ObstacleKind` type (`kind: 'spire' | 'debris'`,

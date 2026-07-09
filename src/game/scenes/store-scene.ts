@@ -20,7 +20,7 @@ import {
 } from '../economy/store';
 import { SHIPS } from '../ships/ships';
 import { UPGRADES } from '../ships/upgrades';
-import { EQUIPMENT_ITEMS } from '../equipment/equipment';
+import { EQUIPMENT_ITEMS, findEquipmentById } from '../equipment/equipment';
 import {
   initialCurrencyState,
   loadCurrencyState,
@@ -62,13 +62,14 @@ const TITLE_Y_FRACTION = 0.07;
  * this matter" context before the catalog, so it claims that slot instead
  * of the catalog itself. */
 const BALANCE_Y_FRACTION = 0.16;
-/** One column-header row ("SHIPS"/"UPGRADES"/"EQUIPMENT", see
- * `STORE_COLUMNS` below) between the balance line and the catalog itself —
- * added by Milestone 9, which turned this screen's single-`'ship'`-listing
- * catalog into a 9-listing, 3-`StoreListingKind` one (see `LIST_START_Y_
- * FRACTION`'s own doc comment for why a flat single-column list no longer
- * fits). Sits roughly one row below `BALANCE_Y_FRACTION` (640 * (0.22 -
- * 0.16) = 38.4px, comfortably more than a single text line needs). */
+/** One column-header row ("SHIPS"/"UPGRADES"/"WEAPONS"/"UTILITY", see
+ * `renderView`'s own column list) between the balance line and the catalog
+ * itself — added by Milestone 9, which turned this screen's single-
+ * `'ship'`-listing catalog into a many-listing, multi-column one (see
+ * `LIST_START_Y_FRACTION`'s own doc comment for why a flat single-column
+ * list no longer fits). Sits roughly one row below `BALANCE_Y_FRACTION`
+ * (640 * (0.22 - 0.16) = 38.4px, comfortably more than a single text line
+ * needs). */
 const COLUMN_HEADER_Y_FRACTION = 0.22;
 /** Pushed down from `COLUMN_HEADER_Y_FRACTION` by roughly one row's worth of
  * room (640 * (0.27 - 0.22) = 32px) so the catalog never crowds the column
@@ -79,16 +80,20 @@ const COLUMN_HEADER_Y_FRACTION = 0.22;
  * (1 ship, `UPGRADES.length` = 4 upgrades, 4 purchase-type equipment items)
  * — a flat single-column list at the old row heights would put its BACK
  * button close to 1000px down, hundreds of pixels past `GAME_HEIGHT` (640).
- * `STORE_COLUMNS` below splits the catalog into one column per kind instead
- * (same technique `LoadoutScene`'s own weapon/utility column split uses),
- * capping the tallest column at 4 rows (upgrades or equipment, whichever
- * this save's ownership/afford state renders more of at the taller
+ * `renderView` splits the catalog into one column per kind instead (same
+ * technique `LoadoutScene`'s own weapon/utility column split uses) — since
+ * Milestone 11 added a 5th purchase-type equipment item, that split now
+ * also applies within `'equipment'` itself (its own 1 weapon vs. 4 utility
+ * purchase-type items, `EQUIPMENT_WEAPON_COLUMN_X_FRACTION`/
+ * `EQUIPMENT_UTILITY_COLUMN_X_FRACTION`) — capping the tallest column at 4
+ * rows (upgrades or the utility sub-column, whichever this save's
+ * ownership/afford state renders more of at the taller
  * `AFFORDABLE_ROW_HEIGHT_PX`): listStartY itself is `640 * 0.27` = 172.8px, so
  * the tallest column ends around `172.8 + 4 * 99` = 568.8px, landing the BACK
  * button (`renderView()` sets its y to that column-end plus
  * `BACK_BUTTON_GAP_PX(24)`, with no further offset) ≈ 592.8px — comfortably
  * inside `GAME_HEIGHT`, re-verified against a real screenshot (see
- * `PLAN.md` Milestone 9 notes, which independently states y≈593). */
+ * `PLAN.md` Milestone 9/11 notes, which independently state y≈593). */
 const LIST_START_Y_FRACTION = 0.27;
 
 /** One list entry's worth of vertical space for an "owned" listing (a
@@ -149,34 +154,29 @@ function priceReasonText(listing: StoreListing): string {
   return `PRICE: ${listing.price.toString()} CREDITS`;
 }
 
-/** Where each `StoreListingKind`'s own column sits, evenly spread across
- * `GAME_WIDTH` (960) with generous margin either side of the widest current
- * row string in any column (`"EFFICIENT INJECTORS (LOCKED)"`, ~278px at
- * `UI_BODY_FONT_SIZE_PX`, ~139px each side of its own center) — the
- * `0.15`/`0.85` outer columns still clear the canvas edges by ~58px, and
- * every adjacent pair of columns clears each other by ~80px, re-verified
- * against a real screenshot (see `PLAN.md` Milestone 9 notes) rather than
- * asserted from arithmetic alone, matching this project's established
- * "no automated collision detection, hand-verified margin" convention for
- * this kind of layout (e.g. `ShipSelectScene`'s `NAME_COLUMN_OFFSET_PX`). */
-const SHIPS_COLUMN_X_FRACTION = 0.15;
-const UPGRADES_COLUMN_X_FRACTION = 0.5;
-const EQUIPMENT_COLUMN_X_FRACTION = 0.85;
-
-/** One column per `StoreListingKind` (Milestone 9's own addition of
- * `'upgrade'`/`'equipment'` listings, see `COLUMN_HEADER_Y_FRACTION`'s doc
- * comment for why a flat single-column list stopped fitting `GAME_HEIGHT`)
- * — the one place `renderView` goes from "which kind" to "which header
- * text and which x", so the two can't independently drift apart. */
-const STORE_COLUMNS: readonly {
-  readonly kind: StoreListingKind;
-  readonly header: string;
-  readonly xFraction: number;
-}[] = [
-  { kind: 'ship', header: 'SHIPS', xFraction: SHIPS_COLUMN_X_FRACTION },
-  { kind: 'upgrade', header: 'UPGRADES', xFraction: UPGRADES_COLUMN_X_FRACTION },
-  { kind: 'equipment', header: 'EQUIPMENT', xFraction: EQUIPMENT_COLUMN_X_FRACTION },
-];
+/** Where each column sits, spread across `GAME_WIDTH` (960) with margin
+ * either side of its own worst-case row string width (estimated at this
+ * project's own established ~9.6px/monospace-character rate, the same
+ * rate `"EFFICIENT INJECTORS (LOCKED)"`'s own ~278px/29-char measurement
+ * implies): ships (`"VANGUARD (LOCKED)"`, ~163px), upgrades (the 278px
+ * string above — this catalog's widest by a clear margin), the equipment
+ * catalog's one purchase-type weapon (`"PULSE CANNON (OWNED)"`, ~192px),
+ * and its purchase-type utility items (`"BARRIER SHIELD (LOCKED)"`/
+ * `"THRUST BOOSTER (LOCKED)"`, ~221px, this sub-column's own worst case).
+ * Milestone 11 split the original single `'equipment'` column (Milestone
+ * 9, 4 rows) into these last two sub-columns once a 5th purchase-type
+ * equipment item (Barrier Shield) pushed a single combined column past
+ * `GAME_HEIGHT` (see `git blame`/`PLAN.md`'s Milestone 11 notes) — four
+ * columns need tighter per-gap clearance than the original three (960px
+ * split four ways, not three), re-verified against a real screenshot
+ * rather than asserted from arithmetic alone, matching this project's
+ * established "no automated collision detection, hand-verified margin"
+ * convention for this kind of layout (e.g. `ShipSelectScene`'s
+ * `NAME_COLUMN_OFFSET_PX`). */
+const SHIPS_COLUMN_X_FRACTION = 0.1;
+const UPGRADES_COLUMN_X_FRACTION = 0.35;
+const EQUIPMENT_WEAPON_COLUMN_X_FRACTION = 0.61;
+const EQUIPMENT_UTILITY_COLUMN_X_FRACTION = 0.84;
 
 /**
  * The store screen (Milestone 8, Decision D15; extended by Milestone 9 to
@@ -295,19 +295,58 @@ export class StoreScene extends Phaser.Scene {
 
     const headerY = GAME_HEIGHT * COLUMN_HEADER_Y_FRACTION;
     const listStartY = GAME_HEIGHT * LIST_START_Y_FRACTION;
+
+    // Milestone 11: the 'equipment' kind splits into its own weapon/utility
+    // sub-columns (this file's own `LIST_START_Y_FRACTION` doc comment
+    // explains why) -- computed here, from the live catalog, rather than a
+    // static column list, since which listing is a weapon vs. a utility
+    // item isn't itself part of `StoreListing`'s generic cross-domain shape
+    // (`economy/store.ts`'s own doc comment on why that type stays a flat
+    // `{kind, id, name, price}`).
+    const equipmentListingsAll = this.catalog.filter((listing) => listing.kind === 'equipment');
+    const columns: readonly {
+      readonly header: string;
+      readonly x: number;
+      readonly listings: readonly StoreListing[];
+    }[] = [
+      {
+        header: 'SHIPS',
+        x: GAME_WIDTH * SHIPS_COLUMN_X_FRACTION,
+        listings: this.catalog.filter((listing) => listing.kind === 'ship'),
+      },
+      {
+        header: 'UPGRADES',
+        x: GAME_WIDTH * UPGRADES_COLUMN_X_FRACTION,
+        listings: this.catalog.filter((listing) => listing.kind === 'upgrade'),
+      },
+      {
+        header: 'WEAPONS',
+        x: GAME_WIDTH * EQUIPMENT_WEAPON_COLUMN_X_FRACTION,
+        listings: equipmentListingsAll.filter(
+          (listing) => findEquipmentById(listing.id).slotType === 'weapon',
+        ),
+      },
+      {
+        header: 'UTILITY',
+        x: GAME_WIDTH * EQUIPMENT_UTILITY_COLUMN_X_FRACTION,
+        listings: equipmentListingsAll.filter(
+          (listing) => findEquipmentById(listing.id).slotType === 'utility',
+        ),
+      },
+    ];
+
     let backButtonY = listStartY;
-    for (const column of STORE_COLUMNS) {
-      const columnX = GAME_WIDTH * column.xFraction;
+    for (const column of columns) {
       this.track(
         this.add
-          .text(columnX, headerY, column.header, {
+          .text(column.x, headerY, column.header, {
             fontFamily: 'monospace',
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_TEXT_COLOR),
           })
           .setOrigin(ORIGIN_CENTER),
       );
-      const columnEndY = this.renderCatalogColumn(column.kind, columnX, listStartY);
+      const columnEndY = this.renderCatalogColumn(column.listings, column.x, listStartY);
       backButtonY = Math.max(backButtonY, columnEndY);
     }
 
@@ -338,17 +377,18 @@ export class StoreScene extends Phaser.Scene {
     }
   }
 
-  /** Renders every `this.catalog` listing of the given `kind`, stacked at
-   * `x` starting from `y` -- returns the y the next row after this column's
-   * last one would start at, so the caller can size the BACK button gap off
-   * whichever column ends up tallest (same pattern as `LoadoutScene`'s own
-   * `renderEquipmentColumn`). */
-  private renderCatalogColumn(kind: StoreListingKind, x: number, y: number): number {
+  /** Renders `listings`, stacked at `x` starting from `y` -- returns the y
+   * the next row after this column's last one would start at, so the
+   * caller can size the BACK button gap off whichever column ends up
+   * tallest (same pattern as `LoadoutScene`'s own `renderEquipmentColumn`).
+   * Takes the already-filtered listings directly (Milestone 11), not a
+   * `StoreListingKind` to filter `this.catalog` by itself, since one kind
+   * (`'equipment'`) now renders as two separate columns (weapon/utility)
+   * the caller has already split. */
+  private renderCatalogColumn(listings: readonly StoreListing[], x: number, y: number): number {
     let currentY = y;
-    for (const listing of this.catalog) {
-      if (listing.kind === kind) {
-        currentY = this.renderListingRow(listing, x, currentY);
-      }
+    for (const listing of listings) {
+      currentY = this.renderListingRow(listing, x, currentY);
     }
     return currentY;
   }

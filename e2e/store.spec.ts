@@ -285,8 +285,12 @@ test.describe('store: upgrade and equipment purchases', () => {
     await waitForBooted(page);
     await openStoreFromMenu(page);
 
-    await waitForSceneText(page, 'Store', 'EQUIPMENT', SCENE_TRANSITION_TIMEOUT_MS);
-    // Pulse Cannon (purchase-type) confirms the EQUIPMENT column actually
+    // Milestone 11 split the original single "EQUIPMENT" column into its
+    // own "WEAPONS"/"UTILITY" sub-columns (see store-scene.ts's own
+    // LIST_START_Y_FRACTION doc comment for why) -- "WEAPONS" is Pulse
+    // Cannon's own column header.
+    await waitForSceneText(page, 'Store', 'WEAPONS', SCENE_TRANSITION_TIMEOUT_MS);
+    // Pulse Cannon (purchase-type) confirms the weapons column actually
     // rendered its listings before asserting Autocannon's absence means
     // "filtered out," not "the column never rendered."
     expect(await sceneHasText(page, 'Store', 'PULSE CANNON')).toBe(true);

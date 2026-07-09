@@ -51,6 +51,7 @@ const WEAPON_A: EquipmentItem = {
   acquisition: { type: 'purchase', price: 100 },
   tier: 1,
   damage: 10,
+  cooldownMs: 300,
   tags: [],
 };
 const WEAPON_B: EquipmentItem = {
@@ -65,6 +66,7 @@ const WEAPON_B: EquipmentItem = {
   },
   tier: 2,
   damage: 20,
+  cooldownMs: 500,
   tags: [],
 };
 const UTILITY_A: EquipmentItem = {

@@ -20,15 +20,29 @@ export function degreesToRadians(degrees: number): number {
 }
 
 /**
+ * A vector pointing along `headingRadians` (0 = up, clockwise-positive,
+ * matching Phaser's rotation convention for a sprite whose default artwork
+ * points up), scaled to `magnitude` — the shared trig this module's
+ * heading-relative vectors reduce to: the lander's own thrust (`thrustVector`
+ * below) and, from Milestone 11, a fired projectile's muzzle velocity
+ * (`combat/projectile.ts`'s `spawnProjectile`), which fires along the same
+ * heading the ship is already facing rather than inventing a second
+ * direction convention.
+ */
+export function headingVector(headingRadians: number, magnitude: number): Vector2 {
+  return {
+    x: Math.sin(headingRadians) * magnitude,
+    y: -Math.cos(headingRadians) * magnitude,
+  };
+}
+
+/**
  * Thrust vector for a heading measured in radians clockwise from "up"
  * (0 = up, quarter turn clockwise = +x/right), matching Phaser's rotation
  * convention for a sprite whose default artwork points up.
  */
 export function thrustVector(headingRadians: number, thrustAccel: number): Vector2 {
-  return {
-    x: Math.sin(headingRadians) * thrustAccel,
-    y: -Math.cos(headingRadians) * thrustAccel,
-  };
+  return headingVector(headingRadians, thrustAccel);
 }
 
 export function integrate(current: Vector2, rateOfChange: Vector2, dtSeconds: number): Vector2 {

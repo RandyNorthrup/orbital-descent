@@ -154,7 +154,17 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private startFlight(): void {
-    this.scene.start(SCENE_KEY_GAME);
+    // An explicit empty object, not an omitted argument: Phaser's own
+    // `Systems.start(data)` only overwrites `settings.data` when `data` is
+    // truthy ("if (data) { settings.data = data; }") -- omitting it here
+    // would silently leave GameScene's *previous* launch data in place
+    // (e.g. a curated `base`/`mission` from an earlier real mission
+    // flight), so a later "generic free flight" START would silently
+    // re-fly that same base/mission forever instead, contradicting this
+    // button's own certified Milestone 6 behavior. Confirmed directly
+    // against the installed Phaser 4.2.0 source
+    // (node_modules/phaser/src/scene/Systems.js).
+    this.scene.start(SCENE_KEY_GAME, {});
   }
 
   private openWorldMap(): void {
