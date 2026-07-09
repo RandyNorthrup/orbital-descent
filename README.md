@@ -8,8 +8,24 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 9 (Ship Upgrades & Equipment Loadout)
-certified — buy-once permanent stat upgrades (stronger engines, lighter hull alloy,
+**Current status**: Milestone 9.5 (Mission & Cargo Delivery System)
+certified — see `PLAN.md`'s Milestone 9.5 section for the full
+certification writeup. Selecting a reachable
+base on the WORLD MAP screen now opens that base's own mission options
+instead of launching a flight directly: **Establish Presence** (a new
+base's one-time founding mission, requiring a per-base troop garrison),
+**Resupply** (repeatable once a base is established, as either a single
+trip or a timed multi-trip cumulative target), and — wherever a route
+exists and the currently-equipped ship can make it — a **relay** between
+two bases/worlds (an infeasible route is shown greyed out with every
+failed reason stated: cargo capacity, fuel range, or both). Cargo (troop
+squads, supply crates) is chosen with stepper buttons on the LOADOUT
+screen alongside equipment, drawing from the very same shared mass budget
+Milestone 9 introduced — a mission's cargo costs the same thrust-to-weight
+a weapon or utility item would. A relay's transit between its two legs is
+an abstracted, non-interactive TRANSIT screen showing distance/fuel cost.
+On top of: Milestone 9 (Ship Upgrades & Equipment Loadout, certified) —
+buy-once permanent stat upgrades (stronger engines, lighter hull alloy,
 extended fuel cells, efficient injectors) and a slotted equipment loadout
 (weapons plus utility items — a repair kit, a thrust booster, hazard-
 resistance coatings, a bigger fuel tank) are equippable from a new LOADOUT
@@ -39,7 +55,7 @@ result screen ("SCORE"/"BEST") (Milestone 4); the full menu → start → fly
 pause/settings overlay mid-flight (Milestone 3); gravity, thrust, fuel,
 rotation, procedurally generated terrain, and a scrolling parallax world
 (Milestones 2/2.5) in the paper-cutout art style. See `PLAN.md` §6 for the
-full roadmap (weapons, obstacles/hostiles, missions, and more).
+full roadmap (obstacles/hazards, weapons/combat, achievements, and more).
 
 ## Stack
 
@@ -86,16 +102,23 @@ pnpm dev
 Opens the Vite dev server (default `http://localhost:5173`). From the
 main menu, **Enter** or the START button begins a generic free flight
 (random terrain, the default world); WORLD MAP instead lets you pick a
-curated base from the worlds/bases unlocked so far; SHIP SELECT lets you
-browse and equip any available ship — your choice persists and applies
-to every flight until you change it again; STORE lets you spend Credits
-(earned automatically from your landing score on every safe touchdown) on
-any purchasable ship, upgrade, or equipment item you can currently afford;
-LOADOUT lets you equip owned weapons and utility items into your current
-ship's slot/mass budget (and shows a one-line summary of owned permanent
-upgrades). In flight: **W** or **↑** to thrust, **A**/**D** or **←**/**→**
-to rotate, **Q**/**E** to cycle the active weapon/utility item, **Space**/
-**F** to trigger them (firing a weapon has no gameplay effect yet;
+curated base from the worlds/bases unlocked so far — selecting a reachable
+base opens its own mission options (Establish Presence, Resupply, or a
+feasible relay) rather than launching a flight immediately; picking one
+carries you into LOADOUT to choose equipment and, for that mission, a
+cargo manifest (troop squads and/or supply crates via +/- steppers) before
+LAUNCH; a relay's second leg is reached via an intermediate TRANSIT screen
+after its first leg lands safely. SHIP SELECT lets you browse and equip
+any available ship — your choice persists and applies to every flight
+until you change it again; STORE lets you spend Credits (earned
+automatically from your landing score, and from completed missions, on
+every safe touchdown) on any purchasable ship, upgrade, or equipment item
+you can currently afford; LOADOUT reached directly from the menu (with no
+mission active) lets you equip owned weapons and utility items into your
+current ship's slot/mass budget (and shows a one-line summary of owned
+permanent upgrades). In flight: **W** or **↑** to thrust, **A**/**D** or
+**←**/**→** to rotate, **Q**/**E** to cycle the active weapon/utility item,
+**Space**/**F** to trigger them (firing a weapon has no gameplay effect yet;
 triggering a utility item can instantly restore fuel or grant a temporary
 thrust boost), **Escape** to pause (opens a settings overlay; Escape or
 BACK resumes exactly where play left off). On landing or crashing, a
@@ -174,9 +197,11 @@ documented here and in `.env.example` when it happens.
 │   │   ├── ships/                # ShipClass schema/registry (Milestone 7)
 │   │   ├── economy/              # currency conversion, store listings (Milestone 8)
 │   │   ├── equipment/             # equipment items, loadout resolution (Milestone 9)
+│   │   ├── missions/              # cargo/mission/relay/reward pure logic (Milestone 9.5)
 │   │   ├── rendering/             # background/terrain rendering, UI button helper
 │   │   └── scenes/               # Phaser Scene classes (Boot, Menu, Game, Result,
-│   │                             # Settings, WorldMap, ShipSelect, Store, Loadout)
+│   │                             # Settings, WorldMap, ShipSelect, Store, Loadout,
+│   │                             # Transit)
 │   ├── main.ts                   # Phaser.Game bootstrap
 │   ├── style.css
 │   └── vite-env.d.ts

@@ -93,7 +93,16 @@ import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createPaperShape, type PaperShape } from '../rendering/paper-shape';
 import { createRadialGlowImage } from '../rendering/radial-glow';
 import { buildBackground } from '../rendering/background';
-import { SCENE_KEY_GAME, SCENE_KEY_RESULT, SCENE_KEY_SETTINGS } from './scene-keys';
+import {
+  SCENE_KEY_GAME,
+  SCENE_KEY_RESULT,
+  SCENE_KEY_SETTINGS,
+  SCENE_KEY_WORLD_MAP,
+} from './scene-keys';
+import { cargoMass, EMPTY_MANIFEST, type CargoManifest } from '../missions/cargo';
+import { massUtilization, perTripCargoReward, riskBonus } from '../missions/reward';
+import { resolveTripOutcome } from '../missions/mission-trip';
+import type { MissionState } from '../missions/mission';
 import {
   outcomeColor,
   outcomeLabel,
@@ -113,6 +122,32 @@ const ENGINE_GLOW_TEXTURE_KEY = 'lander-engine-glow';
 
 type GameOutcome = 'flying' | FlightOutcome;
 
+/**
+ * Milestone 9.5's per-trip mission payload — deliberately just the one
+ * field this scene can't derive itself. Everything else about the mission
+ * (its id, structure, flavor, cumulative progress so far) lives in the
+ * live `MissionState` the caller must already have set on `this.registry`
+ * under the `'missionState'` key *before* launching this scene (PLAN.md
+ * §9.5.3 point 6 — `this.registry` survives the `scene.start()` this scene
+ * performs on landing/crash, unlike `this.data`).
+ */
+export interface MissionContext {
+  /** How much cargo this specific trip is carrying, chosen at the
+   * loadout/mission-select screen — `{troops: 0, supplies: 0}` for a
+   * relay's origin (pickup) leg, since nothing is delivered/credited until
+   * its destination leg (PLAN.md §9.5.2). */
+  readonly manifestThisTrip: CargoManifest;
+  /** Relay's destination leg only — fuel remaining after the origin leg's
+   * landing, minus the abstracted transit's own fuel cost (computed by the
+   * world-map/transit flow, `missions/relay.ts`'s `transitFuelCost`,
+   * *before* this scene ever launches; a transit that would leave less than
+   * zero here is the "stranded" failure mode, PLAN.md §9.5.2, and never
+   * reaches this scene at all). Absent for every other trip/leg, which
+   * start at a full tank instead (PLAN.md §9.5.3 point 7: "you refuel at
+   * base/menu between trips"). */
+  readonly startingFuel?: number;
+}
+
 export interface GameSceneData {
   /** The curated base to fly (Milestone 6) — its own `terrainOptions`
    * generate the terrain (a fixed seed, unlike free flight's per-restart
@@ -123,6 +158,11 @@ export interface GameSceneData {
    * exactly this project's pre-Milestone-6 behavior. WorldMapScene is the
    * first real caller that passes this. */
   readonly base?: Base;
+  /** Present only for a trip/leg flown in service of a Milestone 9.5
+   * mission — absent reproduces certified pre-9.5 behavior exactly (this
+   * scene never reads `this.registry`'s mission keys, and always exits to
+   * `ResultScene` on landing/crash, same as every milestone before 9.5). */
+  readonly mission?: MissionContext;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -142,6 +182,16 @@ export class GameScene extends Phaser.Scene {
    * mid-flight. */
   private carriedItems: readonly EquipmentItem[] = [];
   private equipmentProgress!: EquipmentProgressState;
+  /** Present only for a trip/leg flown in service of a Milestone 9.5
+   * mission — see `MissionContext`'s own doc comment. */
+  private missionContext: MissionContext | null = null;
+  /** Equipment mass plus this trip's cargo mass (Milestone 9.5's amended,
+   * shared mass-budget formula, PLAN.md §9.5.1) — `0` cargo mass whenever
+   * `missionContext` is `null`, so this reduces to Milestone 9's plain
+   * equipment-only carried mass for every non-mission flight. Computed
+   * once in `init()`; feeds both `baseEffectiveThrustAccel` below and this
+   * trip's `riskBonus` in `resolveMissionTrip()`. */
+  private totalCarriedMassThisFlight = 0;
   /** `effectiveThrustAccel(effectiveShip, carriedMass)` — the thrust
    * acceleration this flight uses absent an active thrust-burst utility
    * item; `update()` adds `thrustBoostBonusAccel` on top while
@@ -192,6 +242,7 @@ export class GameScene extends Phaser.Scene {
     this.base = data.base ?? null;
     this.body = this.base === null ? BODIES[0] : findBodyById(this.base.worldId);
     this.ship = this.resolveSelectedShip();
+    this.missionContext = data.mission ?? null;
 
     const storage = getSafeLocalStorage();
     const upgradeProgress =
@@ -213,9 +264,12 @@ export class GameScene extends Phaser.Scene {
 
     const passiveEffects = summarizePassiveEffects(this.carriedItems);
     this.effectiveFuelCapacity = this.effectiveShip.fuelCapacity + passiveEffects.fuelCapacityBonus;
+    this.totalCarriedMassThisFlight =
+      totalCarriedMass(this.carriedItems) +
+      cargoMass(this.missionContext?.manifestThisTrip ?? EMPTY_MANIFEST);
     this.baseEffectiveThrustAccel = effectiveThrustAccel(
       this.effectiveShip,
-      totalCarriedMass(this.carriedItems),
+      this.totalCarriedMassThisFlight,
     );
 
     const rawHazard = this.body.hazard;
@@ -299,7 +353,11 @@ export class GameScene extends Phaser.Scene {
         position: { x: LANDER_START_X, y: LANDER_START_Y },
         velocity: { x: 0, y: 0 },
         rotationRadians: 0,
-        fuel: this.effectiveFuelCapacity,
+        // A relay's destination leg starts with whatever fuel the transit
+        // left it (MissionContext.startingFuel's own doc comment) instead
+        // of a full tank — every other flight, mission or not, still
+        // starts full.
+        fuel: this.missionContext?.startingFuel ?? this.effectiveFuelCapacity,
       },
       gravityAccel: this.body.gravityAccel,
       // Folds in owned permanent upgrades and equipped mass (Milestone 9) —
@@ -478,6 +536,12 @@ export class GameScene extends Phaser.Scene {
     // only meaningful for a confirmed safe touchdown, and only a landing
     // is worth persisting to the high-score leaderboard at all.
     let resultData: ResultSceneData = { outcome };
+    // Milestone 9.5: this trip/leg's own calculateScore output, summed into
+    // the mission's scoreAccumulated regardless of outcome (0 for a crash,
+    // matching `resolveTripOutcome`'s own "credited only on safe landing"
+    // rule -- passing 0 here is harmless since a crash's resolution branch
+    // never reaches `recordDelivery` at all).
+    let scoreThisTrip = 0;
     if (safe) {
       const { landingPad } = this.terrain;
       const padCenterX = (landingPad.xStart + landingPad.xEnd) / 2;
@@ -499,6 +563,7 @@ export class GameScene extends Phaser.Scene {
           timeParMs: SCORE_TIME_PAR_MS,
         },
       );
+      scoreThisTrip = score;
       // getSafeLocalStorage() returns null when storage access itself is
       // blocked (sandboxed iframe, privacy setting) -- the landing still
       // scores and transitions to ResultScene normally, it just can't
@@ -526,8 +591,73 @@ export class GameScene extends Phaser.Scene {
       resultData = { outcome, score, bestScore };
     }
 
+    if (this.missionContext !== null) {
+      this.resolveMissionTrip(safe, scoreThisTrip, snapshot.fuel);
+      return;
+    }
+
     this.time.delayedCall(RESULT_TRANSITION_DELAY_MS, () => {
       this.scene.start(SCENE_KEY_RESULT, resultData);
+    });
+  }
+
+  /**
+   * Milestone 9.5: resolves this trip/leg's mission consequences
+   * (`missions/mission-trip.ts`'s `resolveTripOutcome` — this method only
+   * renders whatever it returns, per this project's "scenes render state,
+   * they don't compute it" rule) and always exits to the world-map/mission
+   * screen afterward — never `ResultScene`, and never waiting on `R`,
+   * regardless of how the mission itself resolves (PLAN.md §9.5.3's
+   * corrected "always return to the menu" model, §9.5.8 item 9).
+   */
+  private resolveMissionTrip(safe: boolean, scoreThisTrip: number, fuelRemaining: number): void {
+    const missionContext = this.missionContext;
+    if (missionContext === null) {
+      throw new Error('resolveMissionTrip: called without a missionContext.');
+    }
+    // `this.registry` (Phaser's game-global DataManager, unlike `this.data`)
+    // survives the `scene.start()` below -- the caller that launched this
+    // trip (Milestone 9.5's world-map/mission screen) must already have set
+    // this key; a missing key here is a real caller-programming-error, not
+    // a reachable state this scene should silently paper over.
+    const missionState = this.registry.get('missionState') as MissionState | undefined;
+    if (missionState === undefined) {
+      throw new Error(
+        'resolveMissionTrip: this.registry is missing "missionState" -- the caller must set it before launching a mission-context flight.',
+      );
+    }
+
+    const cargoRewardThisTrip = perTripCargoReward(
+      missionContext.manifestThisTrip,
+      riskBonus(massUtilization(this.totalCarriedMassThisFlight, this.effectiveShip.massBudget)),
+    );
+    const resolution = resolveTripOutcome(
+      missionState,
+      safe,
+      missionContext.manifestThisTrip,
+      cargoRewardThisTrip,
+      scoreThisTrip,
+      Date.now(),
+    );
+    // The authoritative, cross-scene mission progress record the world-map
+    // screen reads after this scene shuts down.
+    this.registry.set('missionState', resolution.missionState);
+    this.registry.set('missionStatus', resolution.missionStatus);
+    // Mirrored onto this scene's own DataManager too, alongside 'outcome',
+    // so the e2e suite can observe this trip's mission consequence during
+    // the same brief pause window it already polls 'outcome' in, without
+    // reaching into a scene that may already be shutting down.
+    this.data.set('missionStatus', resolution.missionStatus);
+    // A relay's origin (pickup) leg hands this off to the world-map/transit
+    // flow, which deducts `missions/relay.ts`'s `transitFuelCost` from it to
+    // compute the destination leg's `MissionContext.startingFuel` (or
+    // concludes the relay as "stranded" if that would go negative, PLAN.md
+    // §9.5.2) -- irrelevant, and harmless to still set, for every other
+    // structure, which always starts its next trip at a full tank instead.
+    this.registry.set('fuelRemainingAtTouchdown', safe ? fuelRemaining : null);
+
+    this.time.delayedCall(RESULT_TRANSITION_DELAY_MS, () => {
+      this.scene.start(SCENE_KEY_WORLD_MAP);
     });
   }
 

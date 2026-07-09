@@ -135,3 +135,27 @@ export function establishBase(
 
   return updated;
 }
+
+/**
+ * Pure state transition: increments `baseId`'s `resupplyCounts`, without
+ * mutating `progress` (Milestone 9.5's Resupply/Reinforcement flavor,
+ * PLAN.md §9.5.4) — unlike `establishBase`, this never changes `status` and
+ * never propagates `unlocks`; a resupply mission is repeatable indefinitely
+ * and never gates world-map progression (that's the deliberate design
+ * point — see §9.5.4). Feeds Milestone 12's `resupply-streak-<tier>`
+ * achievements, which read this same counter rather than inventing their
+ * own copy.
+ */
+export function resupplyBase(progress: BaseProgressMap, baseId: string): BaseProgressMap {
+  const existing = progress[baseId];
+  if (!existing) {
+    // A real data-integrity bug if it happens -- mirrors establishBase's
+    // own throw-over-silent-default precedent for an unknown caller-passed
+    // id.
+    throw new Error(`resupplyBase: unknown base id "${baseId}".`);
+  }
+  return {
+    ...progress,
+    [baseId]: { ...existing, resupplyCounts: existing.resupplyCounts + 1 },
+  };
+}

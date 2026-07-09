@@ -82,7 +82,7 @@ interface BaseSpec {
   readonly status: Base['status'];
   readonly terrainOptions: GenerateTerrainOptions;
   readonly requirements: BaseRequirements;
-  readonly firstClearCredits: number;
+  readonly garrisonRequirement: number;
 }
 
 function buildBase(spec: BaseSpec): Base {
@@ -120,7 +120,8 @@ export const BASES: readonly Base[] = [
       padSegmentCount: 8,
     },
     requirements: { ...COMMON_REQUIREMENTS, hazardCounterTags: [], recommendedTags: [] },
-    firstClearCredits: 60,
+    // PLAN.md §9.5.7 Example A: the tutorial Establish Presence mission.
+    garrisonRequirement: 6,
   }),
   buildBase({
     id: 'scarp-outpost',
@@ -138,7 +139,8 @@ export const BASES: readonly Base[] = [
       padSegmentCount: 3,
     },
     requirements: { ...COMMON_REQUIREMENTS, hazardCounterTags: [], recommendedTags: [] },
-    firstClearCredits: 90,
+    // PLAN.md §9.5.7 Example D's same-world relay establishes this base.
+    garrisonRequirement: 10,
   }),
   buildBase({
     id: 'meridian-yard',
@@ -156,7 +158,7 @@ export const BASES: readonly Base[] = [
       padSegmentCount: 5,
     },
     requirements: { ...COMMON_REQUIREMENTS, hazardCounterTags: [], recommendedTags: [] },
-    firstClearCredits: 110,
+    garrisonRequirement: 15,
   }),
   buildBase({
     id: 'rustwell-landing',
@@ -181,7 +183,8 @@ export const BASES: readonly Base[] = [
       hazardCounterTags: ['corrosion-resistant'],
       recommendedTags: ['fuel-efficient'],
     },
-    firstClearCredits: 150,
+    // PLAN.md §9.5.7 Example E's cross-world relay establishes this base.
+    garrisonRequirement: 30,
   }),
   buildBase({
     id: 'frostgate',
@@ -204,6 +207,7 @@ export const BASES: readonly Base[] = [
       hazardCounterTags: ['cold-hardened'],
       recommendedTags: [],
     },
-    firstClearCredits: 140,
+    // PLAN.md §9.5.7 Example F: infeasible for the entire ship roster.
+    garrisonRequirement: 30,
   }),
 ];

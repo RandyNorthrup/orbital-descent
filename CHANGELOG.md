@@ -8,6 +8,102 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Changed
 
+- **Milestone 9.5 — Mission & Cargo Delivery System, certified**: turns a base visit into a real
+  mission with cargo, not a bare "land safely" clear. Pure layer
+  (`src/game/missions/`): `cargo.ts` (troops — discrete squads, 10 MU/25
+  credits each — and supplies — continuous crates, 2 MU/5 credits each —
+  sharing Milestone 9's own mass budget via `equipmentMass + cargoMass`,
+  plus a second, narrower `cargoBayCapacity` ceiling on the cargo portion
+  alone); `mission.ts`/`mission-trip.ts` (the three structures — single-trip,
+  timed multi-trip-same-base, relay — as one shared `MissionDefinition`/
+  `MissionState` shape, `recordDelivery` crediting cargo only on a
+  confirmed safe touchdown before the mission timer expires, never on a
+  timer-expiry or crash); `reward.ts` (`missionReward` — a flat completion
+  bonus plus cargo value scaled by a mass-utilization risk bonus and a
+  2.5x one-time Establish Presence multiplier, replacing `Base.
+firstClearCredits` as the actual paid reward); `relay.ts` (same-world vs.
+  cross-world transit distance/fuel cost, and a three-gate
+  `relayFeasibility` check — cargo bay, mass budget, fuel range — each
+  independently reasoned about, matching PLAN.md §9.5.7 Example F's own
+  worked "infeasible for the entire roster" case, pinned by a regression
+  test); `mission-offers.ts` (derives Establish Presence/Resupply mission
+  offers from a base's live status, plus a hand-authored `RELAY_ROUTES`
+  registry). `Base` gained `garrisonRequirement` (per-base troop minimums:
+  6/10/15/30/30 across the 5-base roster, matching PLAN.md §9.5.7's worked
+  examples exactly); `base-progress.ts` gained `resupplyBase` (increments
+  `resupplyCounts`, never touches `status` — Resupply is repeatable and
+  never gates progression, only Establish Presence does).
+  Scene layer: `WorldMapScene` gained a third mission-select/active-
+  mission/concluded-mission view — selecting a reachable base no longer
+  launches a flight directly (an intentional Milestone 9.5 behavior
+  change), it opens that base's own mission options (Establish Presence,
+  Resupply single- and multi-trip, any feasible relay route, each
+  infeasible relay shown greyed-out with every failed gate reason stated);
+  an in-progress or just-concluded mission left on `this.registry` takes
+  over this screen's very first render, funneling the player through
+  resolving it before they can navigate elsewhere. A new `TransitScene`
+  renders a relay's abstracted transfer (distance, fuel cost, before/after
+  fuel) with either a CONTINUE action or, if the transit would leave
+  negative fuel, the distinct "stranded" failure conclusion (separate from
+  a crash, per PLAN.md §9.5.2). `LoadoutScene` extended with an optional
+  cargo-manifest picker (troop/supply steppers bounded by `evaluateCargoFit`,
+  folded into the same shared mass-usage line equipment already uses) and
+  a LAUNCH action gated on the mission's own cargo requirement — absent
+  mission data this screen still reproduces certified Milestone 9 behavior
+  exactly. `GameScene` gained an optional `MissionContext` (this trip's
+  manifest, and — relay destination legs only — the fuel a completed
+  transit leaves); on landing/crash with a mission active it resolves the
+  trip via `resolveTripOutcome` and always exits to the world map, never
+  `ResultScene` and never waiting on `R` — absent mission data every flight
+  path is byte-for-byte unchanged from before this milestone.
+  `e2e/missions.spec.ts` (new, 3 tests): a multi-trip mission surviving a
+  `loseTripOnly` crash (mission stays active while the flight's own
+  `outcome`/`missionStatus` data-manager keys stay correctly separated) and
+  continuing from a second launch; the mission-select screen rendering
+  every failed feasibility-gate reason for the roster-wide-infeasible
+  Rustwell Landing → Frostgate relay; a full piloted relay (real origin
+  landing, a real transit, a real destination landing) concluding the
+  mission successfully and establishing the destination base. `e2e/
+world-map.spec.ts` extended: its existing base-selection tests now route
+  through the new mission-select → loadout → launch flow instead of
+  launching directly, and gained a new single-base-world assertion routed
+  the same way.
+- **Independent certification found and fixed three real defects the
+  scoped Workflow's own checks had missed**, plus overrode a false
+  NOT-CERTIFIED verdict from that Workflow's own automated verify stage
+  (it compared the full uncommitted diff against the last commit rather
+  than against the Workflow's own start state, so it mistook the main
+  session's own pre-existing, correctly-locked pure-logic/`GameScene`
+  changes for out-of-scope edits — confirmed false via file-mtime
+  comparison against the Workflow's own Build-phase start time). Fixed:
+  (1) `mission.ts`'s `isTargetMet` let a Resupply-flavored relay's origin
+  leg trivially conclude the whole mission as `'success'` before the
+  destination leg ever flew (`minManifest: {}` for that flavor made
+  `meetsMinManifest` vacuously true on zero cargo) — now guarded with
+  `cargoMass(state.delivered) > 0` for `structure === 'relay'`; (2) that
+  fix exposed a real softlock — `LoadoutScene` let a Resupply relay LAUNCH
+  with zero cargo, which after fix (1) could then never conclude on either
+  leg — now blocked by extending the existing multi-trip nonzero-cargo
+  LAUNCH guard to `structure === 'relay'` too; (3) the shared mass-budget/
+  cargo-bay constraint was never actually re-checked at LAUNCH (only at
+  each cargo-stepper click), so equipping gear after choosing cargo could
+  silently exceed `massBudget` — `meetsLaunchRequirement` now re-checks
+  `evaluateCargoFit` at LAUNCH time. Also extracted `TransitScene`'s
+  STRANDED arithmetic into a new pure, unit-tested
+  `remainingFuelAfterTransit` (`missions/relay.ts`) — it previously had
+  zero test coverage anywhere despite an earlier claim otherwise — and
+  removed `Base.firstClearCredits` entirely (dead data since `missionReward`
+  replaced it; confirmed zero readers). Full gate list re-run clean after
+  every fix: `pnpm quality` (395/395 tests, coverage 99.12%/95.41%/100%/
+  99.08%), `pnpm security:audit`, `pnpm test:e2e` (84/84 across chromium/
+  firefox/webkit, zero retries), `pnpm lighthouse`. See `PLAN.md`'s
+  Milestone 9.5 section for the full writeup, including which of the
+  4 originally-flagged gaps were resolved vs. explicitly re-deferred
+  (`fit-check.ts`'s `evaluateBaseFit` remains unwired, re-deferred to
+  M10/M11; the one full-relay e2e test's documented synthetic fallback and
+  the narrower-than-ideal e2e outcome-matrix coverage both remain, accepted
+  as non-blocking).
+
 - **Milestone 9 — Ship Upgrades & Equipment Loadout (Decision D14),
   certified**: permanent stat upgrades (`src/game/ships/upgrades.ts` — 4 items:
   Stronger Engines, Lighter Hull Alloy, Extended Fuel Cells, Efficient

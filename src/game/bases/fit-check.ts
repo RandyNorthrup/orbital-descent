@@ -65,6 +65,16 @@ function bandFor(value: number, band: TWRBand | HandlingBand): FitBand {
  * skilled pilot burning less than continuously will do better than this
  * number suggests, matching how `twrBand`'s "risky" tier already reads as
  * "flyable, but tight" rather than a hard verdict.
+ *
+ * Deliberately NOT reused by `missions/relay.ts`'s hard feasibility gate
+ * (Milestone 9.5): this estimate assumes continuous thrust for the whole
+ * reference *flight* duration, calibrated as an always-fires soft warning
+ * (see this function's own test file — even a doubled fuel capacity barely
+ * clears it), which is fine for an advisory warning but would make every
+ * relay in this game permanently infeasible if reused as a hard gate.
+ * `relay.ts` estimates its two flown descent *legs* against a shorter,
+ * separately-named braking-burn reference instead — see that file's own
+ * `RELAY_DESCENT_BRAKING_SECONDS` doc comment.
  */
 function estimateFuelNeeded(ship: ShipClass, passiveDrainRate: number): number {
   const referenceDescentSeconds = SCORE_TIME_PAR_MS / MILLISECONDS_PER_SECOND;

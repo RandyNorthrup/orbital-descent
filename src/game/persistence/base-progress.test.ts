@@ -6,6 +6,7 @@ import {
   establishBase,
   initialBaseProgress,
   loadBaseProgress,
+  resupplyBase,
   saveBaseProgress,
   type BaseProgressMap,
 } from './base-progress';
@@ -75,11 +76,11 @@ function createBase(id: string, status: Base['status'], unlocks: readonly string
     encounters: [],
     requirements: REQUIREMENTS,
     difficulty: DIFFICULTY,
-    firstClearCredits: 100,
     status,
     isCriticalPath: true,
     unlocks,
     localOffset: 0,
+    garrisonRequirement: 0,
   };
 }
 
@@ -297,5 +298,37 @@ describe('saveBaseProgress', () => {
     expect(() => {
       saveBaseProgress(storage, progress);
     }).not.toThrow();
+  });
+});
+
+describe('resupplyBase', () => {
+  it("increments the named base's resupplyCounts by one, leaving status/establishedAt and every other base untouched", () => {
+    const before = initialBaseProgress(BASES);
+    const after = resupplyBase(before, 'base-a');
+
+    expect(after['base-a']).toEqual({
+      status: 'discovered-unclaimed',
+      establishedAt: null,
+      resupplyCounts: 1,
+    });
+    expect(after['base-b']).toEqual(before['base-b']);
+  });
+
+  it('accumulates across repeated calls', () => {
+    let progress = initialBaseProgress(BASES);
+    progress = resupplyBase(progress, 'base-a');
+    progress = resupplyBase(progress, 'base-a');
+    expect(progress['base-a']?.resupplyCounts).toBe(2);
+  });
+
+  it('does not mutate the progress map passed in', () => {
+    const before = initialBaseProgress(BASES);
+    resupplyBase(before, 'base-a');
+    expect(before['base-a']?.resupplyCounts).toBe(0);
+  });
+
+  it('throws when called with a base id absent from the progress map', () => {
+    const progress = initialBaseProgress(BASES);
+    expect(() => resupplyBase(progress, 'no-such-base')).toThrow(/no-such-base/);
   });
 });

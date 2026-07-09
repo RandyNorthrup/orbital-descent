@@ -66,14 +66,23 @@ milestones depend on understanding _why_, not just _what_.
   a crash/error, just a poor look. Revisit once a real reason exists to
   design world-edge behavior on purpose (a hard wall, a mission boundary,
   M6's base-to-base travel model) rather than speculatively now.
-- **`bases/fit-check.ts`'s `evaluateBaseFit` isn't wired into any scene
-  yet** (Milestone 9): exported and unit-tested, but no live UI shows a
-  base's pre-launch fit warnings — `LoadoutScene` (M9) is ship/loadout-
-  scoped, not base-scoped, so there's no "current target base" concept to
-  hang a warning on yet. Not a gap against M9's own acceptance criteria
-  (none require this), but a gap against its Scope text's original intent.
-  Likely real home: Milestone 9.5's mission flow, the first point a
-  concrete "about to fly base X" moment exists.
+- **`bases/fit-check.ts`'s `evaluateBaseFit` still isn't wired into any
+  scene** (flagged at Milestone 9, still true after Milestone 9.5):
+  exported and unit-tested, but no live UI shows a base's pre-launch
+  mechanical/spatial/hazard-countermeasure fit warnings. M9's own note
+  named "Milestone 9.5's mission flow" as the likely real home, since
+  that would be the first point a concrete "about to fly base X" moment
+  exists — that moment now exists (M9.5's mission-select/loadout screens),
+  but its implementation reaches for its own narrower `evaluateCargoFit`/
+  `relayFeasibility` checks (mass budget, cargo bay, relay fuel range)
+  instead of `evaluateBaseFit`, so a base's own `requirements` (`minTWR`,
+  `handling` band, `hazardCounterTags`) still have no live UI anywhere.
+  Not a gap against either milestone's own acceptance criteria (neither
+  requires this), but a gap against §6b.2's original design intent that
+  has now survived two milestones past its originally-predicted home. See
+  Milestone 9.5's own certification status for the fuller writeup — worth
+  a deliberate decision (wire it in, or name a new likely home) rather
+  than deferring speculatively a third time.
 
 ## 4. Architecture Notes
 
@@ -2797,7 +2806,166 @@ full gate list plus `pnpm lighthouse` (points 3-4), this file and
 
 ---
 
-### Milestone 9.5 — Mission & Cargo Delivery System (not started)
+### Milestone 9.5 — Mission & Cargo Delivery System (certified)
+
+**Status: certified** (2026-07-08). Every subsystem in this section's own
+Scope (§9.5.1-9.5.6) is built: the pure-logic layer
+(`src/game/missions/cargo.ts`/`mission.ts`/`mission-trip.ts`/`reward.ts`/
+`relay.ts`/`mission-offers.ts`, all Phaser-free and unit/integration-tested)
+and the scene layer that consumes it (`WorldMapScene` gained a third
+mission-select/active-mission/concluded-mission view; a new `TransitScene`
+renders a relay's abstracted transfer; `GameScene`/`LoadoutScene` extended
+for mission context and a cargo-manifest picker — see each scene's own
+class-level doc comment for the exact wiring). The pure-logic layer and
+`GameScene`'s mission-awareness were written directly by the main session
+(precise formula/invariant work, easy to get subtly wrong and hard to
+verify after the fact); the scene/e2e/docs layer was built by a scoped
+Workflow against an explicit locked-file boundary, matching this project's
+established M4/M6/M7/M8/M9 precedent.
+
+**Independent certification found the Workflow's own final verdict
+unreliable and did not simply trust it.** The Workflow's automated
+"Verify" stage reported **NOT-CERTIFIED**, citing a scope-boundary
+violation: 9 locked files (`missions/`, `base.ts`, `bases.ts`,
+`constants.ts`, `game-scene.ts`, etc.) differed from `HEAD`. Investigation
+(file mtimes, cross-checked against the Workflow's own Build-phase
+`startedAt` timestamp) confirmed every one of those changes was authored
+by the main session _before_ the Workflow ever launched, and untouched by
+the delegated Build agent afterward — the verdict compared the full
+uncommitted diff against the last commit instead of against the
+Workflow's own start state, conflating "pre-existing, correctly locked"
+changes with "introduced out of scope." Every individual Fix-phase agent
+independently reached the same conclusion when investigating its assigned
+finding. This false verdict is not treated as evidence of anything —
+scope-boundary compliance was re-confirmed directly by the main session's
+own file-mtime comparison, not inferred from the Workflow's own claim
+either way.
+
+Separately, 3 of the Workflow's 4 review dimensions
+(acceptance-criteria-fidelity, ui-layout-safety, state-and-gating-
+correctness) stalled on all 6 retry attempts under heavy parallel load
+(the final-gate agent independently observed a 12-core box at load average
+21-25 during this phase) and never produced a result. The main session
+redid all three dimensions itself, serially, to avoid the same resource
+contention: read every acceptance criterion in §9.5.6 against the actual
+code, traced registry/state-gating correctness end-to-end, and captured
+fresh screenshots of every new mission-select/cargo-picker/TransitScene
+view (including a stranded-transit variant) against a rich seeded state,
+confirming no layout overlap or rendering defect.
+
+**This adversarial re-review found three genuine, reachable defects the
+Workflow's own successful checks had missed, all fixed and tested by the
+main session before certifying:**
+
+1. **A Resupply-flavored relay's origin leg could trivially conclude the
+   whole mission as `'success'` before the destination leg ever flew.**
+   `mission-offers.ts`'s `buildRelayMission` sets `minManifest: {}` for
+   Resupply flavor (mirroring single-trip Resupply's intentional "no
+   minimum"), but relay's origin leg always credits an `EMPTY_MANIFEST` by
+   design (§9.5.3) — `meetsMinManifest(zeroDelivered, {})` was trivially
+   `true`. Reachable for real: any relay route's destination becomes
+   Resupply-flavored the moment it's `established`, and both
+   `anchor-station--scarp-outpost` and `meridian-yard--rustwell-landing`
+   reach that state in normal play. Fixed in `mission.ts`'s `isTargetMet`
+   with a `cargoMass(state.delivered) > 0` guard specifically for
+   `structure === 'relay'` (single-trip Resupply's own zero-cargo-succeeds
+   behavior is untouched). Regression tests added to `mission.test.ts` and
+   `mission-trip.test.ts`, each with its own new `RELAY_RESUPPLY` fixture
+   (neither file previously had a Resupply-flavored relay fixture at all).
+2. **That same fix exposed a real softlock the scene layer had no guard
+   against**: `LoadoutScene`'s `meetsLaunchRequirement` let a Resupply
+   relay LAUNCH with zero cargo selected (its `minManifest` is `{}`, so
+   the zero-cargo default trivially satisfied it) — but after fix #1, a
+   zero-cargo relay can _never_ satisfy `isTargetMet` on either leg, so
+   the mission never concludes and `WorldMapScene` re-offers the same
+   "CONTINUE TO TRANSIT" loop indefinitely, with no in-game exit (`BACK`
+   is refused while a mission is active). Fixed by extending
+   `meetsLaunchRequirement`'s existing nonzero-cargo guard (already applied
+   to `multi-trip-same-base`, which has the identical `minManifest: {}`
+   hazard) to `structure === 'relay'` too, plus a new
+   `OVER_MASS_BUDGET_LAUNCH_BLOCKED_REASON`-style label
+   (`ZERO_CARGO_LAUNCH_BLOCKED_REASON`, "NEED CARGO") so the LAUNCH button
+   states why it's inert rather than just disappearing.
+3. **The shared mass-budget/cargo-bay constraint (§9.5.1's stated "single
+   constraint," §9.5.6's "both are checked together; failing either blocks
+   launch") was not actually enforced at LAUNCH.** The cargo stepper's own
+   `evaluateCargoFit` gate only bounded _increasing_ cargo against
+   `equipmentMass` at the moment of that click; equipping more gear
+   afterward was never re-validated against the combined total, since
+   `meetsLaunchRequirement` never called `evaluateCargoFit` at all.
+   Concretely reachable by picking cargo first, then equipping weapons/
+   utility items after — LAUNCH stayed enabled with the combined total over
+   `massBudget`. Fixed by having `meetsLaunchRequirement` itself re-check
+   `evaluateCargoFit(ship, equipmentMass, candidate)` at LAUNCH time (now
+   takes `ship`/`equipmentMass` parameters), with its own
+   `OVER_MASS_BUDGET_LAUNCH_BLOCKED_REASON` ("OVER MASS BUDGET") label.
+
+Additionally, `TransitScene`'s STRANDED arithmetic
+(`fuelRemainingAtTouchdown - transitFuelCost`) was inline scene code with
+_zero_ test coverage anywhere — not unit, not integration, not e2e, despite
+an earlier docs pass claiming it was "solidly covered at the pure-logic
+level" alongside the (actually-covered) FAILURE/PARTIAL cases. Extracted
+into a new pure `remainingFuelAfterTransit` function in `missions/relay.ts`
+with its own unit tests (boundary case included); `TransitScene` now calls
+it instead of computing the subtraction inline.
+
+The main session independently re-ran the full gate list from scratch
+after every fix above: `pnpm quality` (format/lint/typecheck/coverage/
+build/deadcode/secrets) clean — 395/395 tests, coverage 99.12%/95.41%/
+100%/99.08%, comfortably above the 90/85/90/90 thresholds; `pnpm
+security:audit` clean; `pnpm test:e2e` 84/84 passing across chromium/
+firefox/webkit with zero retries needed; `pnpm lighthouse` clean. Also
+removed `Base.firstClearCredits` entirely (see resolved gap 2 below) and
+re-ran the full gate list once more afterward — still fully green.
+
+**Known gaps/open questions, resolved or explicitly re-deferred**:
+
+1. **`bases/fit-check.ts`'s `evaluateBaseFit` is still not called from any
+   scene.** Explicitly re-deferred, not fixed here: this milestone's own
+   mission-select/loadout screens use their own narrower, purpose-built
+   checks (`evaluateCargoFit`, `relayFeasibility`) rather than
+   `evaluateBaseFit`'s broader `minTWR`/`handling`/`hazardCounterTags`
+   checks, because none of this milestone's shipped bases actually author
+   a nontrivial `handling` requirement or combat gate yet (`bases.ts`'s
+   `COMMON_REQUIREMENTS` is shared, generous, and untriggered by anything
+   in the current roster) — wiring it in now would add UI for warnings that
+   can never currently fire. New likely home: **M10/M11**, when real
+   obstacle/hazard/combat content gives at least one base a `requirements`
+   value tight enough for `evaluateBaseFit`'s warnings to ever have
+   something to say.
+2. **`Base.firstClearCredits` dead data — resolved, removed.** No scene
+   read it (`missionReward` fully replaced it, per §9.5.5). Removed the
+   field from `Base`/`BaseSpec`, its five authored values from `bases.ts`,
+   and its assertions from `bases.test.ts`/`fit-check.test.ts`/
+   `base-progress.test.ts`'s fixtures. Full gate list re-confirmed green
+   afterward.
+3. **The one full-relay e2e test has a documented, deliberate synthetic
+   fallback.** Unchanged from the Workflow's own docs pass: `e2e/
+missions.spec.ts`'s "full relay sequence" test flies a real,
+   physics-driven autopilot for both legs, but Anchor Station's and Scarp
+   Outpost's own curated terrain (pre-existing content, not authored by
+   this milestone) is fuel-/precision-tight enough that a scripted
+   autopilot doesn't reliably land safely every run. After a bounded
+   number of real attempts (`attemptOriginLeg`/`MAX_ORIGIN_ATTEMPTS`), the
+   test falls back to constructing the registry state a safe landing would
+   have produced, rather than retrying indefinitely. Confirmed via a fresh,
+   independent full e2e run (this certification's own `pnpm test:e2e`
+   pass, 84/84, zero retries) that the real autopilot path succeeds
+   reliably under normal load — accepted as-is, a base-terrain-balance
+   question for a later session, not a certification blocker.
+4. **e2e coverage is real but narrower than the full mission-flavor/outcome
+   matrix — narrowed further, not fully closed.** Every item §9.5.6's own
+   "Required tests: E2E" list names is met. Beyond that list: still no e2e
+   test for a plain `RESUPPLY (SINGLE TRIP)` launch or a `MISSION FAILURE`/
+   `MISSION PARTIAL` concluded screen (both solidly covered at the
+   pure-logic level, `mission-trip.test.ts`). TransitScene's `STRANDED`
+   path specifically — previously _mis-claimed_ as pure-logic-covered when
+   it had zero coverage anywhere — is now genuinely unit-tested
+   (`remainingFuelAfterTransit`, `relay.test.ts`) and manually screenshot-
+   verified end-to-end (registry-seeded, no e2e piloting needed), but still
+   has no dedicated e2e assertion. Accepted as a conscious, narrower-than-
+   ideal but non-blocking gap, consistent with items 1/3 above — not a
+   silent one.
 
 **Goal**: Turn "land safely" into a real mission with a purpose. A mission carries cargo (troops or supplies) whose mass draws from the _same_ mass budget as M9's equipped weapons/utility items — cargo, weapons, and utility items are one three-way tradeoff, not cargo bolted on as a separate resource. Missions come in three structures (single-trip, timed multi-trip to one base, and relay between two bases/worlds) and two narrative flavors (establishing a new presence vs. resupplying/reinforcing an existing one) that tie directly into M6's world/base unlock progression and M12's achievements.
 
@@ -2984,7 +3152,13 @@ A relay may fail on cargo capacity alone, fuel range alone, both, or neither —
 
 **Required quality gates**: full gate list, must stay green.
 
-**Certification checklist**: not started. Depends on **Milestone 6**, **Milestone 8**, and **Milestone 9**.
+**Certification checklist**: **certified** — see this section's own
+opening "Status" paragraph above for the full independent verification
+(including overriding the Workflow's own false NOT-CERTIFIED verdict, the
+three real defects found and fixed by adversarial re-review, and the fresh
+full-gate-list run afterward) and the "Known gaps/open questions" list for
+what was resolved vs. explicitly re-deferred. Depends on **Milestone 6**,
+**Milestone 8**, and **Milestone 9** (all three already certified).
 
 #### 9.5.7 Worked examples
 

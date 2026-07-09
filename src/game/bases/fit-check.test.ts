@@ -70,11 +70,11 @@ function makeBase(overrides: Partial<Base> = {}): Base {
     encounters: [],
     requirements: makeRequirements(),
     difficulty: { axes: { mechanical: 0, spatial: 0, combat: 0 }, dominant: 'tutorial', budget: 0 },
-    firstClearCredits: 0,
     status: 'discovered-unclaimed',
     isCriticalPath: false,
     unlocks: [],
     localOffset: 0,
+    garrisonRequirement: 0,
     ...overrides,
   };
 }

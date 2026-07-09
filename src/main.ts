@@ -9,6 +9,7 @@ import { WorldMapScene } from './game/scenes/world-map-scene';
 import { ShipSelectScene } from './game/scenes/ship-select-scene';
 import { LoadoutScene } from './game/scenes/loadout-scene';
 import { StoreScene } from './game/scenes/store-scene';
+import { TransitScene } from './game/scenes/transit-scene';
 import './style.css';
 
 const APP_PARENT_ELEMENT_ID = 'app';
@@ -29,6 +30,7 @@ const config: Phaser.Types.Core.GameConfig = {
     ShipSelectScene,
     LoadoutScene,
     StoreScene,
+    TransitScene,
   ],
 };
 

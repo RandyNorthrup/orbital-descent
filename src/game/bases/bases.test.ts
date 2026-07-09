@@ -60,12 +60,6 @@ describe('BASES', () => {
     }
   });
 
-  it('gives every base a positive firstClearCredits reward', () => {
-    for (const base of BASES) {
-      expect(base.firstClearCredits).toBeGreaterThan(0);
-    }
-  });
-
   // Pin test: Milestone 9.5's own worked examples (PLAN.md §9.5.7) do exact
   // relay-distance/unlock-graph reasoning against this precise roster's
   // id/worldId/localOffset/isCriticalPath/unlocks/status values. A casual
@@ -80,6 +74,7 @@ describe('BASES', () => {
       expect(base.isCriticalPath).toBe(true);
       expect(base.unlocks).toEqual(['meridian-yard', 'scarp-outpost']);
       expect(base.status).toBe('discovered-unclaimed');
+      expect(base.garrisonRequirement).toBe(6);
     });
 
     it('scarp-outpost', () => {
@@ -89,6 +84,7 @@ describe('BASES', () => {
       expect(base.isCriticalPath).toBe(false);
       expect(base.unlocks).toEqual([]);
       expect(base.status).toBe('locked');
+      expect(base.garrisonRequirement).toBe(10);
     });
 
     it('meridian-yard', () => {
@@ -98,6 +94,7 @@ describe('BASES', () => {
       expect(base.isCriticalPath).toBe(true);
       expect(base.unlocks).toEqual(['rustwell-landing']);
       expect(base.status).toBe('locked');
+      expect(base.garrisonRequirement).toBe(15);
     });
 
     it('rustwell-landing', () => {
@@ -107,6 +104,7 @@ describe('BASES', () => {
       expect(base.isCriticalPath).toBe(true);
       expect(base.unlocks).toEqual(['frostgate']);
       expect(base.status).toBe('locked');
+      expect(base.garrisonRequirement).toBe(30);
     });
 
     it('frostgate', () => {
@@ -116,6 +114,7 @@ describe('BASES', () => {
       expect(base.isCriticalPath).toBe(true);
       expect(base.unlocks).toEqual([]);
       expect(base.status).toBe('locked');
+      expect(base.garrisonRequirement).toBe(30);
     });
   });
 

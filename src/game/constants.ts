@@ -312,3 +312,70 @@ export const SCORE_TIME_PAR_MS = 20000;
  * enough to feel like a real leaderboard without the list growing forever
  * in localStorage. */
 export const HIGH_SCORE_LIST_MAX_ENTRIES = 10;
+
+/* ---------------------------------------------------------------------- */
+/* Missions & cargo (PLAN.md §9.5, Milestone 9.5)                         */
+/* src/game/missions/**                                                   */
+/* ---------------------------------------------------------------------- */
+
+/** Mass units (MU) per unit of cargo — same non-SI, pixel-space spirit as
+ * `THRUST_ACCEL`-family constants elsewhere. Troops are a discrete,
+ * whole-unit-only "squad" (personnel + minimal gear); supplies are a
+ * continuously loadable crate. */
+export const CARGO_TROOP_UNIT_MASS = 10;
+export const CARGO_SUPPLY_UNIT_MASS = 2;
+
+/** Credits earned per unit delivered, before `riskBonus` scales it up —
+ * troops (a permanent garrison) are worth more per unit than consumable
+ * supplies. */
+export const CARGO_TROOP_UNIT_VALUE = 25;
+export const CARGO_SUPPLY_UNIT_VALUE = 5;
+
+/** Scales `perTripCargoReward` by how much of the ship's shared mass budget
+ * a trip's total carried mass (equipment + cargo) actually used — 0
+ * utilization pays the base value, 100% utilization pays 1.5x. Rewards
+ * committing more of a ship's capacity to the mission over playing it safe
+ * with a light load. */
+export const CARGO_RISK_BONUS_COEFFICIENT = 0.5;
+
+/** Flat credits paid once per completed mission (success or partial), on
+ * top of cargo/score rewards — the direct Milestone 9.5 analogue of
+ * `SCORE_BASE_LANDING_BONUS` for a mission as a whole rather than one
+ * landing. */
+export const MISSION_BASE_COMPLETION_REWARD = 100;
+
+/** Establishing a new base pays its cargo reward at this multiple, since
+ * it's the only mission that base will ever pay this bonus (it cannot be
+ * repeated once established) — Resupply missions use a 1.0 multiplier
+ * (no bonus). */
+export const ESTABLISH_PRESENCE_BONUS_MULTIPLIER = 2.5;
+
+/** Flat fuel-unit overhead for a relay's launch-to-transfer-orbit burn,
+ * charged once per relay mission regardless of transit distance. */
+export const TRANSIT_LAUNCH_OVERHEAD = 8;
+
+/** Cumulative supply-unit target and mission-wide time budget for this
+ * project's one shipped multi-trip-same-base mission template (PLAN.md
+ * §9.5.7 Example C) — reused at every established base that offers a
+ * multi-trip Resupply mission, rather than a per-base authored number. */
+export const MULTI_TRIP_RESUPPLY_TARGET_SUPPLIES = 60;
+export const MULTI_TRIP_RESUPPLY_TIME_LIMIT_MS = 300000;
+
+/** Reference duration (seconds) `missions/relay.ts`'s pre-launch
+ * feasibility gate assumes for each of a relay's two flown descent legs —
+ * deliberately much shorter than `SCORE_TIME_PAR_MS`'s whole-flight
+ * duration. `bases/fit-check.ts`'s `estimateFuelNeeded` (continuous thrust
+ * for the *entire* reference flight) is calibrated as an always-fires soft
+ * advisory warning, not a hard gate — reusing it for relay's hard
+ * pass/fail gate would make every relay in the game permanently infeasible
+ * regardless of ship or route, since no ship's `fuelCapacity` covers a
+ * full reference-flight burn even once, let alone twice plus a transit.
+ * This shorter constant instead approximates just the final braking
+ * correction of a descent — the portion that actually costs sustained
+ * thrust, with the rest of a real descent being mostly gravity-assisted
+ * coasting — calibrated so PLAN.md §9.5.7's Examples D/E (a short
+ * same-world hop and a longer but hazard-light cross-world hop) come out
+ * feasible for a well-suited ship, while Example F (the longest, coldest,
+ * highest-garrison route) stays infeasible for every ship in this
+ * project's roster, matching that example's own worked conclusion. */
+export const RELAY_DESCENT_BRAKING_SECONDS = 3;

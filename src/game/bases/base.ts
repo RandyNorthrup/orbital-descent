@@ -166,15 +166,6 @@ export interface Base {
   readonly requirements: BaseRequirements;
   readonly difficulty: BaseDifficultyProfile;
 
-  /** First-clear reward — the pre-Milestone-9.5 placeholder value for a
-   * bare "land safely, no mission" base clear. Milestone 8 deliberately
-   * left this field unwired (a base visit already earns currency via its
-   * M4 landing score, same as any free flight); see PLAN.md §9.5.5's note
-   * on `missionReward`, which replaces this field once Milestone 9.5
-   * lands. Replay reward is a separate, always-nonzero derived value, not
-   * modeled on this record. */
-  readonly firstClearCredits: number;
-
   /** This base's status for a brand-new save — NOT the live, current
    * status (see `BaseProgress`/`base-progress.ts` for that). */
   readonly status: BaseProgress['status'];
@@ -187,4 +178,10 @@ export interface Base {
    * point — same-world relay-distance math (Milestone 9.5); cross-world
    * legs use `CelestialBody.distance` instead. */
   readonly localOffset: number;
+  /** Troop squads required to establish this base (Milestone 9.5's
+   * `MinManifest` for an Establish Presence mission targeting it) — read
+   * only while this base's live status is `discovered-unclaimed`; an
+   * already-`established` base never reads it again (Resupply missions
+   * carry no manifest minimum, PLAN.md §9.5.4). */
+  readonly garrisonRequirement: number;
 }

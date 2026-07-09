@@ -1,0 +1,66 @@
+import {
+  CARGO_RISK_BONUS_COEFFICIENT,
+  ESTABLISH_PRESENCE_BONUS_MULTIPLIER,
+  MISSION_BASE_COMPLETION_REWARD,
+} from '../constants';
+import { cargoValue, type CargoManifest } from './cargo';
+import type { MissionFlavor } from './mission';
+
+/** `totalCarriedMass / massBudget`, 0..1+ (a caller only ever passes an
+ * already-fit-checked load, so this stays within [0, 1] in practice, but
+ * this function itself doesn't clamp — `riskBonus` below is the one place
+ * that would matter, and it's a straight linear scale with no ceiling
+ * baked in). */
+export function massUtilization(totalCarriedMass: number, massBudget: number): number {
+  return totalCarriedMass / massBudget;
+}
+
+/** `1 + CARGO_RISK_BONUS_COEFFICIENT × massUtilization` (PLAN.md §9.5.5) —
+ * range 1.0-1.5 at the coefficient's current value, rewarding committing
+ * more of a ship's shared mass budget to the mission. */
+export function riskBonus(utilization: number): number {
+  return 1 + CARGO_RISK_BONUS_COEFFICIENT * utilization;
+}
+
+/** `1.0` for Resupply, `ESTABLISH_PRESENCE_BONUS_MULTIPLIER` for Establish
+ * Presence — the one-time bonus a base can only ever pay once (PLAN.md
+ * §9.5.4). */
+export function flavorMultiplier(flavor: MissionFlavor): number {
+  return flavor === 'establish-presence' ? ESTABLISH_PRESENCE_BONUS_MULTIPLIER : 1;
+}
+
+/** `Σ over cargo types: unitsDeliveredThisTrip × baseUnitValue(type) ×
+ * riskBonus` (PLAN.md §9.5.5) — one trip/leg's cargo reward, before the
+ * mission-wide flavor multiplier is applied. */
+export function perTripCargoReward(
+  unitsDeliveredThisTrip: CargoManifest,
+  riskBonusValue: number,
+): number {
+  return cargoValue(unitsDeliveredThisTrip) * riskBonusValue;
+}
+
+export interface MissionRewardInputs {
+  readonly flavor: MissionFlavor;
+  /** Sum of every credited trip/leg's `perTripCargoReward` across the whole
+   * mission — naturally prorates a partial multi-trip mission, no separate
+   * proration formula needed (PLAN.md §9.5.5). */
+  readonly cargoRewardAccumulated: number;
+  /** Sum of every credited trip/leg's existing Milestone 4 `calculateScore`
+   * output — summed unchanged, not itself scaled by `flavorMultiplier`. */
+  readonly scoreAccumulated: number;
+}
+
+/**
+ * `MISSION_BASE_COMPLETION_REWARD + missionCargoReward × flavorMultiplier +
+ * Σ m4ScoreBonus` (PLAN.md §9.5.5) — only meaningful for a mission that
+ * resolved `'success'` or `'partial'`; a caller never calls this for
+ * `'failure'` (PLAN.md: the completion reward is "paid once, only on
+ * success or partial").
+ */
+export function missionReward(inputs: MissionRewardInputs): number {
+  return (
+    MISSION_BASE_COMPLETION_REWARD +
+    inputs.cargoRewardAccumulated * flavorMultiplier(inputs.flavor) +
+    inputs.scoreAccumulated
+  );
+}
