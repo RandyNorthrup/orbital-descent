@@ -17,8 +17,6 @@ import {
   LANDED_COLOR_BOTTOM,
   LANDED_COLOR_TOP,
   LANDER_ETCH_LINE_COUNT,
-  LANDER_FILL_COLOR_BOTTOM,
-  LANDER_FILL_COLOR_TOP,
   LANDER_LAYER_DEPTH,
   LANDER_RADIUS,
   LANDER_START_X,
@@ -74,6 +72,7 @@ import { FlightState } from '../flight/flight-state';
 import { degreesToRadians, headingVector, type Vector2 } from '../physics/lander-physics';
 import { CRASH_CUE, LANDING_CUE, THRUST_CUE, WEAPON_FIRE_CUE } from '../audio/sfx-cues';
 import { playSfxCue, type SfxCueHandle } from '../rendering/audio-player';
+import { isAudioMuted } from '../persistence/audio-settings';
 import { particleBurstForImpact, type ImpactKind } from '../effects/particle-burst';
 import { screenShakeForImpact, type ScreenShakeKind } from '../effects/screen-shake';
 import { advanceCombatantState, type CombatantState } from '../combat/combatant';
@@ -571,8 +570,8 @@ export class GameScene extends Phaser.Scene {
         { x: LANDER_RADIUS, y: LANDER_RADIUS },
       ],
       textureKey: LANDER_TEXTURE_KEY,
-      fillTopColor: LANDER_FILL_COLOR_TOP,
-      fillBottomColor: LANDER_FILL_COLOR_BOTTOM,
+      fillTopColor: this.ship.hullFillColorTop,
+      fillBottomColor: this.ship.hullFillColorBottom,
       etchLineCount: LANDER_ETCH_LINE_COUNT,
     });
     this.lander.container.setPosition(LANDER_START_X, LANDER_START_Y);
@@ -696,7 +695,7 @@ export class GameScene extends Phaser.Scene {
     }
     const thrust = this.cursors.up.isDown || this.keyW.isDown;
     if (thrust && this.thrustSoundHandle === null) {
-      this.thrustSoundHandle = playSfxCue(this, THRUST_CUE);
+      this.thrustSoundHandle = playSfxCue(this, THRUST_CUE, isAudioMuted());
     } else if (!thrust && this.thrustSoundHandle !== null) {
       this.stopThrustSound();
     }
@@ -790,7 +789,7 @@ export class GameScene extends Phaser.Scene {
     // itself already learned.
     this.stopThrustSound();
     this.thrustParticles.stop();
-    playSfxCue(this, safe ? LANDING_CUE : CRASH_CUE);
+    playSfxCue(this, safe ? LANDING_CUE : CRASH_CUE, isAudioMuted());
     // A crash shakes the camera (a real off-pad/obstacle/combat crash, not
     // a normal safe landing) — screenShakeForImpact('crash') is this
     // milestone's strongest/longest profile, matching this being the
@@ -1427,7 +1426,7 @@ export class GameScene extends Phaser.Scene {
     this.liveProjectiles.push({ state: projectile, visual });
     this.weaponCooldownRemainingMs = item.cooldownMs;
     this.data.set('lastTriggeredWeaponId', weaponId);
-    playSfxCue(this, WEAPON_FIRE_CUE);
+    playSfxCue(this, WEAPON_FIRE_CUE, isAudioMuted());
   }
 
   /** F activates the currently-active utility item. Only the two

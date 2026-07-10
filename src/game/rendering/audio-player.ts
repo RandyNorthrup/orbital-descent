@@ -154,9 +154,19 @@ function scheduleOnePass(
  * — a plain predicate, not inlined here, so this exact fallback branch has
  * a real unit test (see that module's own doc comment for why it couldn't
  * live in this Phaser-importing file instead).
+ *
+ * `muted` is this game's own Settings toggle (`persistence/audio-
+ * settings.ts`'s `isAudioMuted()`), checked first and short-circuiting to
+ * the same `SILENT_HANDLE` as every other "can't/shouldn't play" case —
+ * callers pass it explicitly (read fresh at each call site) rather than
+ * this module reading it itself, keeping the module's only responsibility
+ * real Web Audio scheduling.
  */
-export function playSfxCue(scene: Phaser.Scene, cue: SfxCue): SfxCueHandle {
+export function playSfxCue(scene: Phaser.Scene, cue: SfxCue, muted: boolean): SfxCueHandle {
   try {
+    if (muted) {
+      return SILENT_HANDLE;
+    }
     const audio = resolveWebAudioDestination(scene);
     if (audio === null || !isAudioContextReady(audio.context.state)) {
       return SILENT_HANDLE;

@@ -42,6 +42,33 @@ describe('SHIPS', () => {
     expect(signatures.size).toBe(SHIPS.length);
   });
 
+  it('gives every ship a valid, distinct hull gradient (top strictly lighter than bottom, no two ships sharing a color pair)', () => {
+    const pairs = new Set<string>();
+    for (const ship of SHIPS) {
+      expect(ship.hullFillColorTop).toBeGreaterThanOrEqual(0x000000);
+      expect(ship.hullFillColorTop).toBeLessThanOrEqual(0xffffff);
+      expect(ship.hullFillColorBottom).toBeGreaterThanOrEqual(0x000000);
+      expect(ship.hullFillColorBottom).toBeLessThanOrEqual(0xffffff);
+      // "Lighter" per this project's own gradient convention (paper-
+      // shape.ts/terrainPalette) means each channel's own average
+      // brightness, not a raw packed-integer comparison, which a hue
+      // change alone could flip regardless of actual lightness.
+      const topAvg =
+        (((ship.hullFillColorTop >> 16) & 0xff) +
+          ((ship.hullFillColorTop >> 8) & 0xff) +
+          (ship.hullFillColorTop & 0xff)) /
+        3;
+      const bottomAvg =
+        (((ship.hullFillColorBottom >> 16) & 0xff) +
+          ((ship.hullFillColorBottom >> 8) & 0xff) +
+          (ship.hullFillColorBottom & 0xff)) /
+        3;
+      expect(topAvg).toBeGreaterThan(bottomAvg);
+      pairs.add(`${ship.hullFillColorTop.toString(16)}-${ship.hullFillColorBottom.toString(16)}`);
+    }
+    expect(pairs.size).toBe(SHIPS.length);
+  });
+
   it('prices every purchase-type ship above zero', () => {
     for (const ship of SHIPS) {
       if (ship.acquisition.type === 'purchase') {
@@ -74,6 +101,17 @@ describe('SHIPS', () => {
     expect(falcon.fuelCapacity).toBe(100);
     expect(falcon.burnRate).toBe(18);
     expect(falcon.handling).toBe(150);
+  });
+
+  // Pin test: Falcon's hull color reproduces the pre-existing
+  // `LANDER_FILL_COLOR_TOP`/`_BOTTOM` constants byte-for-byte (removed from
+  // constants.ts when this field moved to per-ship registry data) -- a
+  // casual future recolor of the default ship specifically would otherwise
+  // pass every other test in this file.
+  it("keeps Falcon's hull color matching the pre-existing LANDER_FILL_COLOR_* constants", () => {
+    const falcon = findShipById('falcon');
+    expect(falcon.hullFillColorTop).toBe(0xf0f6fa);
+    expect(falcon.hullFillColorBottom).toBe(0x7fa8b8);
   });
 
   it('is Falcon first, so SHIPS[0] is the default ship', () => {

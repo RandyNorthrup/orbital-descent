@@ -23,6 +23,8 @@ function makeShip(overrides: Partial<ShipClass> = {}): ShipClass {
     massBudget: 150,
     cargoBayCapacity: 100,
     fuelPerDistanceUnit: 1.2,
+    hullFillColorTop: 0xffffff,
+    hullFillColorBottom: 0x888888,
     acquisition: { type: 'starter' },
     ...overrides,
   };

@@ -69,9 +69,9 @@ screen; every equipped item adds mass, which measurably degrades
 thrust-to-weight (`effectiveThrustAccel = baseThrustAccel × dryMass /
 (dryMass + carriedMass)`), so a heavier loadout trades capability for
 handling. In flight, **Q**/**E** cycle the active weapon/utility item and
-**Space**/**F** trigger them (firing a weapon has no gameplay effect yet —
-that's a later milestone; triggering a utility item can instantly restore
-fuel or grant a temporary thrust boost). On top of: Milestone 8 (Economy &
+**Space**/**F** trigger them (firing a weapon spawns a real, cooldown-gated
+projectile, per Milestone 11 below; triggering a utility item can instantly
+restore fuel or grant a temporary thrust boost). On top of: Milestone 8 (Economy &
 Store, certified) — completing a flight earns "Credits" proportional to
 your landing score (shown on the menu as "BALANCE"), spent in a STORE
 screen that now also sells upgrades and equipment alongside ships; a SHIP
@@ -154,9 +154,10 @@ mission active) lets you equip owned weapons and utility items into your
 current ship's slot/mass budget (and shows a one-line summary of owned
 permanent upgrades). In flight: **W** or **↑** to thrust, **A**/**D** or
 **←**/**→** to rotate, **Q**/**E** to cycle the active weapon/utility item,
-**Space**/**F** to trigger them (firing a weapon has no gameplay effect yet;
-triggering a utility item can instantly restore fuel or grant a temporary
-thrust boost), **Escape** to pause (opens a settings overlay; Escape or
+**Space**/**F** to trigger them (firing a weapon spawns a real, cooldown-gated
+projectile that damages combatants or clears obstacles; triggering a utility
+item can instantly restore fuel or grant a temporary thrust boost), **Escape**
+to pause (opens a settings overlay; Escape or
 BACK resumes exactly where play left off). On landing or crashing, a
 result screen offers **R** or RESTART for a fresh flight, and **Escape**
 or MAIN MENU to return to the menu.

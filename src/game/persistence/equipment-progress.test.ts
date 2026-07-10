@@ -93,6 +93,8 @@ const SHIP: ShipClass = {
   massBudget: 45,
   cargoBayCapacity: 100,
   fuelPerDistanceUnit: 1.2,
+  hullFillColorTop: 0xffffff,
+  hullFillColorBottom: 0x888888,
   acquisition: { type: 'starter' },
 };
 

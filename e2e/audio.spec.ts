@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { tapKey, waitForActiveScene } from './test-helpers';
+import {
+  clickButton,
+  sceneHasText,
+  tapKey,
+  waitForActiveScene,
+  waitForSceneText,
+} from './test-helpers';
 
 const BOOT_TIMEOUT_MS = 5000;
 const SCENE_TRANSITION_TIMEOUT_MS = 10000;
@@ -89,4 +95,36 @@ test('boots and, after a real first user interaction, engages the Web Audio syst
 
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);
+});
+
+/**
+ * SettingsScene's own text used to tell the player "check back once audio
+ * is added" — Milestone 13 added real audio, so this is the toggle that
+ * text promised: proves the SOUND button genuinely flips state (not just
+ * its own label) by checking the flip survives a real page reload, the
+ * same proof-of-persistence convention `world-map.spec.ts` already uses for
+ * base-progress.
+ */
+test('the Settings SOUND toggle flips and persists across a real reload', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.__ORBITAL_DESCENT_GAME__?.isBooted === true, {
+    timeout: BOOT_TIMEOUT_MS,
+  });
+  await waitForActiveScene(page, 'Menu', BOOT_TIMEOUT_MS);
+
+  await clickButton(page, 'Menu', 'SETTINGS');
+  await waitForActiveScene(page, 'Settings', SCENE_TRANSITION_TIMEOUT_MS);
+  expect(await sceneHasText(page, 'Settings', 'SOUND: ON')).toBe(true);
+
+  await clickButton(page, 'Settings', 'SOUND: ON');
+  await waitForSceneText(page, 'Settings', 'SOUND: OFF', SCENE_TRANSITION_TIMEOUT_MS);
+
+  await page.reload();
+  await page.waitForFunction(() => window.__ORBITAL_DESCENT_GAME__?.isBooted === true, {
+    timeout: BOOT_TIMEOUT_MS,
+  });
+  await waitForActiveScene(page, 'Menu', BOOT_TIMEOUT_MS);
+  await clickButton(page, 'Menu', 'SETTINGS');
+  await waitForActiveScene(page, 'Settings', SCENE_TRANSITION_TIMEOUT_MS);
+  expect(await sceneHasText(page, 'Settings', 'SOUND: OFF')).toBe(true);
 });

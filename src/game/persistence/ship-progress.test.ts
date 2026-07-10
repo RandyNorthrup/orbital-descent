@@ -53,6 +53,8 @@ function createShip(id: string, acquisition: ShipClass['acquisition']): ShipClas
     massBudget: 150,
     cargoBayCapacity: 100,
     fuelPerDistanceUnit: 1.2,
+    hullFillColorTop: 0xffffff,
+    hullFillColorBottom: 0x888888,
     acquisition,
   };
 }

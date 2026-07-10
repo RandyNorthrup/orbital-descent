@@ -18,10 +18,10 @@ export type EquipmentAcquisition =
   | { readonly type: 'purchase'; readonly price: number }
   | { readonly type: 'unlock'; readonly requiredBaseId: string; readonly description: string };
 
-/** A weapon's stats, consumed by Milestone 11's combat resolution — this
- * milestone only stores them and exposes cycle/trigger input over them (see
- * `equipment/loadout.ts` and `scenes/game-scene.ts`); firing one has no
- * gameplay effect yet (§6b.2/M9's own scope note: "hands off to M11"). */
+/** A weapon's stats, consumed by Milestone 11's combat resolution: firing
+ * one spawns a real projectile that damages combatants/clears obstacles
+ * per `damage`/`tier` below (see `equipment/loadout.ts` and
+ * `scenes/game-scene.ts`'s `triggerActiveWeapon`). */
 export interface WeaponEquipmentItem {
   readonly slotType: 'weapon';
   readonly id: string;

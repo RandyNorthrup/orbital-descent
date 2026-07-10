@@ -36,6 +36,7 @@ import {
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
 import { ACHIEVEMENT_UNLOCK_CUE } from '../audio/sfx-cues';
 import { playSfxCue } from '../rendering/audio-player';
+import { isAudioMuted } from '../persistence/audio-settings';
 import { initialShipProgress, loadShipProgress } from '../persistence/ship-progress';
 import {
   creditCurrency,
@@ -999,7 +1000,7 @@ export class WorldMapScene extends Phaser.Scene {
       return;
     }
 
-    playSfxCue(this, ACHIEVEMENT_UNLOCK_CUE);
+    playSfxCue(this, ACHIEVEMENT_UNLOCK_CUE, isAudioMuted());
     const toast = this.add
       .text(
         GAME_WIDTH / 2,

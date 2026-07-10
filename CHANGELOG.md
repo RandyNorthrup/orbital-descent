@@ -137,6 +137,45 @@ audio-availability.ts` extracts the blocked-autoplay fallback decision
   `pnpm lighthouse` gates were re-verified independently end-to-end. See
   `PLAN.md`'s Milestone 13 section for the full writeup.
 
+- **Post-certification completeness pass**: a full project-wide art/code
+  audit found three instances of stale "not built yet" documentation whose
+  own trigger condition had since fired. `SettingsScene` still told every
+  player "check back once audio is added" after Milestone 13 shipped real
+  audio with no follow-through — fixed by building the real option this
+  always implied: a SOUND ON/OFF toggle, persisted via new
+  `src/game/persistence/audio-settings.ts` (13 new unit tests) and read
+  fresh at every `playSfxCue` call site (which gained a required `muted`
+  parameter) so a toggle made while Settings sits paused over a live flight
+  takes effect immediately; a new `e2e/audio.spec.ts` test proves the
+  toggle flips and survives a real reload. `README.md` (two places) and
+  `equipment.ts`'s `WeaponEquipmentItem` doc comment still said "firing a
+  weapon has no gameplay effect yet," two milestones after Milestone 11
+  shipped real weapon damage — fixed to describe the real, shipped
+  behavior. `bases/fit-check.ts`'s `evaluateBaseFit` (unwired since
+  Milestone 9, PLAN.md §3's own open question) was re-confirmed still
+  unwired but left as-is: unlike the three fixes above, nothing in-game
+  falsely claims it exists, so it's accurately-absent technical debt, not
+  a stale promise.
+
+  A real screenshot-driven visual audit (every ship captured in flight via
+  actual button-click navigation, not a scripted shortcut) found a fourth,
+  more significant instance of the same pattern: all 7 ships rendered as
+  the exact same triangle, size, and color regardless of selection —
+  `ShipClass` had no visual field at all, contradicting Decision D18's own
+  stated reason for picking the current art style ("its ships read as the
+  clearest, most distinct ally/hostile silhouettes... once M7/M11 add real
+  ship variety" — both shipped; the distinction never did). Fixed, at the
+  user's direction: `ShipClass` gained `hullFillColorTop`/
+  `hullFillColorBottom`; all 7 ships got distinct colors (Falcon keeps its
+  exact pre-existing values, removed from `constants.ts` in the same
+  change, mirroring Milestone 7's own precedent for ship-intrinsic data);
+  `GameScene` reads the selected ship's own colors instead of a global
+  constant. One color (Sentinel) needed a second pass after a real
+  screenshot showed it too close to Falcon's at actual on-screen size.
+  New unit tests, zero regressions across a full re-run (545 unit/
+  integration tests, 111/111 e2e across all three browsers, Lighthouse
+  unchanged). See `PLAN.md`'s Milestone 13 section for the full writeup.
+
 ### Changed
 
 - **Milestone 12 — Achievements & Notifications, certified**: achievement

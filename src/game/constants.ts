@@ -80,13 +80,6 @@ export const LANDING_MAX_SAFE_ANGLE_DEG = 15;
 /* See PLAN.md §4 "Paper-cutout art style" for the rules this implements. */
 /* ---------------------------------------------------------------------- */
 
-/** Lander body fill — a top-to-bottom gradient (not a flat color) per the
- * approved "Ship-Forward / Atmospheric Depth" art direction (PLAN.md §4):
- * every physical shape is gradient-shaded paper, lightest at the top,
- * consistent with the sky's single implied light source. Cool blue-silver-
- * teal, reading as the ally craft against the terrain's muted palette. */
-export const LANDER_FILL_COLOR_TOP = 0xf0f6fa;
-export const LANDER_FILL_COLOR_BOTTOM = 0x7fa8b8;
 export const LANDED_COLOR_TOP = 0x8ff0a8;
 export const LANDED_COLOR_BOTTOM = 0x3fb868;
 export const CRASHED_COLOR_TOP = 0xf08f8f;

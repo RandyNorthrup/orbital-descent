@@ -27,6 +27,18 @@ import type { ShipClass } from './ship';
  * Typed as a non-empty tuple, like `planets/bodies.ts`'s `BODIES`, so
  * `SHIPS[0]` (the default-ship fallback) is statically known non-`undefined`
  * under this project's `noUncheckedIndexedAccess`.
+ *
+ * `hullFillColorTop`/`hullFillColorBottom` (added post-Milestone-13, closing
+ * a gap Decision D18 itself named but M7/M11 never actually built): seven
+ * distinct hues, one per archetype, chosen to stay clear of every other
+ * fill color this project's palette already reserves a meaning for —
+ * landed/pad green (`LANDED_COLOR_TOP`/`LANDING_PAD_FILL_COLOR_TOP`), crash
+ * red (`CRASHED_COLOR_TOP`), obstacle rust (`OBSTACLE_FILL_COLOR_TOP`), and
+ * hostile purple (`COMBATANT_FILL_COLOR_TOP`) all stay this roster's own
+ * hues away. Falcon keeps the exact pre-existing `LANDER_FILL_COLOR_TOP`/
+ * `_BOTTOM` values byte-for-byte (same "default ship, not a competing
+ * numeric universe" rule this file's own header comment already applies to
+ * its flight stats) — the other six are new.
  */
 export const SHIPS: readonly [ShipClass, ...ShipClass[]] = [
   {
@@ -42,6 +54,8 @@ export const SHIPS: readonly [ShipClass, ...ShipClass[]] = [
     massBudget: 150,
     cargoBayCapacity: 100,
     fuelPerDistanceUnit: 1.2,
+    hullFillColorTop: 0xf0f6fa,
+    hullFillColorBottom: 0x7fa8b8,
     acquisition: { type: 'starter' },
   },
   {
@@ -57,6 +71,8 @@ export const SHIPS: readonly [ShipClass, ...ShipClass[]] = [
     massBudget: 90,
     cargoBayCapacity: 60,
     fuelPerDistanceUnit: 1.4,
+    hullFillColorTop: 0x7de8e0,
+    hullFillColorBottom: 0x2f8f88,
     acquisition: { type: 'starter' },
   },
   {
@@ -72,6 +88,8 @@ export const SHIPS: readonly [ShipClass, ...ShipClass[]] = [
     massBudget: 200,
     cargoBayCapacity: 160,
     fuelPerDistanceUnit: 1.0,
+    hullFillColorTop: 0xe0c878,
+    hullFillColorBottom: 0x9a8040,
     acquisition: { type: 'starter' },
   },
   {
@@ -87,6 +105,8 @@ export const SHIPS: readonly [ShipClass, ...ShipClass[]] = [
     massBudget: 130,
     cargoBayCapacity: 40,
     fuelPerDistanceUnit: 1.3,
+    hullFillColorTop: 0x8a94a8,
+    hullFillColorBottom: 0x333c4e,
     acquisition: { type: 'starter' },
   },
   {
@@ -102,6 +122,8 @@ export const SHIPS: readonly [ShipClass, ...ShipClass[]] = [
     massBudget: 380,
     cargoBayCapacity: 340,
     fuelPerDistanceUnit: 0.75,
+    hullFillColorTop: 0xb8c078,
+    hullFillColorBottom: 0x707838,
     acquisition: { type: 'starter' },
   },
   {
@@ -117,6 +139,8 @@ export const SHIPS: readonly [ShipClass, ...ShipClass[]] = [
     massBudget: 110,
     cargoBayCapacity: 20,
     fuelPerDistanceUnit: 1.6,
+    hullFillColorTop: 0xe86888,
+    hullFillColorBottom: 0x9a3050,
     acquisition: { type: 'purchase', price: 750 },
   },
   {
@@ -132,6 +156,8 @@ export const SHIPS: readonly [ShipClass, ...ShipClass[]] = [
     massBudget: 360,
     cargoBayCapacity: 280,
     fuelPerDistanceUnit: 0.8,
+    hullFillColorTop: 0xa0e8f0,
+    hullFillColorBottom: 0x4898a8,
     acquisition: {
       type: 'unlock',
       requiredBaseId: 'frostgate',

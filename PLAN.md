@@ -4434,6 +4434,98 @@ including a fresh full `pnpm quality:full` and `pnpm lighthouse` run.
 Depended on **Milestone 11** (combat) and **Milestone 12** (achievements)
 for its own trigger points, both already certified.
 
+**Post-certification completeness pass — a real settings gap closed, and
+stale "not built yet" documentation drift fixed**: a full project-wide
+audit (every ship/world/base/weapon/item visually and structurally
+verified against the D18 reference art and every milestone's own
+certification claims re-checked against current source) found three
+instances of the same drift pattern — a documented forward-reference
+promise ("once Milestone N ships, this will need X") whose trigger
+condition had since fired, but whose text was never revisited:
+
+- `src/game/scenes/settings-scene.ts` still rendered the literal
+  player-facing text "No options yet — check back once audio is added,"
+  and its own doc comment named this milestone by number as the trigger.
+  Audio shipped in this exact milestone with zero follow-through — a false
+  claim visible to every player who opened Settings. **Fixed** by building
+  the real option this always implied: a SOUND ON/OFF toggle, persisted
+  via a new `src/game/persistence/audio-settings.ts` (mirrors
+  `currency-progress.ts`'s exact validated-read/write/reject-on-corruption
+  shape) and its own `isAudioMuted()` helper, read fresh — not cached — at
+  every `playSfxCue` call site specifically because Settings can toggle it
+  while `GameScene`/`WorldMapScene` sit paused underneath it as a
+  translucent modal, not a scene swap. `playSfxCue` gained a required
+  `muted` parameter, short-circuiting to the existing `SILENT_HANDLE`
+  before touching any Web Audio node — the same "audio is enhancement,
+  never a hard dependency" contract this milestone's original stage
+  already established. 13 new unit tests
+  (`persistence/audio-settings.test.ts`, including `isAudioMuted`'s
+  storage-unavailable fallback via the same `vi.stubGlobal('window', ...)`
+  technique `safe-local-storage.test.ts` already uses) plus a new
+  `e2e/audio.spec.ts` test proving the toggle flips and survives a real
+  page reload.
+- `README.md` (two places) and `src/game/equipment/equipment.ts`'s
+  `WeaponEquipmentItem` doc comment all still said "firing a weapon has no
+  gameplay effect yet" / "hands off to M11" — Milestone 11 shipped real
+  weapon damage/kills two milestones ago; README's own Milestone 11
+  paragraph elsewhere in the same file already correctly described the
+  real effect, so this was a stale sibling passage never reconciled with
+  it, not a claim anyone re-derived from current behavior. **Fixed**: both
+  README passages and the equipment.ts comment now describe the real,
+  shipped behavior.
+
+One related, _not_ fixed, gap was re-confirmed rather than acted on:
+`bases/fit-check.ts`'s `evaluateBaseFit` is still fully implemented,
+unit-tested, and wired into zero live scenes (§3's own open question,
+first flagged at Milestone 9, still true after Milestones 9.5-13). Unlike
+the three items above, no player-facing text anywhere claims this feature
+exists — it is accurately absent, not falsely advertised — so this pass
+treats it as the deliberate scope decision §3 already asks for: leave it
+as documented, real technical debt for a future milestone to either wire
+in or formally retire, rather than building a new pre-launch fit-warning
+UI as an unscoped addition to a documentation-and-regression audit.
+
+**A fourth instance of the same pattern, found by a real screenshot-driven
+visual audit rather than a text grep, and — at the user's explicit
+direction — fixed**: every one of the 7 ships in `ships/ships.ts` rendered
+as the exact same triangle, same size, same two colors, in actual flight —
+`ShipClass` had no visual field at all, so `GameScene`'s lander always
+read `constants.ts`'s one global `LANDER_FILL_COLOR_TOP`/`_BOTTOM`
+regardless of which ship was selected. This directly contradicts Decision
+D18's own stated rationale for the current art style (§2): it was chosen
+"because its ships read as the clearest, most distinct ally/hostile
+silhouettes — the property that matters most once M7/M11 add real ship
+variety." Both milestones shipped; the per-ship visual distinction never
+did — confirmed via real screenshots of all 7 ships in flight, captured
+through actual button-click navigation (not a scripted shortcut), placed
+side by side. **Fixed**: `ShipClass` gained `hullFillColorTop`/
+`hullFillColorBottom` (`ships/ship.ts`), each of the 7 ships in the
+registry got its own distinct color pair (`ships/ships.ts`) — Falcon keeps
+its exact pre-existing values byte-for-byte (removed from `constants.ts`
+in the same change, mirroring the M7 precedent of ship-intrinsic data
+moving out of global constants), the other 6 are new, chosen to stay clear
+of every reserved-meaning fill color already in the palette (landed/pad
+green, crash red, obstacle rust, hostile purple). `GameScene` now reads
+`this.ship.hullFillColorTop`/`hullFillColorBottom` instead of the removed
+globals — the shared `LANDER_TEXTURE_KEY` bake-per-flight pattern this
+already used is the same one `terrain`/`landingPad` already rely on for
+their own per-world color variation (rebaked fresh every `create()`, only
+one live consumer of the key at a time), so no new texture-key-collision
+risk was introduced. One color (Sentinel) needed a second pass after a
+real screenshot showed it reading too close to Falcon's pale ice-blue at
+the lander's actual on-screen size — darkened to a real gunmetal tone and
+re-verified visually before treating this fix as done. New unit tests
+(distinct-hull-gradient-per-ship, Falcon's pin) plus a full e2e/typecheck/
+lint/coverage re-run confirm zero regressions.
+
+Full re-verification after every change in this pass: `pnpm typecheck`/
+`pnpm lint` clean; `pnpm test:coverage` — 47 test files, 545 tests,
+99.87%/97.55%/100%/99.86%, all above thresholds; `pnpm build`/`deadcode`/
+`security:secrets`/`security:audit` all clean; the complete e2e suite,
+**111/111 passing** across chromium/firefox/webkit at `--workers=1`; a
+fresh 3-run `pnpm lighthouse` (Accessibility 1.00/1.00/1.00, Performance
+0.99-1.00, Best Practices 0.96).
+
 ## 7. Definition of Done (per milestone)
 
 A milestone is certified only when **all** of the following are true:

@@ -76,5 +76,16 @@ export interface ShipClass {
    * (Milestone 9.5's `transitFuelCost`); unused until that milestone. */
   readonly fuelPerDistanceUnit: number;
 
+  /** Hull gradient fill (top lighter, bottom darker — matches every other
+   * `createPaperShape` caller's own light-source convention, `planets/
+   * bodies.ts`'s `terrainPalette` being the closest precedent for a
+   * per-registry-entry color pair). `GameScene` reads this instead of a
+   * single global `LANDER_FILL_COLOR_*` constant so each ship actually
+   * reads as a distinct silhouette in flight, not just in its stat sheet —
+   * Decision D18's own stated rationale for the current art style names
+   * this property explicitly. */
+  readonly hullFillColorTop: number;
+  readonly hullFillColorBottom: number;
+
   readonly acquisition: ShipAcquisition;
 }
