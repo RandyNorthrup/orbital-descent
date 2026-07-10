@@ -34,16 +34,21 @@ export default defineConfig({
       // achievement-progress persistence, the celestial-body registry, the
       // base/difficulty/fit-check registry, the ship/upgrade registry, the
       // equipment registry, the economy layer, the mission/cargo/relay/
-      // reward layer, the combat layer (Milestone 11), and (Milestone 12)
-      // the achievement registry) that unit + integration tests actually
-      // exercise. Scene glue and Phaser-dependent rendering
-      // (src/game/scenes/**, most of src/game/rendering/**, src/main.ts)
-      // wire that logic into Phaser/the DOM and are verified by the
-      // Playwright e2e smoke test instead — no meaningful behavior to
-      // unit-test in isolation. starfield.ts and ridgeline.ts are the
-      // exception within rendering/: pure, seeded layout generators (same
-      // shape as terrain-generator.ts), so they're included here rather
-      // than under the untested rendering blanket.
+      // reward layer, the combat layer (Milestone 11), (Milestone 12) the
+      // achievement registry, and (Milestone 13) the synthesized sound-cue
+      // data plus the particle-burst/screen-shake decision data) that unit +
+      // integration tests actually exercise. Scene glue
+      // and Phaser-dependent rendering (src/game/scenes/**, most of
+      // src/game/rendering/**, src/main.ts) wire that logic into Phaser/
+      // the DOM and are verified by the Playwright e2e smoke test instead
+      // — no meaningful behavior to unit-test in isolation.
+      // rendering/audio-player.ts is that milestone's own Phaser/Web-Audio-
+      // touching counterpart to sfx-cues.ts, excluded from this scope for
+      // exactly the same reason paper-shape.ts already is: real canvas/
+      // audio API side effects, not pure logic. starfield.ts and
+      // ridgeline.ts are the exception within rendering/: pure, seeded
+      // layout generators (same shape as terrain-generator.ts), so they're
+      // included here rather than under the untested rendering blanket.
       include: [
         'src/game/physics/**/*.ts',
         'src/game/flight/**/*.ts',
@@ -59,6 +64,8 @@ export default defineConfig({
         'src/game/missions/**/*.ts',
         'src/game/combat/**/*.ts',
         'src/game/achievements/**/*.ts',
+        'src/game/audio/**/*.ts',
+        'src/game/effects/**/*.ts',
         'src/game/rendering/starfield.ts',
         'src/game/rendering/ridgeline.ts',
       ],

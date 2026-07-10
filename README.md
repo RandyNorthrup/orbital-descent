@@ -8,9 +8,23 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 12 (Achievements & Notifications) certified
-— see `PLAN.md`'s Milestone 12 section for the full certification
-writeup. Five achievements (Decision D16, exactly the triggers PLAN.md
+**Current status**: Milestone 13 (Audio, Juice & Accessibility Pass)
+certified — see `PLAN.md`'s Milestone 13 section for the full
+certification writeup. Every visual in this game is generated
+procedurally at runtime (no external asset pipeline — see the
+Architecture section below); as of this milestone, audio follows the same
+convention: five sound cues (thrust, landing, crash, weapon fire,
+achievement unlock) are synthesized live via the Web Audio API, not
+loaded from `.mp3`/`.wav`/`.ogg` files. Thruster exhaust, obstacle/
+combatant/ship-damage particle bursts, and screen shake on a real crash or
+combat hit add visual feedback ("juice") on top of Milestone 11/12's
+combat/achievement systems. A full accessibility audit found no color-only
+state distinction anywhere in the game (the one candidate — landed/green
+vs. crashed/red — already has a redundant text label) and confirmed via a
+fresh Lighthouse run that the Accessibility score is still a perfect 1.00,
+matching the Milestone 1 baseline. On top of: Milestone 12 (Achievements &
+Notifications, certified). Five achievements (Decision D16, exactly the
+triggers PLAN.md
 §9.5.4 specifies): founding your first base, pioneering a world, fully
 securing a multi-base world, three resupply-streak tiers, and claiming
 every critical-path base in the game — each shows a toast notification on
@@ -220,7 +234,12 @@ documented here and in `.env.example` when it happens.
 │   │   ├── economy/              # currency conversion, store listings (Milestone 8)
 │   │   ├── equipment/             # equipment items, loadout resolution (Milestone 9)
 │   │   ├── missions/              # cargo/mission/relay/reward pure logic (Milestone 9.5)
-│   │   ├── rendering/             # background/terrain rendering, UI button helper
+│   │   ├── combat/               # weapon/damage/encounter pure logic (Milestone 11)
+│   │   ├── achievements/          # achievement trigger registry (Milestone 12)
+│   │   ├── audio/                # synthesized SFX cue data (Milestone 13)
+│   │   ├── effects/               # particle-burst/screen-shake decision data (Milestone 13)
+│   │   ├── rendering/             # background/terrain rendering, UI button helper,
+│   │   │                         # audio-player.ts (Web Audio playback)
 │   │   └── scenes/               # Phaser Scene classes (Boot, Menu, Game, Result,
 │   │                             # Settings, WorldMap, ShipSelect, Store, Loadout,
 │   │                             # Transit)

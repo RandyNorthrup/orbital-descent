@@ -29,6 +29,12 @@ import {
   LANDING_PAD_FILL_COLOR_TOP,
   OBSTACLE_FILL_COLOR_BOTTOM,
   OBSTACLE_FILL_COLOR_TOP,
+  PARTICLE_BURST_ALPHA_END,
+  PARTICLE_BURST_ALPHA_START,
+  PARTICLE_BURST_ANGLE_MAX_DEG,
+  PARTICLE_BURST_ANGLE_MIN_DEG,
+  PARTICLE_DOT_MAX_ALPHA,
+  PARTICLE_DOT_RADIUS_PX,
   PROJECTILE_COLOR,
   PROJECTILE_RADIUS,
   RESULT_TRANSITION_DELAY_MS,
@@ -45,6 +51,17 @@ import {
   TERRAIN_SEGMENTS,
   TERRAIN_SHADOW_LAYER_DEPTH,
   LANDING_PAD_SEGMENT_COUNT,
+  THRUST_PARTICLE_ALPHA_END,
+  THRUST_PARTICLE_ALPHA_START,
+  THRUST_PARTICLE_ANGLE_DOWNWARD_OFFSET_DEG,
+  THRUST_PARTICLE_ANGLE_SPREAD_DEG,
+  THRUST_PARTICLE_FREQUENCY_MS,
+  THRUST_PARTICLE_LIFESPAN_MS,
+  THRUST_PARTICLE_QUANTITY_PER_EMIT,
+  THRUST_PARTICLE_SCALE_END,
+  THRUST_PARTICLE_SCALE_START,
+  THRUST_PARTICLE_SPEED_MAX_PX_PER_SEC,
+  THRUST_PARTICLE_SPEED_MIN_PX_PER_SEC,
   UI_BODY_FONT_SIZE_PX,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
@@ -54,7 +71,11 @@ import {
   WORLD_WIDTH,
 } from '../constants';
 import { FlightState } from '../flight/flight-state';
-import { degreesToRadians, type Vector2 } from '../physics/lander-physics';
+import { degreesToRadians, headingVector, type Vector2 } from '../physics/lander-physics';
+import { CRASH_CUE, LANDING_CUE, THRUST_CUE, WEAPON_FIRE_CUE } from '../audio/sfx-cues';
+import { playSfxCue, type SfxCueHandle } from '../rendering/audio-player';
+import { particleBurstForImpact, type ImpactKind } from '../effects/particle-burst';
+import { screenShakeForImpact, type ScreenShakeKind } from '../effects/screen-shake';
 import { advanceCombatantState, type CombatantState } from '../combat/combatant';
 import { encounterSpawnY, spawnEncounterCombatants } from '../combat/encounter';
 import {
@@ -114,7 +135,7 @@ import {
 } from '../terrain/terrain-generator';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createPaperShape, type PaperShape } from '../rendering/paper-shape';
-import { createRadialGlowImage } from '../rendering/radial-glow';
+import { createRadialGlowImage, bakeRadialGlowTexture } from '../rendering/radial-glow';
 import { buildBackground } from '../rendering/background';
 import {
   SCENE_KEY_GAME,
@@ -164,6 +185,16 @@ const OBSTACLE_ETCH_LINE_COUNT = 5;
  * all up front. */
 const COMBATANT_TEXTURE_KEY_PREFIX = 'paper-fill-combatant-';
 const COMBATANT_ETCH_LINE_COUNT = 3;
+/** Milestone 13's particle-dot textures — one baked color per emitter (see
+ * `PARTICLE_DOT_RADIUS_PX`'s own doc comment in constants.ts for why baking
+ * beats Phaser's runtime tint). `combatantHit`/`combatantDefeated` share
+ * this one key: same color, two different `ParticleEmitterConfig`s built
+ * from `particleBurstForImpact`'s own distinct count/speed/lifespan/scale
+ * per kind. */
+const THRUST_PARTICLE_TEXTURE_KEY = 'particle-dot-thrust';
+const OBSTACLE_PARTICLE_TEXTURE_KEY = 'particle-dot-obstacle';
+const COMBATANT_PARTICLE_TEXTURE_KEY = 'particle-dot-combatant';
+const SHIP_DAMAGE_PARTICLE_TEXTURE_KEY = 'particle-dot-ship-damage';
 
 type GameOutcome = 'flying' | FlightOutcome;
 
@@ -307,6 +338,40 @@ export class GameScene extends Phaser.Scene {
    * own doc comment on why hull isn't a per-ship stat). */
   private shipCombat: ShipCombatState = { hull: 0, shieldHitsRemaining: 0 };
   private weaponCooldownRemainingMs = 0;
+  /** Non-null exactly while the continuous thrust cue (`audio/sfx-cues.ts`'s
+   * `THRUST_CUE`) is currently playing — started the frame thrust input
+   * first goes down, stopped (via `stopThrustSound()`, which also resets
+   * this field to null) the frame it's released, at outcome resolution,
+   * and when pausing. Explicitly stopped-and-reset in `create()` too, not
+   * just reset — an orphaned retriggering loop (`rendering/
+   * audio-player.ts`'s own setTimeout-driven scheduling) has no other way
+   * to ever stop once its only handle reference is dropped, the same
+   * "never just reset a per-flight field, stop what it's holding first"
+   * lesson `shipCombat`/`hullText` already learned in Milestones 11/12. */
+  private thrustSoundHandle: SfxCueHandle | null = null;
+  /** Milestone 13's thrust exhaust — a continuous flow emitter, built fresh
+   * (like `this.lander`) in `create()` each flight, so unlike
+   * `thrustSoundHandle` above it needs no separate per-flight reset field:
+   * the previous flight's own emitter instance is torn down by Phaser's own
+   * scene-restart display-list teardown, the same reasoning `hullText`'s own
+   * doc comment already gives for why that field alone doesn't need
+   * stop-and-reset in `create()`. Repositioned/re-angled every frame while
+   * thrust is held (`updateThrustParticles`) and explicitly `.stop()`-ed at
+   * outcome resolution — an emitter left `emitting` after the flight ends
+   * would otherwise keep spawning particles from its last position forever,
+   * the exact "never just reset a per-flight field, stop what it's holding
+   * first" lesson `thrustSoundHandle` itself already learned. */
+  private thrustParticles!: Phaser.GameObjects.Particles.ParticleEmitter;
+  /** Milestone 13's impact/weapon particle bursts — one explode-only emitter
+   * per `ImpactKind` (`effects/particle-burst.ts`), built fresh in
+   * `create()` alongside `thrustParticles` above for the same reason. Never
+   * enters a continuous `emitting` flow state (`ParticleEmitter.explode()`
+   * always leaves `frequency === -1`, see that method's own Phaser source
+   * doc comment), so — unlike `thrustParticles` — there is no "still
+   * running after the flight ends" case to guard against. */
+  private impactParticles!: Readonly<
+    Record<ImpactKind, Phaser.GameObjects.Particles.ParticleEmitter>
+  >;
   private liveProjectiles: LiveProjectile[] = [];
   private liveCombatants: LiveCombatant[] = [];
   /** `EncounterSpec.id`s already spawned this flight — an encounter
@@ -440,6 +505,7 @@ export class GameScene extends Phaser.Scene {
     this.triggeredEncounterIds = new Set();
     this.clearedObstacleIndices = new Set();
     this.combatantSpawnCounter = 0;
+    this.stopThrustSound();
     // The Text object itself (if any) was already destroyed by Phaser's own
     // scene-shutdown display-list teardown when the previous flight ended
     // (confirmed directly: GameObject.destroy() doesn't throw on a later
@@ -513,8 +579,10 @@ export class GameScene extends Phaser.Scene {
     this.lander.container.setDepth(LANDER_LAYER_DEPTH);
 
     // A static glow accent at the engine base — part of the ship's own
-    // artwork per the approved art direction, not a thrust-reactive
-    // particle effect (that "juice" is Milestone 13's scope).
+    // artwork per the approved art direction, always present regardless of
+    // whether thrust is actually held. `buildParticleEmitters()` below adds
+    // this milestone's own thrust-*reactive* particle exhaust on top of
+    // this same static halo, not instead of it.
     // createPaperShape builds the container as [shadow, fill, outline];
     // addAt(engineGlow, 1) below inserts it directly above the opaque hard
     // shadow but below the hull fill/outline, so the halo reads around the
@@ -529,6 +597,8 @@ export class GameScene extends Phaser.Scene {
       ENGINE_GLOW_MAX_ALPHA,
     );
     this.lander.container.addAt(engineGlow, 1);
+
+    this.buildParticleEmitters();
 
     // Camera follows the lander across the full WORLD_WIDTH (Milestone
     // 2.5) instead of the whole world always being exactly one static
@@ -597,6 +667,21 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.pauseGuard.consumeJustPressed()) {
+      // Phaser stops calling this scene's update() while paused, but the
+      // thrust loop's own retriggering (rendering/audio-player.ts's
+      // setTimeout scheduling) is not driven by update() at all, so it
+      // would otherwise keep chugging in the background for the whole
+      // time Settings is up if thrust happened to be held on this exact
+      // frame. The particle emitter itself doesn't need this same rescue —
+      // Phaser's own Scene Systems (verified directly:
+      // node_modules/phaser/src/scene/SceneManager.js's update() only
+      // steps scenes whose status is <= RUNNING, and PAUSED sorts above
+      // it) stop calling every GameObject's preUpdate, including a live
+      // ParticleEmitter's, the instant this scene pauses — but stopping it
+      // explicitly here too costs nothing and keeps its `emitting` flag
+      // truthful rather than relying on that engine behavior implicitly.
+      this.stopThrustSound();
+      this.thrustParticles.stop();
       const data: SettingsSceneData = { returnTo: SCENE_KEY_GAME };
       this.scene.run(SCENE_KEY_SETTINGS, data);
       this.scene.pause();
@@ -610,6 +695,11 @@ export class GameScene extends Phaser.Scene {
       rotate = rotateLeft ? -1 : 1;
     }
     const thrust = this.cursors.up.isDown || this.keyW.isDown;
+    if (thrust && this.thrustSoundHandle === null) {
+      this.thrustSoundHandle = playSfxCue(this, THRUST_CUE);
+    } else if (!thrust && this.thrustSoundHandle !== null) {
+      this.stopThrustSound();
+    }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyCycleWeapon)) {
       this.equipmentProgress = cycleActiveWeapon(
@@ -653,6 +743,7 @@ export class GameScene extends Phaser.Scene {
     this.elapsedMs += deltaMs;
     this.updateFuelText(snapshot.fuel);
     this.advanceCombat(snapshot.position, deltaMs / MILLISECONDS_PER_SECOND);
+    this.updateThrustParticles(thrust, snapshot.position, snapshot.rotationRadians);
 
     const groundY = getTerrainHeightAt(this.terrain.points, snapshot.position.x);
     // Milestone 10: checked every frame regardless of ground proximity — a
@@ -687,6 +778,26 @@ export class GameScene extends Phaser.Scene {
     // Playwright e2e suite can observe the outcome without reaching into
     // canvas-rendered text, which isn't visible to DOM-based locators.
     this.data.set('outcome', outcome);
+    // The thrust loop/particles must stop the instant flight ends, even if
+    // thrust was still held on the exact frame the outcome resolved —
+    // update() returns early for every subsequent frame once
+    // `this.outcome !== 'flying'` (top of this method), so this is the
+    // only point left that will ever run for this flight. Unlike the pause
+    // branch above, the scene keeps fully running here (it isn't paused),
+    // so `thrustParticles` would otherwise keep silently emitting from its
+    // last position forever — the exact "never just reset a per-flight
+    // field, stop what it's holding first" lesson `thrustSoundHandle`
+    // itself already learned.
+    this.stopThrustSound();
+    this.thrustParticles.stop();
+    playSfxCue(this, safe ? LANDING_CUE : CRASH_CUE);
+    // A crash shakes the camera (a real off-pad/obstacle/combat crash, not
+    // a normal safe landing) — screenShakeForImpact('crash') is this
+    // milestone's strongest/longest profile, matching this being the
+    // flight-ending event.
+    if (!safe) {
+      this.triggerScreenShake('crash');
+    }
     // Milestone 10/11: an obstacle hit, a combat destruction, and an
     // ordinary off-pad crash all resolve to the same 'crashed' outcome
     // above — these two keys are what let the e2e suite tell them apart
@@ -931,9 +1042,202 @@ export class GameScene extends Phaser.Scene {
     return shape;
   }
 
+  /**
+   * Milestone 13: builds this flight's thrust-exhaust emitter (started/
+   * stopped/repositioned every frame by `updateThrustParticles`) and one
+   * explode-only burst emitter per `ImpactKind` (triggered by
+   * `spawnImpactBurst`). Called once per flight from `create()`, right
+   * after the lander/engine-glow it visually extends — every emitter here
+   * is a fresh GameObject each flight, the same "rebuilt in create(), no
+   * separate reset needed" pattern `this.lander` itself already uses (see
+   * `thrustParticles`'s own field doc comment).
+   */
+  private buildParticleEmitters(): void {
+    bakeRadialGlowTexture(
+      this,
+      THRUST_PARTICLE_TEXTURE_KEY,
+      PARTICLE_DOT_RADIUS_PX,
+      ENGINE_GLOW_COLOR,
+      PARTICLE_DOT_MAX_ALPHA,
+    );
+    this.thrustParticles = this.add
+      .particles(0, 0, THRUST_PARTICLE_TEXTURE_KEY, {
+        speed: {
+          min: THRUST_PARTICLE_SPEED_MIN_PX_PER_SEC,
+          max: THRUST_PARTICLE_SPEED_MAX_PX_PER_SEC,
+        },
+        angle: {
+          min: THRUST_PARTICLE_ANGLE_DOWNWARD_OFFSET_DEG - THRUST_PARTICLE_ANGLE_SPREAD_DEG,
+          max: THRUST_PARTICLE_ANGLE_DOWNWARD_OFFSET_DEG + THRUST_PARTICLE_ANGLE_SPREAD_DEG,
+        },
+        lifespan: THRUST_PARTICLE_LIFESPAN_MS,
+        frequency: THRUST_PARTICLE_FREQUENCY_MS,
+        quantity: THRUST_PARTICLE_QUANTITY_PER_EMIT,
+        scale: { start: THRUST_PARTICLE_SCALE_START, end: THRUST_PARTICLE_SCALE_END },
+        alpha: { start: THRUST_PARTICLE_ALPHA_START, end: THRUST_PARTICLE_ALPHA_END },
+        emitting: false,
+      })
+      .setDepth(LANDER_LAYER_DEPTH);
+
+    // Each distinct texture key is baked exactly once, up front — NOT
+    // inside buildImpactEmitter (its own earlier version baked on every
+    // call, which meant combatantHit and combatantDefeated, the one pair
+    // that deliberately share COMBATANT_PARTICLE_TEXTURE_KEY, silently
+    // destroyed each other's already-in-use texture: bakeCanvasTexture
+    // removes-then-recreates any existing texture under the same key, and
+    // Phaser's TextureManager#remove() calls the existing Texture's own
+    // destroy(), which the FIRST emitter's already-constructed
+    // ParticleEmitter had already cached a live reference to via its own
+    // constructor -- the next time that emitter fired, its stale texture
+    // reference's now-empty frame table crashed GameScene.update()
+    // synchronously. Confirmed directly by tracing Phaser 4.2.0's own
+    // TextureManager.js/Texture.js/ParticleEmitter.js/Particle.js source.
+    // This is the exact same shared/rebaked-texture-key defect class
+    // Milestone 11's own COMBATANT_TEXTURE_KEY_PREFIX comment above already
+    // documents having crashed the render loop once before -- that fix
+    // gave each spawned combatant a unique key; this fix instead bakes a
+    // shared key once and reuses it, since these two emitters are static
+    // (built once in create(), unlike per-instance combatant visuals).
+    bakeRadialGlowTexture(
+      this,
+      OBSTACLE_PARTICLE_TEXTURE_KEY,
+      PARTICLE_DOT_RADIUS_PX,
+      OBSTACLE_FILL_COLOR_TOP,
+      PARTICLE_DOT_MAX_ALPHA,
+    );
+    bakeRadialGlowTexture(
+      this,
+      COMBATANT_PARTICLE_TEXTURE_KEY,
+      PARTICLE_DOT_RADIUS_PX,
+      COMBATANT_FILL_COLOR_TOP,
+      PARTICLE_DOT_MAX_ALPHA,
+    );
+    bakeRadialGlowTexture(
+      this,
+      SHIP_DAMAGE_PARTICLE_TEXTURE_KEY,
+      PARTICLE_DOT_RADIUS_PX,
+      CRASHED_COLOR_TOP,
+      PARTICLE_DOT_MAX_ALPHA,
+    );
+
+    this.impactParticles = {
+      obstacleCleared: this.buildImpactEmitter('obstacleCleared', OBSTACLE_PARTICLE_TEXTURE_KEY),
+      combatantHit: this.buildImpactEmitter('combatantHit', COMBATANT_PARTICLE_TEXTURE_KEY),
+      combatantDefeated: this.buildImpactEmitter(
+        'combatantDefeated',
+        COMBATANT_PARTICLE_TEXTURE_KEY,
+      ),
+      shipDamage: this.buildImpactEmitter('shipDamage', SHIP_DAMAGE_PARTICLE_TEXTURE_KEY),
+    };
+  }
+
+  /** One explode-only emitter for `kind`, sized/paced by its own
+   * `particleBurstForImpact(kind)` config — left at the emitter's default
+   * (0, 0) position forever, since every trigger site calls
+   * `ParticleEmitter.explode(count, x, y)` with an explicit world position
+   * rather than relying on the emitter's own transform (see
+   * `spawnImpactBurst`'s own doc comment for why that matters). Assumes
+   * `textureKey` is already baked (see `buildParticleEmitters`'s own
+   * comment for why baking must happen exactly once per key, before any
+   * emitter referencing it is constructed). */
+  private buildImpactEmitter(
+    kind: ImpactKind,
+    textureKey: string,
+  ): Phaser.GameObjects.Particles.ParticleEmitter {
+    const burst = particleBurstForImpact(kind);
+    return this.add
+      .particles(0, 0, textureKey, {
+        speed: { min: burst.speedMin, max: burst.speedMax },
+        angle: { min: PARTICLE_BURST_ANGLE_MIN_DEG, max: PARTICLE_BURST_ANGLE_MAX_DEG },
+        lifespan: burst.lifespanMs,
+        scale: { start: burst.scaleStart, end: burst.scaleEnd },
+        alpha: { start: PARTICLE_BURST_ALPHA_START, end: PARTICLE_BURST_ALPHA_END },
+        emitting: false,
+      })
+      .setDepth(LANDER_LAYER_DEPTH);
+  }
+
+  /**
+   * Milestone 13: starts/stops/repositions the continuous thrust-exhaust
+   * emitter — called once per frame from `update()` (`updateFuelText`'s own
+   * call site), mirroring where the thrust *sound* cue is instead toggled
+   * directly inline near the top of `update()` (before `flightState.tick()`
+   * runs); this needs the just-ticked `position`/`rotationRadians`, so it
+   * can't run that early.
+   *
+   * The engine base's rotated world offset reuses `physics/
+   * lander-physics.ts`'s own `headingVector` — `headingVector(rotation,
+   * -LANDER_RADIUS)` is exactly the ship's local "down" (engine-base) point
+   * rotated into world space, the same point `ENGINE_GLOW_RADIUS`'s static
+   * halo sits at (`{x: 0, y: LANDER_RADIUS}` in the lander's own local
+   * frame) — see `THRUST_PARTICLE_ANGLE_DOWNWARD_OFFSET_DEG`'s own doc
+   * comment in constants.ts for the matching emission-angle conversion.
+   */
+  private updateThrustParticles(
+    thrustActive: boolean,
+    position: Vector2,
+    rotationRadians: number,
+  ): void {
+    if (!thrustActive) {
+      if (this.thrustParticles.emitting) {
+        this.thrustParticles.stop();
+      }
+      return;
+    }
+
+    const engineOffset = headingVector(rotationRadians, -LANDER_RADIUS);
+    this.thrustParticles.setPosition(position.x + engineOffset.x, position.y + engineOffset.y);
+
+    const emissionAngleDeg =
+      Phaser.Math.RadToDeg(rotationRadians) + THRUST_PARTICLE_ANGLE_DOWNWARD_OFFSET_DEG;
+    this.thrustParticles.particleAngle = {
+      min: emissionAngleDeg - THRUST_PARTICLE_ANGLE_SPREAD_DEG,
+      max: emissionAngleDeg + THRUST_PARTICLE_ANGLE_SPREAD_DEG,
+    };
+
+    if (!this.thrustParticles.emitting) {
+      this.thrustParticles.start();
+    }
+  }
+
+  /** Fires an instant `ImpactKind` burst at world position (x, y) — every
+   * call site (obstacle-clear, combatant-hit, combatant-defeated, ship
+   * contact/ranged damage) passes the exact position that event occurred
+   * at. `explode()`'s own explicit `(x, y)` argument bypasses the emitter's
+   * own transform entirely (verified directly against `node_modules/
+   * phaser/src/gameobjects/particles/Particle.js`'s `fire()`: an explicit
+   * spawn position is stored as the particle's own local coordinate and
+   * then run through the emitter's transform matrix, which stays identity
+   * for these never-repositioned emitters — see `buildImpactEmitter`'s own
+   * doc comment), so this is unaffected by the emitter's own (0, 0)
+   * position, unlike the continuous `thrustParticles` emitter above, which
+   * relies on `setPosition` precisely because its particles spawn from
+   * wherever the emitter itself currently sits. */
+  private spawnImpactBurst(kind: ImpactKind, x: number, y: number): void {
+    this.impactParticles[kind].explode(particleBurstForImpact(kind).count, x, y);
+  }
+
+  /** Shakes the main camera per `kind`'s own `screenShakeForImpact` profile
+   * — every call site (a real crash, the ship taking a contact hit, the
+   * ship taking a ranged hit) already knows which `ScreenShakeKind`
+   * applies; this only ever renders whatever that pure function decides. */
+  private triggerScreenShake(kind: ScreenShakeKind): void {
+    const { durationMs, intensity } = screenShakeForImpact(kind);
+    this.cameras.main.shake(durationMs, intensity);
+  }
+
   private updateFuelText(fuel: number): void {
     const percent = Math.round((fuel / this.effectiveFuelCapacity) * FUEL_PERCENT_MULTIPLIER);
     this.fuelText.setText(`FUEL: ${percent.toString()}%`);
+  }
+
+  /** Stops the continuous thrust cue if it's currently playing — shared by
+   * `create()`'s per-flight reset, the pause branch, `update()`'s own
+   * thrust-key-released case, and outcome resolution, so "stop it, if
+   * playing" has exactly one implementation. */
+  private stopThrustSound(): void {
+    this.thrustSoundHandle?.stop();
+    this.thrustSoundHandle = null;
   }
 
   private updateHullText(): void {
@@ -1016,6 +1320,7 @@ export class GameScene extends Phaser.Scene {
         ) {
           this.clearedObstacleIndices.add(obstacleIndex);
           this.obstacleVisuals[obstacleIndex]?.container.destroy();
+          this.spawnImpactBurst('obstacleCleared', advanced.position.x, advanced.position.y);
         }
         entry.visual.destroy();
         continue;
@@ -1032,6 +1337,7 @@ export class GameScene extends Phaser.Scene {
         const damage = effectiveDamage(advanced.damage, hitCombatant.state.definition.armorRating);
         hitCombatant.state = { ...hitCombatant.state, health: hitCombatant.state.health - damage };
         entry.visual.destroy();
+        this.spawnImpactBurst('combatantHit', advanced.position.x, advanced.position.y);
         continue;
       }
 
@@ -1050,6 +1356,7 @@ export class GameScene extends Phaser.Scene {
     const survivors: LiveCombatant[] = [];
     for (const entry of this.liveCombatants) {
       if (entry.state.health <= 0) {
+        this.spawnImpactBurst('combatantDefeated', entry.state.position.x, entry.state.position.y);
         entry.visual.container.destroy();
         continue;
       }
@@ -1062,6 +1369,8 @@ export class GameScene extends Phaser.Scene {
         isWithinRadius(playerPosition, state.position, COMBATANT_COLLISION_RADIUS + LANDER_RADIUS)
       ) {
         this.shipCombat = absorbHit(this.shipCombat, definition.contactDamage);
+        this.spawnImpactBurst('shipDamage', playerPosition.x, playerPosition.y);
+        this.triggerScreenShake('shipContactDamage');
         entry.visual.container.destroy();
         continue;
       }
@@ -1076,6 +1385,8 @@ export class GameScene extends Phaser.Scene {
         isWithinRadius(playerPosition, state.position, definition.attack.range)
       ) {
         this.shipCombat = absorbHit(this.shipCombat, definition.attack.damagePerHit);
+        this.spawnImpactBurst('shipDamage', playerPosition.x, playerPosition.y);
+        this.triggerScreenShake('shipRangedDamage');
         attackCooldownRemainingMs = definition.attack.cooldownMs;
       }
 
@@ -1116,6 +1427,7 @@ export class GameScene extends Phaser.Scene {
     this.liveProjectiles.push({ state: projectile, visual });
     this.weaponCooldownRemainingMs = item.cooldownMs;
     this.data.set('lastTriggeredWeaponId', weaponId);
+    playSfxCue(this, WEAPON_FIRE_CUE);
   }
 
   /** F activates the currently-active utility item. Only the two

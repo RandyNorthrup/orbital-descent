@@ -6,6 +6,137 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ## [Unreleased]
 
+### Added
+
+- **Milestone 13 — Audio, Juice & Accessibility Pass (certified)**:
+  procedurally-synthesized sound cues, matching this
+  project's existing "everything generated at runtime, nothing loaded from
+  disk" convention — no `.mp3`/`.wav`/`.ogg` assets exist or were added. New
+  `src/game/audio/sfx-cues.ts` defines five cues as Phaser-free plain data
+  (waveform, frequency/filter-cutoff envelope, ADSR gain envelope,
+  duration — every numeric parameter a named constant in `constants.ts`):
+  a loopable thrust rumble, a resolving landing chime, a harsh noise-burst
+  crash, a "pew" weapon-fire sweep, and a bright achievement-unlock chime.
+  New `src/game/rendering/audio-player.ts` schedules real
+  OscillatorNode/GainNode/AudioBufferSourceNode instances against
+  `scene.sound`'s Web Audio context, degrading silently (no throw, no
+  unhandled rejection) whenever Web Audio is unsupported or the context is
+  still suspended by the browser's autoplay policy. `BootScene` (previously
+  a placeholder) now nudges the AudioContext awake on boot; verified
+  directly from Phaser 4.2.0's own source that its `WebAudioSoundManager`
+  already resumes a suspended context on the first user gesture, so no
+  separate first-interaction listener was needed. Cues are wired at their
+  real trigger points: thrust with the thrust key's held state in
+  `GameScene.update()`, landing/crash once at outcome resolution,
+  weapon-fire once per shot in `triggerActiveWeapon()`, and
+  achievement-unlock once per toast in `WorldMapScene`'s
+  `showNextAchievementToastIfIdle()`. New `src/game/audio/sfx-cues.test.ts`
+  (6 tests) validates every cue's data shape; `src/game/audio/**` added to
+  `vitest.config.ts`'s coverage scope in the same change. Verified against
+  real Chromium runs of the existing boot/landing/combat/pause/achievements
+  Playwright specs (all still pass) in addition to the full `pnpm quality`
+  gate.
+
+  Also added this same milestone: thruster/impact/weapon particle effects
+  and screen shake. New `src/game/effects/particle-burst.ts` and
+  `src/game/effects/screen-shake.ts` are Phaser-free plain-data modules
+  (mirroring `sfx-cues.ts`'s own "event kind -> fixed data record" shape,
+  each with its own shape-validation unit tests, 6 and 5 respectively) that
+  decide which count/speed/lifespan/scale profile a given particle burst
+  uses, and which duration/intensity a given camera shake uses; every
+  tunable number is a named constant in `constants.ts`, and
+  `src/game/effects/**` was added to `vitest.config.ts`'s coverage scope in
+  the same change. `GameScene` renders what those pure functions decide,
+  never computing a burst/shake's own shape itself: a real thrust-reactive
+  particle emitter (`this.add.particles`) now runs at the lander's rotated
+  engine base while thrust is held, using `physics/lander-physics.ts`'s
+  `headingVector` to track the ship's own rotation frame-by-frame, and
+  explode-only burst emitters fire at a projectile clearing an obstacle, a
+  projectile hitting a combatant, a combatant being defeated, and the ship
+  taking contact or ranged damage (the last two share one "ship damage"
+  particle look but trigger their own distinct screen-shake profile). A
+  real crash (off-pad, obstacle, or combat destruction — never a normal
+  safe landing) also shakes the camera. Every particle emitter bakes its
+  own small colored dot texture via `rendering/radial-glow.ts`'s newly
+  extracted `bakeRadialGlowTexture` (shared with the existing static
+  engine-glow/moon-halo callers) rather than using Phaser's separate
+  runtime-tint mechanism, matching this project's "bake the final color
+  into the texture" convention; particle/burst colors reuse existing
+  palette constants (`OBSTACLE_FILL_COLOR_TOP`, `COMBATANT_FILL_COLOR_TOP`,
+  `CRASHED_COLOR_TOP`, `ENGINE_GLOW_COLOR`) rather than inventing new ones.
+  Verified directly against Phaser 4.2.0's own installed source
+  (`ParticleEmitter.js`/`Particle.js`) for the exact emission-angle
+  convention, the `explode(count, x, y)` vs continuous-flow position
+  semantics, and that a paused scene's own Scene Systems already stop
+  calling a live emitter's `preUpdate` (so no bespoke pause-handling was
+  needed beyond an explicit, defensive `stop()` call matching the existing
+  thrust-cue pattern); the continuous thrust emitter is explicitly
+  `stop()`-ed at outcome resolution, mirroring `thrustSoundHandle`'s own
+  "never just reset a per-flight field, stop what it's holding first"
+  lesson from Milestones 11/12. Verified against real Chromium runs of the
+  existing landing/obstacles/combat/pause-resume/achievements Playwright
+  specs (mostly `--workers=1`, since running the full suite in parallel on
+  this machine produces unrelated timeout flakiness under CPU contention —
+  confirmed by reproducing the same timeouts against the pre-particle-
+  effects code) in addition to the full `pnpm quality` gate. One e2e test
+  (`combat.spec.ts`'s "triggering the equipped weapon ... defeats a
+  hostile" case) failed at this point in the session and was flagged as an
+  apparently pre-existing issue — this later turned out to be a false
+  diagnosis; the real cause was this same milestone's own particle-texture
+  bug found by the adversarial review below.
+
+  This milestone's third and final stage ran the accessibility pass:
+  a full colorblind-safe audit across every world/ship/UI screen shipped
+  through Milestone 12 found exactly one real color-coded state
+  distinction anywhere in the game — the lander's landed (green) vs.
+  crashed (red) fill — and it already has a fully redundant text label
+  (`"LANDED SAFELY"`/`"CRASHED"`, `result-scene.ts`'s shared
+  `outcomeLabel()`), so no color changes were needed anywhere. Documented
+  (deliberately not built, and why, matching this project's own scope-
+  decision convention) that this game has no DOM Tab-focus system on any
+  screen by design (Decision D6) — Lighthouse's own focus/tab-order audits
+  are all `scoreDisplayMode: 'manual'` for a canvas-based page and don't
+  affect the accessibility score, which instead measures page-shell
+  semantics untouched by this milestone. New `e2e/audio.spec.ts` extends
+  `game-boot.spec.ts`'s zero-console-error pattern through a real first
+  user interaction (boots, presses Enter, holds thrust for real, asserts
+  the shared `AudioContext` reaches `'running'` and no console/page errors
+  occurred) — run directly against all three Playwright browser projects,
+  multiple times each, all passing. New `src/game/audio/
+audio-availability.ts` extracts the blocked-autoplay fallback decision
+  (`isAudioContextReady`) into its own Phaser-free predicate so this
+  milestone's required unit test of that exact branch is possible at all
+  (`audio-player.ts` itself imports Phaser directly, which throws outside
+  a real browser, so it can't be unit-tested — this predicate can).
+  A fresh `pnpm lighthouse` run confirmed Accessibility 1.00 on 3/3 runs,
+  matching the Milestone 1 baseline this milestone's own acceptance
+  criterion names. See `PLAN.md`'s Milestone 13 section for the full
+  writeup.
+
+- **Milestone 13 adversarial-review fix-up**: a scoped 4-dimension
+  Workflow review, run after all three build stages above shipped, found
+  one real critical bug (3/3 verify votes, zero refutations):
+  `buildParticleEmitters()` baked `COMBATANT_PARTICLE_TEXTURE_KEY` twice —
+  once per emitter that deliberately shares it (`combatantHit`,
+  `combatantDefeated`) — and the second bake destroyed the live Texture
+  object the first emitter's `ParticleEmitter` had already cached a
+  reference to (confirmed directly against Phaser 4.2.0's own
+  `TextureManager`/`Texture`/`Particle` source), crashing
+  `GameScene.update()` synchronously the first time any weapon hit
+  connected with a still-living combatant. The exact same shared/rebaked-
+  texture-key defect class Milestone 11's own `COMBATANT_TEXTURE_KEY_PREFIX`
+  fix already exists to prevent, recurring here for two static, built-once
+  emitters that were never given the same protection. Fixed by baking
+  each distinct texture key exactly once, up front, before any emitter
+  referencing it is constructed. This fix also fully resolved the
+  `combat.spec.ts` weapon-kill failure the particle and accessibility
+  stages had each independently (and, it turns out, incorrectly) flagged
+  as an unrelated pre-existing issue — with the fix applied, a complete
+  108/108 `pnpm exec playwright test --workers=1` run across the entire
+  e2e suite passed cleanly, and the full `pnpm quality:full`/
+  `pnpm lighthouse` gates were re-verified independently end-to-end. See
+  `PLAN.md`'s Milestone 13 section for the full writeup.
+
 ### Changed
 
 - **Milestone 12 — Achievements & Notifications, certified**: achievement

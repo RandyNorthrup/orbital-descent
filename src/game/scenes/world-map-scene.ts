@@ -34,6 +34,8 @@ import {
   recordUnlockedAchievements,
 } from '../persistence/achievement-progress';
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
+import { ACHIEVEMENT_UNLOCK_CUE } from '../audio/sfx-cues';
+import { playSfxCue } from '../rendering/audio-player';
 import { initialShipProgress, loadShipProgress } from '../persistence/ship-progress';
 import {
   creditCurrency,
@@ -997,6 +999,7 @@ export class WorldMapScene extends Phaser.Scene {
       return;
     }
 
+    playSfxCue(this, ACHIEVEMENT_UNLOCK_CUE);
     const toast = this.add
       .text(
         GAME_WIDTH / 2,

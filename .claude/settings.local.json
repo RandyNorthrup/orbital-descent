@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash",
       "Bash(uv:*)",
@@ -19,7 +18,16 @@
       "Bash(cd:*)",
       "Bash(echo:*)",
       "Bash(until:*)",
-      "Bash(sleep:*)"
-    ]
+      "Bash(sleep:*)",
+      "Bash(pnpm test:coverage)",
+      "Bash(pnpm build *)",
+      "Bash(pnpm deadcode *)",
+      "Bash(timeout 180 npx playwright test e2e/game-boot.spec.ts --project=chromium)",
+      "Bash(npx playwright *)",
+      "Bash(awk '/class ParticleEmitter extends/,0' /Users/user/Documents/GitHub/lunar_lander/node_modules/phaser/types/phaser.d.ts)",
+      "Bash(pnpm vitest *)",
+      "Bash(pnpm exec *)"
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }

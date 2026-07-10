@@ -144,8 +144,10 @@ export const ETCH_LINE_WIDTH_PX = 1;
 
 /** Small glowing radial-gradient accent at the lander's engine base — a
  * static part of the ship's own artwork (like the approved concept's
- * "glowing engine trail"), not a thrust-reactive particle effect; dynamic
- * thrust "juice" is Milestone 13's scope, not this art-direction pass. */
+ * "glowing engine trail"), always present regardless of thrust input.
+ * Milestone 13's `THRUST_PARTICLE_*` constants further down add real
+ * thrust-*reactive* particle exhaust on top of this same static halo (and
+ * reuse this exact color for it), not instead of it. */
 export const ENGINE_GLOW_COLOR = 0x8fd8ff;
 export const ENGINE_GLOW_RADIUS = 20;
 export const ENGINE_GLOW_MAX_ALPHA = 0.75;
@@ -483,3 +485,222 @@ export const ACHIEVEMENT_TOAST_Y_FRACTION = 0.94;
  * cross-scene z-order system `SKY_LAYER_DEPTH`..`HUD_LAYER_DEPTH` above
  * (that ordering is `GameScene`'s own, a different scene entirely). */
 export const ACHIEVEMENT_TOAST_DEPTH = 1000;
+
+/* ---------------------------------------------------------------------- */
+/* Audio (PLAN.md Milestone 13) — src/game/audio/sfx-cues.ts,              */
+/* src/game/rendering/audio-player.ts                                     */
+/* Every synthesized cue's tunable numbers live here, named, matching this */
+/* file's own "every tunable number has a name" rule. sfx-cues.ts is the   */
+/* Phaser-free module that assembles them into the plain-data `SfxCue`     */
+/* shape; audio-player.ts is the Phaser/Web-Audio-touching module that     */
+/* actually schedules real oscillator/noise nodes from that data — the     */
+/* same physics/rendering split this project uses everywhere else.        */
+/* ---------------------------------------------------------------------- */
+
+/** Shared white-noise source buffer length, seconds — long enough to cover
+ * the longest noise-waveform cue's full playback (attack + decay + sustain
+ * hold + release) with room to spare. Only the crash cue uses this today
+ * (`SfxCue.waveform === 'noise'`), but the buffer itself is cue-agnostic
+ * (`audio-player.ts` plays it from the start every time), so a future
+ * second noise cue with a longer envelope would still be covered without
+ * revisiting this value first. */
+export const SFX_NOISE_BUFFER_DURATION_SECONDS = 1;
+
+/** Thrust: a continuous/loopable low engine rumble. `audio-player.ts`
+ * retriggers this exact attack/decay/sustain/release pass back-to-back
+ * every `SFX_THRUST_DURATION_MS`, for as long as thrust is held — see
+ * `SfxCue.loop`'s own doc comment (`audio/sfx-cues.ts`) for why the
+ * resulting periodic throb is a deliberate "engine chugging" texture, not
+ * an artifact to smooth over. Sawtooth for a buzzier, more mechanical
+ * timbre than the landing/achievement cues' smoother sine/triangle. */
+export const SFX_THRUST_FREQUENCY_START_HZ = 60;
+export const SFX_THRUST_FREQUENCY_END_HZ = 85;
+export const SFX_THRUST_ATTACK_MS = 20;
+export const SFX_THRUST_DECAY_MS = 40;
+export const SFX_THRUST_SUSTAIN_LEVEL = 0.85;
+export const SFX_THRUST_RELEASE_MS = 40;
+export const SFX_THRUST_PEAK_GAIN = 0.22;
+export const SFX_THRUST_DURATION_MS = 220;
+
+/** Landing: a resolving, pleasant two-note rise (a root up to a fifth
+ * above) — sine for the cleanest, calmest timbre in this cue set. */
+export const SFX_LANDING_FREQUENCY_START_HZ = 440;
+export const SFX_LANDING_FREQUENCY_END_HZ = 660;
+export const SFX_LANDING_ATTACK_MS = 20;
+export const SFX_LANDING_DECAY_MS = 60;
+export const SFX_LANDING_SUSTAIN_LEVEL = 0.8;
+export const SFX_LANDING_RELEASE_MS = 250;
+export const SFX_LANDING_PEAK_GAIN = 0.35;
+export const SFX_LANDING_DURATION_MS = 500;
+
+/** Crash: a harsh, descending noise burst. `SfxCue.frequency` is read as a
+ * lowpass-filter cutoff sweep for this cue rather than an oscillator pitch
+ * (see that field's own doc comment) — `'noise'` has no fundamental
+ * frequency of its own, but sweeping a filter cutoff down across a burst
+ * of noise is the idiomatic Web Audio way to make it read as "descending." */
+export const SFX_CRASH_FILTER_START_HZ = 1200;
+export const SFX_CRASH_FILTER_END_HZ = 150;
+export const SFX_CRASH_ATTACK_MS = 5;
+export const SFX_CRASH_DECAY_MS = 120;
+export const SFX_CRASH_SUSTAIN_LEVEL = 0.3;
+export const SFX_CRASH_RELEASE_MS = 300;
+export const SFX_CRASH_PEAK_GAIN = 0.5;
+export const SFX_CRASH_DURATION_MS = 600;
+
+/** Weapon fire: a short, descending "pew" — square for the brightest, most
+ * synthetic/laser-like timbre in this set. */
+export const SFX_WEAPON_FIRE_FREQUENCY_START_HZ = 900;
+export const SFX_WEAPON_FIRE_FREQUENCY_END_HZ = 250;
+export const SFX_WEAPON_FIRE_ATTACK_MS = 5;
+export const SFX_WEAPON_FIRE_DECAY_MS = 40;
+export const SFX_WEAPON_FIRE_SUSTAIN_LEVEL = 0.2;
+export const SFX_WEAPON_FIRE_RELEASE_MS = 60;
+export const SFX_WEAPON_FIRE_PEAK_GAIN = 0.3;
+export const SFX_WEAPON_FIRE_DURATION_MS = 140;
+
+/** Achievement unlock: a short, bright two-note chime — triangle sits
+ * between landing's plain sine and weapon-fire's square in timbre, and a
+ * higher register than landing's 440-660Hz keeps the two "resolving tone"
+ * cues from reading as the same event. */
+export const SFX_ACHIEVEMENT_FREQUENCY_START_HZ = 660;
+export const SFX_ACHIEVEMENT_FREQUENCY_END_HZ = 880;
+export const SFX_ACHIEVEMENT_ATTACK_MS = 10;
+export const SFX_ACHIEVEMENT_DECAY_MS = 40;
+export const SFX_ACHIEVEMENT_SUSTAIN_LEVEL = 0.75;
+export const SFX_ACHIEVEMENT_RELEASE_MS = 200;
+export const SFX_ACHIEVEMENT_PEAK_GAIN = 0.4;
+export const SFX_ACHIEVEMENT_DURATION_MS = 450;
+
+/* ---------------------------------------------------------------------- */
+/* Particle effects & screen shake (PLAN.md Milestone 13) —               */
+/* src/game/effects/particle-burst.ts, src/game/effects/screen-shake.ts,  */
+/* src/game/rendering/radial-glow.ts's bakeRadialGlowTexture,             */
+/* scenes/game-scene.ts                                                   */
+/* Every particle emitter in this project bakes a small soft-edged dot    */
+/* texture (bakeRadialGlowTexture, the same baked-radial-gradient         */
+/* convention ENGINE_GLOW_COLOR/_RADIUS above already uses) rather than    */
+/* using Phaser's separate runtime-tint mechanism, which nothing else in  */
+/* this codebase uses — one baked color per emitter, matching the paper-  */
+/* cutout renderer's own "bake the final color into the texture" rule.    */
+/* ---------------------------------------------------------------------- */
+
+/** Shared dot-texture radius, px, for every particle emitter this milestone
+ * adds (thrust exhaust, every impact/weapon burst) — a fixed visual size,
+ * not a per-event "severity" dial; per-event intensity instead comes from
+ * each burst's own count/speed/scale below. */
+export const PARTICLE_DOT_RADIUS_PX = 5;
+
+/** Fully opaque center for every baked particle-dot texture — the fade-out
+ * look itself comes entirely from each emitter's own `alpha: {start, end}`
+ * config animating over a live particle's lifetime, not from the texture's
+ * own baked alpha (unlike ENGINE_GLOW_MAX_ALPHA, which bakes its fixed,
+ * never-animated halo strength directly into that static texture). */
+export const PARTICLE_DOT_MAX_ALPHA = 1;
+
+/** Thrust exhaust: a continuous particle flow, active only while thrust is
+ * held (`GameScene.updateThrustParticles`), positioned every frame at the
+ * lander's rotated engine base — the same local offset
+ * (`{x: 0, y: LANDER_RADIUS}`) `ENGINE_GLOW_RADIUS`'s own static halo uses,
+ * rotated live via `physics/lander-physics.ts`'s `headingVector`. Tinted by
+ * baking `ENGINE_GLOW_COLOR` directly into this emitter's own dot texture
+ * (see this section's own banner comment) — the same accent color as the
+ * ship's static engine glow, so active thrust reads as an extension of that
+ * existing accent, not an unrelated new color. */
+export const THRUST_PARTICLE_FREQUENCY_MS = 40;
+export const THRUST_PARTICLE_QUANTITY_PER_EMIT = 1;
+export const THRUST_PARTICLE_SPEED_MIN_PX_PER_SEC = 70;
+export const THRUST_PARTICLE_SPEED_MAX_PX_PER_SEC = 140;
+export const THRUST_PARTICLE_LIFESPAN_MS = 260;
+export const THRUST_PARTICLE_SCALE_START = 0.9;
+export const THRUST_PARTICLE_SCALE_END = 0.15;
+export const THRUST_PARTICLE_ALPHA_START = 0.85;
+export const THRUST_PARTICLE_ALPHA_END = 0;
+
+/** How wide, in degrees either side of dead-center, the exhaust cone spreads
+ * — 0 would be an unrealistic perfectly straight jet. */
+export const THRUST_PARTICLE_ANGLE_SPREAD_DEG = 16;
+
+/** Converts the lander's own `rotationRadians` (0 = nose up, clockwise-
+ * positive — `physics/lander-physics.ts`'s own convention) into Phaser
+ * particle emission degrees (0 = world-right, 90 = world-down — verified
+ * directly against `node_modules/phaser/src/gameobjects/particles/
+ * Particle.js`'s own `computeVelocity`: `velocityX = cos(rad) * speed`,
+ * `velocityY = sin(rad) * speed`). The ship's local "down"/engine-base
+ * direction at zero rotation already points along this system's 90°, so
+ * the two angles differ by exactly this fixed additive offset — a
+ * geometric fact of how the two conventions relate, not a tunable feel
+ * dial (mirrors `DEGREES_PER_HALF_TURN` above also naming a fixed
+ * conversion constant rather than leaving it a bare literal). */
+export const THRUST_PARTICLE_ANGLE_DOWNWARD_OFFSET_DEG = 90;
+
+/** Impact/weapon bursts (`effects/particle-burst.ts`) are a single instant
+ * `ParticleEmitter.explode()` call, so every one shares the same
+ * omnidirectional spread and fade curve — only count/speed/lifespan/scale
+ * (this milestone's own real per-`ImpactKind` decision data, see that
+ * module) vary per event. */
+export const PARTICLE_BURST_ANGLE_MIN_DEG = 0;
+export const PARTICLE_BURST_ANGLE_MAX_DEG = 360;
+export const PARTICLE_BURST_ALPHA_START = 0.9;
+export const PARTICLE_BURST_ALPHA_END = 0;
+
+/** A projectile clearing a static obstacle (`GameScene.advanceProjectiles`)
+ * — reuses `OBSTACLE_FILL_COLOR_TOP` for its dot texture, this project's
+ * existing "one color means one thing everywhere" rust-red for anything
+ * obstacle-related. */
+export const OBSTACLE_CLEARED_BURST_COUNT = 14;
+export const OBSTACLE_CLEARED_BURST_SPEED_MIN = 50;
+export const OBSTACLE_CLEARED_BURST_SPEED_MAX = 150;
+export const OBSTACLE_CLEARED_BURST_LIFESPAN_MS = 420;
+export const OBSTACLE_CLEARED_BURST_SCALE_START = 1;
+export const OBSTACLE_CLEARED_BURST_SCALE_END = 0.1;
+
+/** A projectile connecting with a still-living combatant
+ * (`GameScene.advanceProjectiles`) — fires on every registered hit
+ * regardless of whether the hit's own `effectiveDamage` clears armor,
+ * since the shot visibly connecting is the event this burst represents,
+ * not whether it damaged the target (that distinction is instead exactly
+ * what `combatantDefeated` below reads as, once health actually reaches
+ * 0). Reuses `COMBATANT_FILL_COLOR_TOP`, same texture `combatantDefeated`
+ * shares — a smaller, shorter-lived version of that same "hostile" color. */
+export const COMBATANT_HIT_BURST_COUNT = 8;
+export const COMBATANT_HIT_BURST_SPEED_MIN = 40;
+export const COMBATANT_HIT_BURST_SPEED_MAX = 110;
+export const COMBATANT_HIT_BURST_LIFESPAN_MS = 280;
+export const COMBATANT_HIT_BURST_SCALE_START = 0.75;
+export const COMBATANT_HIT_BURST_SCALE_END = 0.1;
+
+/** A combatant's health reaching 0 (`GameScene.advanceCombatants`) — bigger,
+ * faster, and longer-lived than a mere `combatantHit` above, so a real kill
+ * reads as more dramatic than a wound that didn't finish the job. */
+export const COMBATANT_DEFEATED_BURST_COUNT = 22;
+export const COMBATANT_DEFEATED_BURST_SPEED_MIN = 70;
+export const COMBATANT_DEFEATED_BURST_SPEED_MAX = 200;
+export const COMBATANT_DEFEATED_BURST_LIFESPAN_MS = 520;
+export const COMBATANT_DEFEATED_BURST_SCALE_START = 1.2;
+export const COMBATANT_DEFEATED_BURST_SCALE_END = 0.1;
+
+/** The player ship taking damage (`GameScene.advanceCombatants`) — one
+ * shared burst for both the contact-hit and ranged-hit cases (PLAN.md
+ * Milestone 13 groups them as a single burst point; `SCREEN_SHAKE_SHIP_
+ * CONTACT_*`/`SCREEN_SHAKE_SHIP_RANGED_*` below are what actually
+ * distinguish the two cases' feel). Reuses `CRASHED_COLOR_TOP`, this
+ * project's existing "something bad just happened to you" red. */
+export const SHIP_DAMAGE_BURST_COUNT = 12;
+export const SHIP_DAMAGE_BURST_SPEED_MIN = 50;
+export const SHIP_DAMAGE_BURST_SPEED_MAX = 160;
+export const SHIP_DAMAGE_BURST_LIFESPAN_MS = 380;
+export const SHIP_DAMAGE_BURST_SCALE_START = 1;
+export const SHIP_DAMAGE_BURST_SCALE_END = 0.1;
+
+/** Screen shake (`effects/screen-shake.ts`), passed straight through to
+ * `Phaser.Cameras.Scene2D.Camera#shake(durationMs, intensity)` — `intensity`
+ * is Phaser's own 0-1 fraction of camera size, so these are deliberately
+ * small. A full crash shakes longest/hardest (the flight-ending event);
+ * either in-flight combat hit is a shorter, lighter jolt since the player
+ * is still flying afterward. A normal safe landing never shakes. */
+export const SCREEN_SHAKE_CRASH_DURATION_MS = 400;
+export const SCREEN_SHAKE_CRASH_INTENSITY = 0.02;
+export const SCREEN_SHAKE_SHIP_CONTACT_DURATION_MS = 150;
+export const SCREEN_SHAKE_SHIP_CONTACT_INTENSITY = 0.008;
+export const SCREEN_SHAKE_SHIP_RANGED_DURATION_MS = 220;
+export const SCREEN_SHAKE_SHIP_RANGED_INTENSITY = 0.014;
