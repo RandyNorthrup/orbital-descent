@@ -509,6 +509,7 @@ export class StoreScene extends Phaser.Scene {
         textureKeyPrefix: `store-ship-${listing.id}`,
       });
       visual.container.setPosition(x, y).setScale(STORE_SHIP_PREVIEW_SCALE).setDepth(1);
+      visual.setFlamesVisible(true);
       this.track(visual.container);
       return;
     }

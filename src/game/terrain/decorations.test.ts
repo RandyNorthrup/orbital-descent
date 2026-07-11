@@ -9,6 +9,7 @@ const BASE_OPTIONS: GenerateDecorationsOptions = {
   seed: 7070,
   worldKind: 'lush',
   etchStyle: 'foliage',
+  landform: 'hummocks',
   worldWidth: 2880,
   landingPad: { xStart: 1200, xEnd: 1344, y: 400 },
   obstacles: [],
@@ -24,19 +25,35 @@ describe('decorationKindsFor', () => {
   it('grows only vegetation kinds on lush worlds, varying by ground material', () => {
     const vegetation = new Set(['tree', 'bush', 'reed', 'flower', 'grass-tuft']);
     for (const etch of ['rock', 'sand', 'water', 'foliage'] as const) {
-      for (const kind of decorationKindsFor('lush', etch)) {
+      for (const kind of decorationKindsFor('lush', etch, 'hummocks')) {
         expect(vegetation.has(kind)).toBe(true);
       }
     }
-    expect(decorationKindsFor('lush', 'water')).toContain('reed');
-    expect(decorationKindsFor('lush', 'foliage')).toContain('tree');
+    expect(decorationKindsFor('lush', 'water', 'wave-swell')).toContain('reed');
+    expect(decorationKindsFor('lush', 'foliage', 'terraces')).toContain('tree');
   });
 
   it('scatters only dead-world kinds on barren worlds and only lunar kinds on moons, regardless of ground material', () => {
     for (const etch of ['rock', 'sand', 'water', 'foliage'] as const) {
-      expect(decorationKindsFor('barren', etch)).toEqual(['rock', 'crystal', 'snag', 'rock']);
-      expect(decorationKindsFor('moon', etch)).toEqual(['boulder', 'surface-crater', 'boulder']);
+      expect(decorationKindsFor('barren', etch, 'mesa')).toEqual([
+        'rock',
+        'crystal',
+        'snag',
+        'rock',
+      ]);
+      expect(decorationKindsFor('moon', etch, 'crater-field')).toEqual([
+        'boulder',
+        'surface-crater',
+        'boulder',
+      ]);
     }
+  });
+
+  it('lets the volcano and ice-spikes landforms override the default set with their own surface features (Milestone 16.5)', () => {
+    expect(decorationKindsFor('barren', 'rock', 'volcano')).toContain('lava-vent');
+    expect(decorationKindsFor('lush', 'water', 'ice-spikes')).toContain('ice-shard');
+    // The override wins regardless of world kind — the landform IS the identity.
+    expect(decorationKindsFor('moon', 'sand', 'volcano')).toContain('lava-vent');
   });
 });
 
@@ -71,7 +88,9 @@ describe('generateDecorations', () => {
   });
 
   it('keeps every placement inside the world edges, scale range, variant range, and its own kind set', () => {
-    const kinds = new Set(decorationKindsFor(BASE_OPTIONS.worldKind, BASE_OPTIONS.etchStyle));
+    const kinds = new Set(
+      decorationKindsFor(BASE_OPTIONS.worldKind, BASE_OPTIONS.etchStyle, BASE_OPTIONS.landform),
+    );
     const specs = generateDecorations({ ...BASE_OPTIONS, count: 200 });
     expect(specs.length).toBeGreaterThan(0);
     expect(specs.length).toBeLessThanOrEqual(200);

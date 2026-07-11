@@ -1,5 +1,8 @@
+import { LANDFORM_SEED_OFFSET } from '../constants';
 import { boundedRandomWalk } from '../random/bounded-random-walk';
 import { createSeededRandom } from '../random/seeded-random';
+import { applyLandform } from './landforms';
+import type { LandformKind } from './landforms';
 
 /** A point on the terrain profile, in world px. y grows downward (Phaser convention). */
 export interface TerrainPoint {
@@ -83,6 +86,14 @@ export interface GenerateTerrainOptions {
    * it. Optional; absent (every pre-Milestone-10 base) leaves height
    * generation completely unchanged. */
   readonly terrainOverrides?: readonly { readonly index: number; readonly y: number }[];
+  /** Milestone 16.5 (D26): the world's signature landform archetype — a
+   * deterministic shaping pass over the walk (see `landforms.ts`).
+   * Optional; absent reproduces the pre-landform heightmap bit-for-bit,
+   * so every caller that doesn't opt in (and every existing test) is
+   * unaffected. Callers pass the flown world's own
+   * `CelestialBody.landform`; it is not authored per-base because the
+   * landform is a property of the WORLD, not of one landing site. */
+  readonly landform?: LandformKind;
   /** Milestone 10: a fixed, curated obstacle layout. Optional and
    * deliberately inert when absent — `generateTerrain` never procedurally
    * invents obstacles on a caller's behalf, only ever echoes exactly what
@@ -111,7 +122,21 @@ export function generateTerrain(options: GenerateTerrainOptions): Terrain {
   const maxStep = options.height * options.maxStepFraction;
   const segmentWidth = options.width / options.segments;
 
-  const heights = boundedRandomWalk(random, options.segments, minHeight, maxHeight, maxStep);
+  const walkHeights = boundedRandomWalk(random, options.segments, minHeight, maxHeight, maxStep);
+
+  // Milestone 16.5 (D26): the world's signature landform reshapes the walk.
+  // Drawn from its OWN seeded stream so the walk above and the pad draw
+  // below consume the main stream exactly as before this pass existed —
+  // pad positions are unchanged whether or not a landform is applied.
+  const heights =
+    options.landform === undefined
+      ? walkHeights
+      : applyLandform(
+          walkHeights,
+          options.landform,
+          createSeededRandom(options.seed + LANDFORM_SEED_OFFSET),
+          { peakY: minHeight, floorY: maxHeight },
+        );
 
   // Milestone 10: authored cliffs/plateaus, applied before pad flattening
   // so the pad-flattening step below is always the last word for any

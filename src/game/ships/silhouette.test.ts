@@ -57,4 +57,39 @@ describe('SHIP_SILHOUETTES', () => {
       expect(bodyTop).toBeLessThan(finTop);
     }
   });
+
+  // Milestone 16.5 (D26) — the vessel-detail pass.
+
+  it('gives every archetype a real canopy, at least one nacelle, and at least one role attachment', () => {
+    for (const archetype of ARCHETYPES) {
+      const silhouette = SHIP_SILHOUETTES[archetype];
+      expect(silhouette.canopy.length).toBeGreaterThanOrEqual(MIN_POLYGON_VERTICES);
+      expect(silhouette.nacelles.length).toBeGreaterThanOrEqual(1);
+      expect(silhouette.attachments.length).toBeGreaterThanOrEqual(1);
+      for (const attachment of silhouette.attachments) {
+        expect(attachment.length).toBeGreaterThanOrEqual(MIN_POLYGON_VERTICES);
+      }
+    }
+  });
+
+  it('keeps every detail piece (canopy, attachments, nacelle boxes, portholes) inside the allowed art extent', () => {
+    for (const archetype of ARCHETYPES) {
+      const silhouette = SHIP_SILHOUETTES[archetype];
+      for (const point of [...silhouette.canopy, ...silhouette.attachments.flat()]) {
+        expect(Math.abs(point.x)).toBeLessThanOrEqual(MAX_ART_EXTENT_PX);
+        expect(Math.abs(point.y)).toBeLessThanOrEqual(MAX_ART_EXTENT_PX);
+      }
+      for (const nacelle of silhouette.nacelles) {
+        expect(Math.abs(nacelle.x) + nacelle.halfWidth).toBeLessThanOrEqual(MAX_ART_EXTENT_PX);
+        expect(nacelle.y + nacelle.height).toBeLessThanOrEqual(MAX_ART_EXTENT_PX);
+        expect(nacelle.halfWidth).toBeGreaterThan(0);
+        expect(nacelle.height).toBeGreaterThan(0);
+      }
+      for (const porthole of silhouette.portholes) {
+        expect(porthole.radius).toBeGreaterThan(0);
+        expect(Math.abs(porthole.x)).toBeLessThanOrEqual(MAX_ART_EXTENT_PX);
+        expect(Math.abs(porthole.y)).toBeLessThanOrEqual(MAX_ART_EXTENT_PX);
+      }
+    }
+  });
 });

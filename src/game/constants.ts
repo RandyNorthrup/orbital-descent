@@ -72,6 +72,13 @@ export const TERRAIN_MAX_STEP_FRACTION = 0.05;
 /** How many consecutive terrain segments are flattened into the landing pad. */
 export const LANDING_PAD_SEGMENT_COUNT = 3;
 
+/** Added to a terrain seed to derive the landform shaping pass's own PRNG
+ * stream (Milestone 16.5, D26) — the walk and the random landing-pad draw
+ * keep consuming the main stream exactly as before the landform pass
+ * existed, so pad positions are unchanged (pinned by
+ * terrain-generator.test.ts's landform suite). */
+export const LANDFORM_SEED_OFFSET = 8080;
+
 /* ---------------------------------------------------------------------- */
 /* Landing safety thresholds (src/game/terrain/landing.ts)                */
 /* ---------------------------------------------------------------------- */
@@ -274,6 +281,27 @@ export const DECOR_FACET_LIGHTEN_FRACTION = 0.35;
 export const DECOR_CRYSTAL_LIGHTEN_FRACTION = 0.3;
 export const DECOR_SHADE_DARKEN_FRACTION = 0.3;
 export const DECOR_CRATER_DARKEN_FRACTION = 0.25;
+
+/** Milestone 16.5 (D26) landform surface features. Lava is authored, not
+ * palette-derived — molten rock glows the same orange on any world
+ * (temp/paper_mario_worlds' volcano scene); ice shards derive from the
+ * world's own icy terrain fill. The smoke plume rises from the volcano
+ * summit's crater notch. */
+export const DECOR_LAVA_COLOR = 0xff8c3a;
+export const DECOR_LAVA_CORE_COLOR = 0xffd94f;
+export const DECOR_ICE_LIGHTEN_FRACTION = 0.18;
+export const VOLCANO_SMOKE_PUFF_ALPHA = 0.85;
+
+/** Ship engine flame plume (Milestone 16.5, D26 — the spaceship pack's
+ * layered paper flames): an outer tongue with a hotter inner core, one
+ * per nacelle, shown while thrust is held in flight and always shown in
+ * hangar/store previews. Same fire palette as the lava vents — one flame
+ * color family across the game's paper world. */
+export const SHIP_FLAME_OUTER_COLOR = 0xff8c3a;
+export const SHIP_FLAME_INNER_COLOR = 0xffd94f;
+export const SHIP_FLAME_OUTER_LENGTH_PX = 10;
+export const SHIP_FLAME_INNER_LENGTH_PX = 6;
+export const SHIP_FLAME_WIDTH_FRACTION = 1.15;
 
 /** Base structures & inhabitants (Milestone 16, D24). Friendly structures
  * are faction-colored (man-made cream paper + a shared warm trim), not

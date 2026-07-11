@@ -1,5 +1,6 @@
 import { createSeededRandom } from '../random/seeded-random';
 import type { EtchStyle, WorldKind } from '../planets/celestial-body';
+import type { LandformKind } from './landforms';
 import type { LandingPad, Obstacle } from './terrain-generator';
 
 /**
@@ -22,7 +23,9 @@ export type DecorationKind =
   | 'crystal'
   | 'snag'
   | 'boulder'
-  | 'surface-crater';
+  | 'surface-crater'
+  | 'lava-vent'
+  | 'ice-shard';
 
 export interface DecorationSpec {
   readonly kind: DecorationKind;
@@ -42,11 +45,23 @@ export interface DecorationSpec {
  * ground material (their biosphere follows the terrain: water worlds
  * reed up, sand prairies flower); barren worlds and moons read the same
  * dead way regardless of ground material — that sameness IS their look.
+ *
+ * Milestone 16.5 (D26): two landforms override the default set — surface
+ * features follow the terrain's own identity, per temp/paper_mario_worlds:
+ * a volcano world's ground is studded with glowing lava vents, an
+ * ice-spike world's with shard clusters.
  */
 export function decorationKindsFor(
   worldKind: WorldKind,
   etchStyle: EtchStyle,
+  landform: LandformKind,
 ): readonly DecorationKind[] {
+  if (landform === 'volcano') {
+    return ['lava-vent', 'rock', 'lava-vent', 'snag'];
+  }
+  if (landform === 'ice-spikes') {
+    return ['ice-shard', 'ice-shard', 'snag', 'ice-shard'];
+  }
   if (worldKind === 'barren') {
     return ['rock', 'crystal', 'snag', 'rock'];
   }
@@ -69,6 +84,7 @@ export interface GenerateDecorationsOptions {
   readonly seed: number;
   readonly worldKind: WorldKind;
   readonly etchStyle: EtchStyle;
+  readonly landform: LandformKind;
   readonly worldWidth: number;
   readonly landingPad: LandingPad;
   readonly obstacles: readonly Obstacle[];
@@ -90,7 +106,7 @@ export function generateDecorations(
   options: GenerateDecorationsOptions,
 ): readonly DecorationSpec[] {
   const random = createSeededRandom(options.seed);
-  const kinds = decorationKindsFor(options.worldKind, options.etchStyle);
+  const kinds = decorationKindsFor(options.worldKind, options.etchStyle, options.landform);
   const specs: DecorationSpec[] = [];
 
   const blockedSpans: { start: number; end: number }[] = [

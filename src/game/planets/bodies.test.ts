@@ -63,6 +63,11 @@ describe('BODIES', () => {
     expect(signatures.size).toBe(BODIES.length);
   });
 
+  it('gives every body its own landform, no two worlds sharing one (Milestone 16.5 — "all shaped the same" must be structurally impossible)', () => {
+    const landforms = new Set(BODIES.map((body) => body.landform));
+    expect(landforms.size).toBe(BODIES.length);
+  });
+
   it('gives every sky palette in-range colors and a darker sky top than bottom (night-sky depth cue)', () => {
     const MAX_COLOR = 0xffffff;
     const channelAverage = (color: number): number => {

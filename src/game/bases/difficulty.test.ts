@@ -30,6 +30,7 @@ function makeBody(gravityAccel: number, hazard: Hazard): CelestialBody {
     id: 'test-body',
     name: 'Test Body',
     kind: 'moon',
+    landform: 'crater-field',
     gravityAccel,
     atmosphereDensity: 0,
     hazard,

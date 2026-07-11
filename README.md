@@ -8,7 +8,16 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 16 (Inhabited Worlds — Decision D24)
+**Current status**: Milestone 16.5 (Signature Worlds — Decision D26)
+certified — every world now has its own signature terrain landform (12
+archetypes, no two shared: crater fields, dune seas, mesa country,
+ice-spike ridges, breaking-wave swells, marsh hummocks, rift canyons, a
+walled basin, stepped terraces, cracked flats, a smoking volcano cone
+with lava vents, needle spires), the world map's planet discs carry
+matching signature features, and all 7 ships wear the full vessel-detail
+pass (framed cockpit canopies, engine nacelles with thrust-lit paper
+flame plumes, portholes, and a role attachment per hull). On top of:
+Milestone 16 (Inhabited Worlds — Decision D24)
 certified — the taxonomy is now visible on every screen: lush worlds grow
 paper vegetation while barren worlds scatter dead rock and ore, every
 curated base stands as a real settlement (habitat dome, antenna tower,

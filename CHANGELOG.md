@@ -49,6 +49,34 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Added
 
+- **Milestone 16.5 — Signature Worlds: landforms & vessel detail
+  (Decision D26, certified)**: every world's terrain SHAPE became its own
+  signature landform, answering the user's verdict on M16 ("the terrain
+  is still too similar everything is shaped the same") with the three new
+  temp/ reference packs (planet_pack, spaceship_pack,
+  paper_mario_worlds). `CelestialBody.landform` (new
+  `terrain/landforms.ts` pure module, 12 archetypes, no two worlds share
+  one — pinned): Kessel's Reach is now punched crater bowls with raised
+  rims, Verdalis rolling dune fields, Pyrrhine Expanse flat-topped mesa
+  country with sheer steps, Glacian Drift jagged ice-spike ridges,
+  Thessaly Shoals breaking-wave swells, Umbral Fen marsh hummocks, Kharun
+  Wastes a high plain cut by deep rifts, Solenne Vault one vast walled
+  basin, Aurelic Marsh stepped terraces, Corvexa Shallows cracked flats
+  with upthrust slabs, Nimbus Scar a dead volcano cone (with a smoke
+  plume off its summit crater and glowing lava-vent ground features), and
+  Thornreach Expanse sparse needle spires. Glacian Drift's ground now
+  grows ice-shard clusters (new decoration kinds `lava-vent` +
+  `ice-shard`, keyed by landform). The shaping pass draws from its own
+  seeded stream, so pad positions, authored terrain overrides, and every
+  curated obstacle layout are provably unchanged (pinned by test). The
+  world map's planet discs each carry their landform's signature
+  (protruding ice spikes, a rift crack, dune bands, a cone with smoke
+  curl…), and all 7 ships got the spaceship-pack vessel-detail pass:
+  framed cockpit canopies, engine nacelles with paper flame plumes (tied
+  to live thrust in flight, always lit in hangar/store previews),
+  porthole rows, and one role attachment per hull (cargo boxes, sensor
+  mast, gun barrels, parcel pods, canards, shoulder tanks, cryo bands).
+
 - **Milestone 16 — Inhabited Worlds: set-dressing, structures, NPCs, item
   art, paper UI (Decision D24, certified)**: the taxonomy became visible
   and every screen became crafted, per the user's named references (Paper

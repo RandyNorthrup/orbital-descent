@@ -126,6 +126,43 @@ describe('generateTerrain', () => {
     expect(overriddenInsidePad.points[11]?.y).toBe(overriddenInsidePad.landingPad.y);
     expect(overriddenInsidePad.points[11]?.y).not.toBe(999);
   });
+
+  // Milestone 16.5 (D26) — the landform shaping pass.
+
+  it('leaves the random landing-pad position untouched when a landform is applied (separate PRNG stream)', () => {
+    const plain = generateTerrain(BASE_OPTIONS);
+    const shaped = generateTerrain({ ...BASE_OPTIONS, landform: 'volcano' });
+    expect(shaped.landingPad.xStart).toBe(plain.landingPad.xStart);
+    expect(shaped.landingPad.xEnd).toBe(plain.landingPad.xEnd);
+  });
+
+  it('reshapes heights when a landform is set, and is deterministic', () => {
+    const plain = generateTerrain(BASE_OPTIONS);
+    const shaped = generateTerrain({ ...BASE_OPTIONS, landform: 'mesa' });
+    const shapedAgain = generateTerrain({ ...BASE_OPTIONS, landform: 'mesa' });
+    expect(shaped).toEqual(shapedAgain);
+    expect(shaped.points.map((p) => p.y)).not.toEqual(plain.points.map((p) => p.y));
+  });
+
+  it('keeps landform-shaped heights inside the configured height band', () => {
+    const shaped = generateTerrain({ ...BASE_OPTIONS, landform: 'needle-spires' });
+    const minHeight = BASE_OPTIONS.height * BASE_OPTIONS.minHeightFraction;
+    const maxHeight = BASE_OPTIONS.height * BASE_OPTIONS.maxHeightFraction;
+    for (const point of shaped.points) {
+      expect(point.y).toBeGreaterThanOrEqual(minHeight);
+      expect(point.y).toBeLessThanOrEqual(maxHeight);
+    }
+  });
+
+  it('applies terrainOverrides after the landform, so authored anchoring stays the last word', () => {
+    const shaped = generateTerrain({
+      ...BASE_OPTIONS,
+      landform: 'ice-spikes',
+      padStartIndexOverride: 10,
+      terrainOverrides: [{ index: 5, y: 999 }],
+    });
+    expect(shaped.points[5]?.y).toBe(999);
+  });
 });
 
 describe('getTerrainHeightAt', () => {

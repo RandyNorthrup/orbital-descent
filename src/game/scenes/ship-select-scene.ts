@@ -236,6 +236,9 @@ export class ShipSelectScene extends Phaser.Scene {
       textureKeyPrefix: `ship-preview-${ship.id}`,
     });
     preview.container.setPosition(SHIP_PREVIEW_X_PX, y);
+    // Hangar previews always show their engine flames (Milestone 16.5,
+    // D26) — the craft reads the way the spaceship-pack references do.
+    preview.setFlamesVisible(true);
     if (!available) {
       preview.container.setAlpha(LOCKED_PREVIEW_ALPHA);
     }

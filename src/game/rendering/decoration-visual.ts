@@ -12,9 +12,13 @@ import {
   DECOR_CRATER_DARKEN_FRACTION,
   DECOR_CRYSTAL_LIGHTEN_FRACTION,
   DECOR_FACET_LIGHTEN_FRACTION,
+  DECOR_ICE_LIGHTEN_FRACTION,
+  DECOR_LAVA_COLOR,
+  DECOR_LAVA_CORE_COLOR,
   DECOR_ROCK_DARKEN_FRACTION,
   DECOR_SHADE_DARKEN_FRACTION,
   DECOR_TRUNK_DARKEN_FRACTION,
+  VOLCANO_SMOKE_PUFF_ALPHA,
   DECORATION_OUTLINE_WIDTH,
   DECORATION_SHADOW_ALPHA,
   DECORATION_SHADOW_OFFSET_PX,
@@ -52,6 +56,10 @@ interface DecorationColors {
   readonly crystalFacet: number;
   readonly ground: number;
   readonly groundShade: number;
+  readonly lava: number;
+  readonly lavaCore: number;
+  readonly ice: number;
+  readonly iceFacet: number;
 }
 
 function decorationColors(body: CelestialBody): DecorationColors {
@@ -76,6 +84,13 @@ function decorationColors(body: CelestialBody): DecorationColors {
     ),
     ground: terrainTop,
     groundShade: darken(terrainTop, DECOR_SHADE_DARKEN_FRACTION),
+    lava: DECOR_LAVA_COLOR,
+    lavaCore: DECOR_LAVA_CORE_COLOR,
+    ice: lighten(terrainTop, DECOR_ICE_LIGHTEN_FRACTION),
+    iceFacet: lighten(
+      lighten(terrainTop, DECOR_ICE_LIGHTEN_FRACTION),
+      DECOR_FACET_LIGHTEN_FRACTION,
+    ),
   };
 }
 
@@ -93,6 +108,8 @@ const GLYPH_SIZES: Readonly<Record<DecorationKind, { w: number; h: number }>> = 
   snag: { w: 34, h: 48 },
   boulder: { w: 44, h: 30 },
   'surface-crater': { w: 60, h: 16 },
+  'lava-vent': { w: 42, h: 36 },
+  'ice-shard': { w: 46, h: 58 },
 };
 
 /** Inner padding so outlines/shadows never clip at the canvas edge. */
@@ -420,6 +437,95 @@ function drawSurfaceCrater(args: DrawArgs): void {
   ctx.fill();
 }
 
+const LAVA_VENT = {
+  moundRx: 17,
+  moundRy: 13,
+  ventHalfWidth: 6,
+  ventDepth: 9,
+  coreRadius: 3.5,
+  drips: [
+    { dx: -7, length: 9 },
+    { dx: 4, length: 13 },
+  ],
+} as const;
+
+function drawLavaVent(args: DrawArgs): void {
+  const { ctx, colors, rng, baseX, baseY } = args;
+  const rx = LAVA_VENT.moundRx + (rng() - 0.5) * ROCK_JITTER_PX;
+  // Dark rocky mound with a notched throat.
+  outlined(ctx, colors.rock, () => {
+    ctx.moveTo(baseX - rx, baseY);
+    ctx.lineTo(baseX - LAVA_VENT.ventHalfWidth, baseY - LAVA_VENT.moundRy * 2);
+    ctx.lineTo(
+      baseX - LAVA_VENT.ventHalfWidth + 2,
+      baseY - LAVA_VENT.moundRy * 2 + LAVA_VENT.ventDepth,
+    );
+    ctx.lineTo(
+      baseX + LAVA_VENT.ventHalfWidth - 2,
+      baseY - LAVA_VENT.moundRy * 2 + LAVA_VENT.ventDepth,
+    );
+    ctx.lineTo(baseX + LAVA_VENT.ventHalfWidth, baseY - LAVA_VENT.moundRy * 2);
+    ctx.lineTo(baseX + rx, baseY);
+  });
+  // Molten pool in the throat + glowing core.
+  ctx.beginPath();
+  ctx.moveTo(
+    baseX - LAVA_VENT.ventHalfWidth + 2,
+    baseY - LAVA_VENT.moundRy * 2 + LAVA_VENT.ventDepth,
+  );
+  ctx.lineTo(baseX, baseY - LAVA_VENT.moundRy * 2 + 2);
+  ctx.lineTo(
+    baseX + LAVA_VENT.ventHalfWidth - 2,
+    baseY - LAVA_VENT.moundRy * 2 + LAVA_VENT.ventDepth,
+  );
+  ctx.closePath();
+  ctx.fillStyle = hexToCss(colors.lava);
+  ctx.fill();
+  ctx.beginPath();
+  circle(ctx, baseX, baseY - LAVA_VENT.moundRy * 2 + LAVA_VENT.ventDepth - 2, LAVA_VENT.coreRadius);
+  ctx.fillStyle = hexToCss(colors.lavaCore);
+  ctx.fill();
+  // Lava drips running down the mound flanks.
+  for (const drip of LAVA_VENT.drips) {
+    ctx.beginPath();
+    ctx.moveTo(baseX + drip.dx - 1.5, baseY - LAVA_VENT.moundRy - drip.length);
+    ctx.lineTo(baseX + drip.dx + 1.5, baseY - LAVA_VENT.moundRy - drip.length);
+    ctx.lineTo(baseX + drip.dx + 1, baseY - LAVA_VENT.moundRy + drip.length / 2);
+    ctx.lineTo(baseX + drip.dx - 1, baseY - LAVA_VENT.moundRy + drip.length / 2);
+    ctx.closePath();
+    ctx.fillStyle = hexToCss(colors.lava);
+    ctx.fill();
+  }
+}
+
+const ICE_SHARDS = [
+  { tipDx: -1, tipDy: -50, leftDx: -8, rightDx: 6 },
+  { tipDx: -13, tipDy: -30, leftDx: -19, rightDx: -7 },
+  { tipDx: 13, tipDy: -36, leftDx: 6, rightDx: 20 },
+] as const;
+
+function drawIceShard(args: DrawArgs): void {
+  const { ctx, colors, rng, baseX, baseY } = args;
+  for (const shard of ICE_SHARDS) {
+    const tipX = baseX + shard.tipDx + (rng() - 0.5) * ROCK_JITTER_PX;
+    const tipY = baseY + shard.tipDy + (rng() - 0.5) * ROCK_JITTER_PX;
+    outlined(ctx, colors.ice, () => {
+      ctx.moveTo(baseX + shard.leftDx, baseY);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(baseX + shard.rightDx, baseY);
+    });
+    // Lit facet on the left half — same construction as ore crystals, so
+    // ice reads as the same paper material family, colder color.
+    ctx.beginPath();
+    ctx.moveTo(baseX + shard.leftDx, baseY);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineTo(baseX + (shard.leftDx + shard.rightDx) / 2, baseY);
+    ctx.closePath();
+    ctx.fillStyle = hexToCss(colors.iceFacet);
+    ctx.fill();
+  }
+}
+
 const DRAWERS: Readonly<Record<DecorationKind, (args: DrawArgs) => void>> = {
   tree: drawTree,
   bush: drawBush,
@@ -431,6 +537,8 @@ const DRAWERS: Readonly<Record<DecorationKind, (args: DrawArgs) => void>> = {
   snag: drawSnag,
   boulder: drawBoulder,
   'surface-crater': drawSurfaceCrater,
+  'lava-vent': drawLavaVent,
+  'ice-shard': drawIceShard,
 };
 
 /** Deterministic per-(kind, variant) jitter seed — NOT Date-based, so a
@@ -476,6 +584,10 @@ function bakeDecorationTexture(
         crystalFacet: OUTLINE_COLOR,
         ground: OUTLINE_COLOR,
         groundShade: OUTLINE_COLOR,
+        lava: OUTLINE_COLOR,
+        lavaCore: OUTLINE_COLOR,
+        ice: OUTLINE_COLOR,
+        iceFacet: OUTLINE_COLOR,
       },
       rng: createSeededRandom(variantSeed(kind, variant)),
       baseX,
@@ -497,10 +609,50 @@ function bakeDecorationTexture(
 /** Slight sink into the ground so bottoms never hover over a slope. */
 const GROUND_SINK_PX = 2;
 
+/** Smoke plume geometry (canvas space, bottom-center anchored like every
+ * glyph): a rising stack of puffs drifting slightly right, per
+ * temp/paper_mario_worlds' volcano scene. */
+const SMOKE_GLYPH = { w: 76, h: 96 } as const;
+const SMOKE_PUFFS = [
+  { dx: 0, dy: -10, r: 7 },
+  { dx: 5, dy: -26, r: 10 },
+  { dx: 13, dy: -46, r: 13 },
+  { dx: 24, dy: -68, r: 16 },
+] as const;
+
+function bakeVolcanoSmoke(scene: Phaser.Scene, body: CelestialBody): string {
+  const key = `volcano-smoke-${body.id}`;
+  if (scene.textures.exists(key)) {
+    return key;
+  }
+  // Smoke is sky-stained cloud paper; a volcano world without an
+  // atmosphere has no cloud color, so its plume borrows the ridge paper —
+  // a deliberate data-driven choice, not an error fallback.
+  const smokeColor = body.skyPalette.cloudColor ?? body.skyPalette.ridgeColor;
+  bakeCanvasTexture(scene, key, SMOKE_GLYPH.w, SMOKE_GLYPH.h, (ctx) => {
+    const baseX = SMOKE_GLYPH.w / 2 - 12;
+    const baseY = SMOKE_GLYPH.h - 1;
+    ctx.globalAlpha = VOLCANO_SMOKE_PUFF_ALPHA;
+    for (const puff of SMOKE_PUFFS) {
+      ctx.beginPath();
+      circle(ctx, baseX + puff.dx, baseY + puff.dy, puff.r);
+      ctx.fillStyle = hexToCss(darken(smokeColor, DECOR_SHADE_DARKEN_FRACTION));
+      ctx.fill();
+      ctx.lineWidth = DECORATION_OUTLINE_WIDTH;
+      ctx.strokeStyle = hexToCss(OUTLINE_COLOR);
+      ctx.stroke();
+    }
+  });
+  return key;
+}
+
 /**
- * Plants every generated decoration on the terrain surface. Returns the
- * created images (callers may track them, though GameScene's ordinary
- * scene-restart teardown already covers per-flight cleanup).
+ * Plants every generated decoration on the terrain surface. On a volcano
+ * world, additionally raises a smoke plume from the summit's crater notch
+ * (the tallest terrain point — the cone peak by construction, see
+ * `landforms.ts`). Returns the created images (callers may track them,
+ * though GameScene's ordinary scene-restart teardown already covers
+ * per-flight cleanup).
  */
 export function buildDecorations(
   scene: Phaser.Scene,
@@ -508,7 +660,7 @@ export function buildDecorations(
   terrain: Terrain,
   specs: readonly DecorationSpec[],
 ): Phaser.GameObjects.Image[] {
-  return specs.map((spec) => {
+  const images = specs.map((spec) => {
     const key = bakeDecorationTexture(scene, body, spec.kind, spec.variant);
     const y = getTerrainHeightAt(terrain.points, spec.x) + GROUND_SINK_PX;
     return scene.add
@@ -517,4 +669,17 @@ export function buildDecorations(
       .setScale(spec.scale)
       .setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
   });
+  if (body.landform === 'volcano') {
+    const summit = terrain.points.reduce((tallest, point) =>
+      point.y < tallest.y ? point : tallest,
+    );
+    const smokeKey = bakeVolcanoSmoke(scene, body);
+    images.push(
+      scene.add
+        .image(summit.x, summit.y + GROUND_SINK_PX, smokeKey)
+        .setOrigin(0.5, 1)
+        .setDepth(TERRAIN_SHADOW_LAYER_DEPTH),
+    );
+  }
+  return images;
 }

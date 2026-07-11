@@ -567,7 +567,7 @@ export class GameScene extends Phaser.Scene {
     // change — a base wanting a genuinely different world width is a
     // real, currently out-of-scope extension, not a case this scene
     // silently mishandles today.
-    const terrainOptions: GenerateTerrainOptions = this.base?.terrainOptions ?? {
+    const baseTerrainOptions: GenerateTerrainOptions = this.base?.terrainOptions ?? {
       seed: Date.now(),
       width: WORLD_WIDTH,
       height: GAME_HEIGHT,
@@ -576,6 +576,13 @@ export class GameScene extends Phaser.Scene {
       maxHeightFraction: TERRAIN_MAX_HEIGHT_FRACTION,
       maxStepFraction: TERRAIN_MAX_STEP_FRACTION,
       padSegmentCount: LANDING_PAD_SEGMENT_COUNT,
+    };
+    // Milestone 16.5 (D26): the landform is the WORLD's property, merged
+    // here rather than authored per-base in bases.ts — every landing site
+    // on a mesa world is mesa country, curated or free-flight alike.
+    const terrainOptions: GenerateTerrainOptions = {
+      ...baseTerrainOptions,
+      landform: this.body.landform,
     };
     this.terrain = generateTerrain(terrainOptions);
     this.buildTerrainVisual();
@@ -591,6 +598,7 @@ export class GameScene extends Phaser.Scene {
         seed: DECORATION_SEED + this.body.distance,
         worldKind: this.body.kind,
         etchStyle: this.body.terrainPalette.etchStyle,
+        landform: this.body.landform,
         worldWidth: WORLD_WIDTH,
         landingPad: this.terrain.landingPad,
         obstacles: this.terrain.obstacles,
@@ -822,6 +830,9 @@ export class GameScene extends Phaser.Scene {
     this.updateFuelText(snapshot.fuel);
     this.advanceCombat(snapshot.position, deltaMs / MILLISECONDS_PER_SECOND);
     this.updateThrustParticles(thrust, snapshot.position, snapshot.rotationRadians);
+    // Milestone 16.5 (D26): the paper flame plumes under each nacelle
+    // mirror live thrust input, alongside the existing particle exhaust.
+    this.lander.setFlamesVisible(thrust);
 
     const groundY = getTerrainHeightAt(this.terrain.points, snapshot.position.x);
     // Milestone 10: checked every frame regardless of ground proximity — a

@@ -1,3 +1,5 @@
+import type { LandformKind } from '../terrain/landforms';
+
 /** Ground material family — picks a distinct etched-texture stroke recipe
  * (see `rendering/paper-shape.ts`) so twelve worlds read as twelve
  * different places, not the same gray rock recolored twelve times. */
@@ -105,6 +107,15 @@ export interface CelestialBody {
    */
   readonly atmosphereDensity: number;
   readonly hazard: Hazard;
+  /**
+   * The world's signature terrain silhouette (Milestone 16.5, D26) — the
+   * shaping archetype `generateTerrain` applies over its random walk when
+   * a flight happens here. A property of the WORLD (like `kind` and the
+   * palettes), not of any one base: every landing site on a mesa world is
+   * mesa country. `bodies.test.ts` pins that all twelve worlds' landforms
+   * are pairwise distinct.
+   */
+  readonly landform: LandformKind;
   readonly terrainPalette: TerrainPalette;
   readonly skyPalette: SkyPalette;
   /**
