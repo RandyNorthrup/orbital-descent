@@ -13,9 +13,12 @@ import {
   UI_BUTTON_PADDING_X,
   UI_BUTTON_PADDING_Y,
   UI_BUTTON_ROW_HEIGHT_PX,
+  UI_FONT_FAMILY,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
+  OUTLINE_COLOR,
+  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import type { Base, BaseDifficultyProfile, BaseProgress } from '../bases/base';
 import { BASES, findBodyById } from '../bases/bases';
@@ -439,11 +442,12 @@ export class WorldMapScene extends Phaser.Scene {
     this.track(
       this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT * TITLE_Y_FRACTION, 'WORLD MAP', {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
-        .setOrigin(ORIGIN_CENTER),
+        .setOrigin(ORIGIN_CENTER)
+        .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0),
     );
 
     // Milestone 14: the map shows the ENTIRE 12-world registry (BODIES, in
@@ -483,7 +487,7 @@ export class WorldMapScene extends Phaser.Scene {
             y + WORLD_KIND_TAG_OFFSET_PX,
             body.kind.toUpperCase(),
             {
-              fontFamily: 'monospace',
+              fontFamily: UI_FONT_FAMILY,
               fontSize: `${WORLD_KIND_TAG_FONT_SIZE_PX.toString()}px`,
               color: hexToCss(UI_MUTED_TEXT_COLOR),
             },
@@ -520,7 +524,7 @@ export class WorldMapScene extends Phaser.Scene {
         this.track(
           this.add
             .text(columnX, y, `${label} ${hasBases ? '(LOCKED)' : '(UNCHARTED)'}`, {
-              fontFamily: 'monospace',
+              fontFamily: UI_FONT_FAMILY,
               fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
               color: hexToCss(UI_MUTED_TEXT_COLOR),
             })
@@ -547,11 +551,12 @@ export class WorldMapScene extends Phaser.Scene {
     this.track(
       this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT * TITLE_Y_FRACTION, body.name.toUpperCase(), {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
-        .setOrigin(ORIGIN_CENTER),
+        .setOrigin(ORIGIN_CENTER)
+        .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0),
     );
 
     const basesInWorld = this.basesInWorld(worldId);
@@ -566,7 +571,7 @@ export class WorldMapScene extends Phaser.Scene {
         this.track(
           this.add
             .text(GAME_WIDTH / 2, y, `${name} (LOCKED)`, {
-              fontFamily: 'monospace',
+              fontFamily: UI_FONT_FAMILY,
               fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
               color: hexToCss(UI_MUTED_TEXT_COLOR),
             })
@@ -589,7 +594,7 @@ export class WorldMapScene extends Phaser.Scene {
       this.track(
         this.add
           .text(GAME_WIDTH / 2, y + BADGE_LINE_OFFSET_PX, formatDifficultyBadge(base.difficulty), {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -605,7 +610,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.track(
       this.add
         .text(GAME_WIDTH / 2, legendY, AXIS_LEGEND_TEXT, {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_MUTED_TEXT_COLOR),
         })
@@ -652,7 +657,7 @@ export class WorldMapScene extends Phaser.Scene {
           GAME_HEIGHT * TITLE_Y_FRACTION,
           `${base.name.toUpperCase()} — MISSIONS`,
           {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_TEXT_COLOR),
           },
@@ -827,7 +832,7 @@ export class WorldMapScene extends Phaser.Scene {
       this.track(
         this.add
           .text(x, y, row.label, {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -840,7 +845,7 @@ export class WorldMapScene extends Phaser.Scene {
       this.track(
         this.add
           .text(x, lineY, line, {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -860,11 +865,12 @@ export class WorldMapScene extends Phaser.Scene {
     this.track(
       this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT * TITLE_Y_FRACTION, 'MISSION IN PROGRESS', {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
-        .setOrigin(ORIGIN_CENTER),
+        .setOrigin(ORIGIN_CENTER)
+        .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0),
     );
 
     let detail: string;
@@ -911,7 +917,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.track(
       this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT * MISSION_DETAIL_Y_FRACTION, detail, {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_MUTED_TEXT_COLOR),
         })
@@ -965,11 +971,12 @@ export class WorldMapScene extends Phaser.Scene {
     this.track(
       this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT * TITLE_Y_FRACTION, titleText, {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
-        .setOrigin(ORIGIN_CENTER),
+        .setOrigin(ORIGIN_CENTER)
+        .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0),
     );
     this.track(
       this.add
@@ -978,7 +985,7 @@ export class WorldMapScene extends Phaser.Scene {
           GAME_HEIGHT * MISSION_DETAIL_Y_FRACTION,
           `REWARD: ${reward.toString()} CREDITS`,
           {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           },
@@ -1087,7 +1094,7 @@ export class WorldMapScene extends Phaser.Scene {
         GAME_HEIGHT * ACHIEVEMENT_TOAST_Y_FRACTION,
         `ACHIEVEMENT UNLOCKED: ${next.displayText}`,
         {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
           // Panel look faked via backgroundColor + padding on the Text

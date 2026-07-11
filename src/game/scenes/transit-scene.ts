@@ -3,9 +3,12 @@ import {
   GAME_HEIGHT,
   GAME_WIDTH,
   UI_BODY_FONT_SIZE_PX,
+  UI_FONT_FAMILY,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
+  OUTLINE_COLOR,
+  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import type { Base } from '../bases/base';
 import { BASES, findBodyById } from '../bases/bases';
@@ -157,11 +160,12 @@ export class TransitScene extends Phaser.Scene {
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT * TITLE_Y_FRACTION, 'TRANSIT', {
-        fontFamily: 'monospace',
+        fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_TEXT_COLOR),
       })
-      .setOrigin(ORIGIN_CENTER);
+      .setOrigin(ORIGIN_CENTER)
+      .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0);
 
     const summaryLines = [
       `${originBase.name.toUpperCase()} -> ${destinationBase.name.toUpperCase()}`,
@@ -177,7 +181,7 @@ export class TransitScene extends Phaser.Scene {
           GAME_HEIGHT * SUMMARY_START_Y_FRACTION + index * SUMMARY_LINE_HEIGHT_PX,
           line,
           {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           },
@@ -192,7 +196,7 @@ export class TransitScene extends Phaser.Scene {
           GAME_HEIGHT * SUMMARY_START_Y_FRACTION + summaryLines.length * SUMMARY_LINE_HEIGHT_PX,
           'STRANDED -- INSUFFICIENT FUEL TO COMPLETE THE TRANSIT',
           {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           },

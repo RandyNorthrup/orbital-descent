@@ -38,6 +38,11 @@ export interface WeaponEquipmentItem {
    * its closed-form estimate, so a weapon's fire rate measurably changes
    * both real gameplay and the pre-flight advisory the same way. */
   readonly cooldownMs: number;
+  /** This weapon's own bolt/glow hue (Milestone 16, D24 — munitions read
+   * as distinct per weapon, not one universal yellow). Consumed by
+   * `GameScene`'s projectile spawn, which bakes one glow texture per
+   * weapon id. */
+  readonly projectileColor: number;
   readonly tags: readonly LoadoutTag[];
 }
 
@@ -101,6 +106,7 @@ export const EQUIPMENT_ITEMS: readonly EquipmentItem[] = [
     tier: 1,
     damage: 15,
     cooldownMs: 300,
+    projectileColor: 0xf5e050,
     tags: ['combat-capable'],
   },
   {
@@ -116,6 +122,7 @@ export const EQUIPMENT_ITEMS: readonly EquipmentItem[] = [
     tier: 2,
     damage: 30,
     cooldownMs: 500,
+    projectileColor: 0xff9a4d,
     tags: ['combat-capable'],
   },
   {

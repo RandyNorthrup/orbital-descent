@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import {
   AIRLESS_STAR_COUNT_MULTIPLIER,
   CLOUD_BAND_BACK_ROW_RISE_PX,
-  CLOUD_BAND_BASELINE_Y_FRACTION,
+  CLOUD_BAND_BASELINE_MAX_FRACTION,
+  CLOUD_BAND_BASELINE_MIN_FRACTION,
   CLOUD_BAND_JITTER_Y_PX,
   CLOUD_BAND_LAYER_DEPTH,
   CLOUD_BAND_MAX_RADIUS_PX,
@@ -12,7 +13,8 @@ import {
   CLOUD_BAND_SEED,
   CLOUD_LIT_LIGHTEN_FRACTION,
   CLOUD_PUFF_CORE_RADIUS_PX,
-  CLOUD_PUFF_COUNT,
+  CLOUD_PUFF_MAX_COUNT,
+  CLOUD_PUFF_MIN_COUNT,
   CLOUD_PUFF_LAYER_DEPTH,
   CLOUD_PUFF_MAX_SCALE,
   CLOUD_PUFF_MAX_Y_FRACTION,
@@ -51,8 +53,12 @@ import {
   MID_RIDGE_SCROLL_FACTOR,
   MID_RIDGE_SEED,
   MID_RIDGE_SEGMENTS,
-  MOON_CENTER_X_FRACTION,
-  MOON_CENTER_Y_FRACTION,
+  MOON_CENTER_X_MAX_FRACTION,
+  MOON_CENTER_X_MIN_FRACTION,
+  MOON_CENTER_Y_MAX_FRACTION,
+  MOON_CENTER_Y_MIN_FRACTION,
+  MOON_SCALE_MAX,
+  MOON_SCALE_MIN,
   MOON_CRATER_COUNT,
   MOON_CRATER_DARKEN_FRACTION,
   MOON_CRATER_MAX_RADIUS_FRACTION,
@@ -62,6 +68,7 @@ import {
   MOON_GLOW_RADIUS,
   MOON_RADIUS,
   MOON_SHADE_DARKEN_FRACTION,
+  RIDGE_HEIGHT_JITTER_FRACTION,
   RIDGE_RIM_LIGHTEN_FRACTION,
   RIDGE_RIM_WIDTH_PX,
   SKY_LAYER_DEPTH,
@@ -72,12 +79,14 @@ import {
   STAR_SPARKLE_FRACTION,
   STAR_SPARKLE_RADIUS_MULTIPLIER,
   STAR_SPARKLE_WAIST_FRACTION,
+  SKY_LAYOUT_SEED,
   STARFIELD_SEED,
   SUN_GLOW_MAX_ALPHA,
   SUN_GLOW_RADIUS,
   WORLD_WIDTH,
 } from '../constants';
 import type { CelestialBody } from '../planets/celestial-body';
+import { createSeededRandom } from '../random/seeded-random';
 import { generateStarfield } from './starfield';
 import { generateRidgeline, type RidgePoint } from './ridgeline';
 import { generateCloudBank, generateCloudPuff, generatePuffPlacements } from './cloud-bank';
@@ -147,10 +156,40 @@ function worldSeed(baseSeed: number, body: CelestialBody): number {
   return baseSeed + body.distance;
 }
 
-function buildMoons(scene: Phaser.Scene, body: CelestialBody): void {
+interface SkyLayout {
+  readonly moonXFraction: number;
+  readonly moonYFraction: number;
+  readonly moonScale: number;
+  readonly cloudBaselineFraction: number;
+  readonly puffCount: number;
+  readonly farRidgeShift: number;
+  readonly midRidgeShift: number;
+}
+
+/** Per-world sky composition (Milestone 16, D24): one seeded stream of
+ * bounded draws — consumed in a FIXED order, so adding a new draw must
+ * append, never reorder, or every world's layout silently reshuffles. */
+function skyLayout(body: CelestialBody): SkyLayout {
+  const draw = createSeededRandom(worldSeed(SKY_LAYOUT_SEED, body));
+  const between = (min: number, max: number): number => min + draw() * (max - min);
+  return {
+    moonXFraction: between(MOON_CENTER_X_MIN_FRACTION, MOON_CENTER_X_MAX_FRACTION),
+    moonYFraction: between(MOON_CENTER_Y_MIN_FRACTION, MOON_CENTER_Y_MAX_FRACTION),
+    moonScale: between(MOON_SCALE_MIN, MOON_SCALE_MAX),
+    cloudBaselineFraction: between(
+      CLOUD_BAND_BASELINE_MIN_FRACTION,
+      CLOUD_BAND_BASELINE_MAX_FRACTION,
+    ),
+    puffCount: Math.round(between(CLOUD_PUFF_MIN_COUNT, CLOUD_PUFF_MAX_COUNT)),
+    farRidgeShift: between(-RIDGE_HEIGHT_JITTER_FRACTION, RIDGE_HEIGHT_JITTER_FRACTION),
+    midRidgeShift: between(-RIDGE_HEIGHT_JITTER_FRACTION, RIDGE_HEIGHT_JITTER_FRACTION),
+  };
+}
+
+function buildMoons(scene: Phaser.Scene, body: CelestialBody, layout: SkyLayout): void {
   const palette = body.skyPalette;
-  const moonX = GAME_WIDTH * MOON_CENTER_X_FRACTION;
-  const moonY = GAME_HEIGHT * MOON_CENTER_Y_FRACTION;
+  const moonX = GAME_WIDTH * layout.moonXFraction;
+  const moonY = GAME_HEIGHT * layout.moonYFraction;
 
   // A day world's disc is a sun, not a moon (Milestone 15): crater-free,
   // with a wider and stronger halo so it reads as the light source the
@@ -161,7 +200,7 @@ function buildMoons(scene: Phaser.Scene, body: CelestialBody): void {
     MOON_GLOW_TEXTURE_KEY,
     moonX,
     moonY,
-    isSun ? SUN_GLOW_RADIUS : MOON_GLOW_RADIUS,
+    Math.round((isSun ? SUN_GLOW_RADIUS : MOON_GLOW_RADIUS) * layout.moonScale),
     palette.moonColor,
     isSun ? SUN_GLOW_MAX_ALPHA : MOON_GLOW_MAX_ALPHA,
   );
@@ -170,7 +209,7 @@ function buildMoons(scene: Phaser.Scene, body: CelestialBody): void {
   bakeMoonDisc(
     scene,
     MOON_DISC_TEXTURE_KEY,
-    MOON_RADIUS,
+    Math.round(MOON_RADIUS * layout.moonScale),
     palette.moonColor,
     isSun ? 0 : MOON_CRATER_COUNT,
     worldSeed(MOON_CRATER_SEED, body),
@@ -383,8 +422,13 @@ function fillScallopRow(
  * row, each front scallop carrying a lighter rim along its top edge
  * (papercraft's "every layer catches the light" signature).
  */
-function buildCloudBand(scene: Phaser.Scene, body: CelestialBody, cloudColor: number): void {
-  const baselineY = GAME_HEIGHT * CLOUD_BAND_BASELINE_Y_FRACTION;
+function buildCloudBand(
+  scene: Phaser.Scene,
+  body: CelestialBody,
+  cloudColor: number,
+  baselineFraction: number,
+): void {
+  const baselineY = GAME_HEIGHT * baselineFraction;
   const litColor = lighten(cloudColor, CLOUD_LIT_LIGHTEN_FRACTION);
   const shadeColor = darken(cloudColor, CLOUD_SHADE_DARKEN_FRACTION);
   const rimColor = lighten(cloudColor, CLOUD_RIM_LIGHTEN_FRACTION);
@@ -442,7 +486,12 @@ function buildCloudBand(scene: Phaser.Scene, body: CelestialBody, cloudColor: nu
  * of both ridges — the layer the ship actually flies past, giving close
  * parallax the reference dioramas' hanging clouds provide.
  */
-function buildCloudPuffs(scene: Phaser.Scene, body: CelestialBody, cloudColor: number): void {
+function buildCloudPuffs(
+  scene: Phaser.Scene,
+  body: CelestialBody,
+  cloudColor: number,
+  puffCount: number,
+): void {
   const litColor = lighten(cloudColor, CLOUD_LIT_LIGHTEN_FRACTION);
   const shadeColor = darken(cloudColor, CLOUD_SHADE_DARKEN_FRACTION);
   const rimColor = lighten(cloudColor, CLOUD_RIM_LIGHTEN_FRACTION);
@@ -481,7 +530,7 @@ function buildCloudPuffs(scene: Phaser.Scene, body: CelestialBody, cloudColor: n
     width: WORLD_WIDTH,
     minY: GAME_HEIGHT * CLOUD_PUFF_MIN_Y_FRACTION,
     maxY: GAME_HEIGHT * CLOUD_PUFF_MAX_Y_FRACTION,
-    count: CLOUD_PUFF_COUNT,
+    count: puffCount,
     minScale: CLOUD_PUFF_MIN_SCALE,
     maxScale: CLOUD_PUFF_MAX_SCALE,
   });
@@ -528,20 +577,21 @@ export function buildBackground(scene: Phaser.Scene, body: CelestialBody): void 
     .setDepth(SKY_LAYER_DEPTH)
     .setScrollFactor(SKY_SCROLL_FACTOR);
 
-  buildMoons(scene, body);
+  const layout = skyLayout(body);
+  buildMoons(scene, body, layout);
   buildStars(scene, body);
 
   const cloudColor = palette.cloudColor;
   if (cloudColor !== undefined) {
-    buildCloudBand(scene, body, cloudColor);
+    buildCloudBand(scene, body, cloudColor, layout.cloudBaselineFraction);
   }
 
   buildRidgeLayer(scene, {
     textureKey: FAR_RIDGE_TEXTURE_KEY,
     seed: worldSeed(FAR_RIDGE_SEED, body),
     segments: FAR_RIDGE_SEGMENTS,
-    minHeightFraction: FAR_RIDGE_MIN_HEIGHT_FRACTION,
-    maxHeightFraction: FAR_RIDGE_MAX_HEIGHT_FRACTION,
+    minHeightFraction: FAR_RIDGE_MIN_HEIGHT_FRACTION + layout.farRidgeShift,
+    maxHeightFraction: FAR_RIDGE_MAX_HEIGHT_FRACTION + layout.farRidgeShift,
     maxStepFraction: FAR_RIDGE_MAX_STEP_FRACTION,
     color: mixColors(palette.ridgeColor, palette.skyBottomColor, FAR_RIDGE_SKY_MIX_FRACTION),
     alpha: FAR_RIDGE_ALPHA,
@@ -553,8 +603,8 @@ export function buildBackground(scene: Phaser.Scene, body: CelestialBody): void 
     textureKey: MID_RIDGE_TEXTURE_KEY,
     seed: worldSeed(MID_RIDGE_SEED, body),
     segments: MID_RIDGE_SEGMENTS,
-    minHeightFraction: MID_RIDGE_MIN_HEIGHT_FRACTION,
-    maxHeightFraction: MID_RIDGE_MAX_HEIGHT_FRACTION,
+    minHeightFraction: MID_RIDGE_MIN_HEIGHT_FRACTION + layout.midRidgeShift,
+    maxHeightFraction: MID_RIDGE_MAX_HEIGHT_FRACTION + layout.midRidgeShift,
     maxStepFraction: MID_RIDGE_MAX_STEP_FRACTION,
     color: darken(palette.ridgeColor, MID_RIDGE_DARKEN_FRACTION),
     alpha: MID_RIDGE_ALPHA,
@@ -564,6 +614,6 @@ export function buildBackground(scene: Phaser.Scene, body: CelestialBody): void 
   });
 
   if (cloudColor !== undefined) {
-    buildCloudPuffs(scene, body, cloudColor);
+    buildCloudPuffs(scene, body, cloudColor, layout.puffCount);
   }
 }

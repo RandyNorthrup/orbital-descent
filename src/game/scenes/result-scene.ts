@@ -6,8 +6,11 @@ import {
   LANDED_COLOR_TOP,
   UI_BUTTON_FONT_SIZE_PX,
   UI_BUTTON_ROW_HEIGHT_PX,
+  UI_FONT_FAMILY,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
+  OUTLINE_COLOR,
+  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createUiButton } from '../rendering/ui-button';
@@ -76,16 +79,17 @@ export class ResultScene extends Phaser.Scene {
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT * HEADING_Y_FRACTION, outcomeLabel(this.outcome), {
-        fontFamily: 'monospace',
+        fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(outcomeColor(this.outcome)),
       })
-      .setOrigin(ORIGIN_CENTER);
+      .setOrigin(ORIGIN_CENTER)
+      .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0);
 
     if (this.score !== undefined && this.bestScore !== undefined) {
       this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT * SCORE_Y_FRACTION, `SCORE: ${this.score.toString()}`, {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
@@ -96,7 +100,7 @@ export class ResultScene extends Phaser.Scene {
           GAME_HEIGHT * BEST_SCORE_Y_FRACTION,
           `BEST: ${this.bestScore.toString()}`,
           {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_TEXT_COLOR),
           },

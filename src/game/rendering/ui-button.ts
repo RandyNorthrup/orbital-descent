@@ -7,6 +7,9 @@ import {
   UI_BUTTON_PADDING_X,
   UI_BUTTON_PADDING_Y,
   UI_BUTTON_TEXT_COLOR,
+  UI_FONT_FAMILY,
+  OUTLINE_COLOR,
+  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import { hexToCss } from './canvas-texture-utils';
 
@@ -29,12 +32,13 @@ export function createUiButton(
 ): Phaser.GameObjects.Text {
   const button = scene.add
     .text(options.x, options.y, options.label, {
-      fontFamily: 'monospace',
+      fontFamily: UI_FONT_FAMILY,
       fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
       color: hexToCss(UI_BUTTON_TEXT_COLOR),
       backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
       padding: { x: UI_BUTTON_PADDING_X, y: UI_BUTTON_PADDING_Y },
     })
+    .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0)
     .setOrigin(ORIGIN_CENTER)
     .setInteractive({ useHandCursor: true });
 

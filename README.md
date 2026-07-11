@@ -8,8 +8,18 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 15 (Living Worlds — Decision D22)
-certified — see `PLAN.md`'s Milestone 15 section for the full
+**Current status**: Milestone 16 (Inhabited Worlds — Decision D24)
+certified — the taxonomy is now visible on every screen: lush worlds grow
+paper vegetation while barren worlds scatter dead rock and ore, every
+curated base stands as a real settlement (habitat dome, antenna tower,
+big-eyed crew standees) with the two hostile bases showing their enemy's
+own home (wasp hive; an abandoned raider camp with a crashed raider
+skiff), sky compositions vary per world, the store/loadout show paper
+item art for every item and upgrade with mini ship hulls on ship
+listings, each weapon fires its own bolt color, and the entire UI shares
+one handcrafted paper theme (rounded font, cream ink, cardboard buttons,
+hard drop shadows). On top of: Milestone 15 (Living Worlds — Decision
+D22) certified — see `PLAN.md`'s Milestone 15 section for the full
 certification writeup. The 12-world registry now spans a real taxonomy —
 3 airless moons, 4 barren (dead) worlds, 5 lush living ones — seen at 4
 day / 4 dusk / 4 night, from Verdalis's clear prairie noon to Solenne

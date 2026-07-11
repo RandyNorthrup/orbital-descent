@@ -10,6 +10,15 @@ import {
   ENGINE_GLOW_COLOR,
   ENGINE_GLOW_MAX_ALPHA,
   ENGINE_GLOW_RADIUS,
+  DECORATION_CLEARANCE_MARGIN_PX,
+  DECORATION_COUNT_BARREN,
+  DECORATION_COUNT_LUSH,
+  DECORATION_COUNT_MOON,
+  DECORATION_EDGE_MARGIN_PX,
+  DECORATION_MAX_SCALE,
+  DECORATION_MIN_SCALE,
+  DECORATION_SEED,
+  DECORATION_VARIANT_COUNT,
   GAME_HEIGHT,
   GAME_WIDTH,
   HIGH_SCORE_LIST_MAX_ENTRIES,
@@ -36,7 +45,6 @@ import {
   OUTLINE_COLOR,
   PARTICLE_DOT_MAX_ALPHA,
   PARTICLE_DOT_RADIUS_PX,
-  PROJECTILE_COLOR,
   PROJECTILE_GLOW_MAX_ALPHA,
   PROJECTILE_GLOW_RADIUS,
   PROJECTILE_OUTLINE_WIDTH,
@@ -68,12 +76,14 @@ import {
   THRUST_PARTICLE_SPEED_MIN_PX_PER_SEC,
   UI_BODY_FONT_SIZE_PX,
   UI_BUTTON_BG_COLOR,
+  UI_FONT_FAMILY,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
   WEAPON_PROJECTILE_RANGE,
   WEAPON_PROJECTILE_SPEED,
   WORLD_WIDTH,
+  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import { FlightState } from '../flight/flight-state';
 import { degreesToRadians, headingVector, type Vector2 } from '../physics/lander-physics';
@@ -139,6 +149,9 @@ import {
   type Obstacle,
   type Terrain,
 } from '../terrain/terrain-generator';
+import { generateDecorations } from '../terrain/decorations';
+import { buildDecorations } from '../rendering/decoration-visual';
+import { buildEnemyCamp, buildFriendlyBase } from '../rendering/base-structures';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createPaperShape, type PaperShape } from '../rendering/paper-shape';
 import { createShipVisual, type ShipVisual } from '../rendering/ship-visual';
@@ -567,6 +580,40 @@ export class GameScene extends Phaser.Scene {
     this.terrain = generateTerrain(terrainOptions);
     this.buildTerrainVisual();
     this.buildObstacleVisuals();
+    // Milestone 16 (D24): plant the world-kind's own set-dressing — lush
+    // vegetation / barren rock-and-ore / lunar boulders — seeded per world
+    // (worldSeed convention), excluded from the pad and every obstacle.
+    buildDecorations(
+      this,
+      this.body,
+      this.terrain,
+      generateDecorations({
+        seed: DECORATION_SEED + this.body.distance,
+        worldKind: this.body.kind,
+        etchStyle: this.body.terrainPalette.etchStyle,
+        worldWidth: WORLD_WIDTH,
+        landingPad: this.terrain.landingPad,
+        obstacles: this.terrain.obstacles,
+        count:
+          this.body.kind === 'lush'
+            ? DECORATION_COUNT_LUSH
+            : this.body.kind === 'barren'
+              ? DECORATION_COUNT_BARREN
+              : DECORATION_COUNT_MOON,
+        clearanceMarginPx: DECORATION_CLEARANCE_MARGIN_PX,
+        edgeMarginPx: DECORATION_EDGE_MARGIN_PX,
+        minScale: DECORATION_MIN_SCALE,
+        maxScale: DECORATION_MAX_SCALE,
+        variantCount: DECORATION_VARIANT_COUNT,
+      }),
+    );
+    // Milestone 16 (D24): a curated base is a PLACE — its settlement (and,
+    // at the two encounter bases, its hostiles' own camp) stands beside
+    // the pad. Free flight stays wilderness.
+    if (this.base !== null) {
+      buildFriendlyBase(this, this.terrain);
+      buildEnemyCamp(this, this.base.id, this.terrain);
+    }
 
     this.flightState = new FlightState({
       initial: {
@@ -640,7 +687,7 @@ export class GameScene extends Phaser.Scene {
     // menu.
     this.fuelText = this.add
       .text(HUD_MARGIN, HUD_MARGIN, '', {
-        fontFamily: 'monospace',
+        fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_TEXT_COLOR),
         backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
@@ -657,7 +704,7 @@ export class GameScene extends Phaser.Scene {
     if ((this.base?.encounters.length ?? 0) > 0) {
       this.hullText = this.add
         .text(HUD_MARGIN, HUD_MARGIN + HUD_ROW_HEIGHT_PX, '', {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
           backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
@@ -670,7 +717,7 @@ export class GameScene extends Phaser.Scene {
 
     this.add
       .text(GAME_WIDTH - HUD_MARGIN, HUD_MARGIN, 'ESC: pause', {
-        fontFamily: 'monospace',
+        fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_MUTED_TEXT_COLOR),
         backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
@@ -682,11 +729,12 @@ export class GameScene extends Phaser.Scene {
 
     this.outcomeText = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '', {
-        fontFamily: 'monospace',
+        fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_TEXT_COLOR),
       })
       .setOrigin(ORIGIN_CENTER, ORIGIN_CENTER)
+      .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0)
       .setDepth(HUD_LAYER_DEPTH)
       .setScrollFactor(0);
   }
@@ -1477,23 +1525,26 @@ export class GameScene extends Phaser.Scene {
       WEAPON_PROJECTILE_SPEED,
       item.damage,
     );
-    // Milestone 14: a soft glow halo behind the bolt. The glow texture is
-    // parameter-identical for every shot, so it's baked at most ONCE and
-    // then only referenced — never rebaked while earlier shots' live
-    // images still hold the old texture (the shared/rebaked-texture-key
-    // defect class Milestones 11 and 13 each hit once already; a
-    // rebake-per-shot here would destroy every in-flight bolt's glow).
-    if (!this.textures.exists(PROJECTILE_GLOW_TEXTURE_KEY)) {
+    // Milestone 14: a soft glow halo behind the bolt; Milestone 16: hued
+    // per weapon (item.projectileColor), so the key carries the weapon id.
+    // Each weapon's glow texture is parameter-identical for every one of
+    // its shots, so it's baked at most ONCE and then only referenced —
+    // never rebaked while earlier shots' live images still hold the old
+    // texture (the shared/rebaked-texture-key defect class Milestones 11
+    // and 13 each hit once already; a rebake-per-shot here would destroy
+    // every in-flight bolt's glow).
+    const glowKey = `${PROJECTILE_GLOW_TEXTURE_KEY}-${weaponId}`;
+    if (!this.textures.exists(glowKey)) {
       bakeRadialGlowTexture(
         this,
-        PROJECTILE_GLOW_TEXTURE_KEY,
+        glowKey,
         PROJECTILE_GLOW_RADIUS,
-        PROJECTILE_COLOR,
+        item.projectileColor,
         PROJECTILE_GLOW_MAX_ALPHA,
       );
     }
-    const glow = this.add.image(0, 0, PROJECTILE_GLOW_TEXTURE_KEY);
-    const bolt = this.add.circle(0, 0, PROJECTILE_RADIUS, PROJECTILE_COLOR);
+    const glow = this.add.image(0, 0, glowKey);
+    const bolt = this.add.circle(0, 0, PROJECTILE_RADIUS, item.projectileColor);
     // Outlined like every other paper piece — see PROJECTILE_OUTLINE_WIDTH's
     // own doc comment (an unoutlined pale bolt disappears on day skies).
     bolt.setStrokeStyle(PROJECTILE_OUTLINE_WIDTH, OUTLINE_COLOR);

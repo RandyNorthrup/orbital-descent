@@ -6,9 +6,12 @@ import {
   UI_BODY_FONT_SIZE_PX,
   UI_BUTTON_FONT_SIZE_PX,
   UI_BUTTON_PADDING_Y,
+  UI_FONT_FAMILY,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
+  OUTLINE_COLOR,
+  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import type { ShipClass } from '../ships/ship';
 import { SHIPS, findShipById } from '../ships/ships';
@@ -47,6 +50,7 @@ import {
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createUiButton } from '../rendering/ui-button';
+import { createItemIconImage } from '../rendering/item-icons';
 import {
   EMPTY_MANIFEST,
   cargoMass,
@@ -89,6 +93,9 @@ const LIST_START_Y_FRACTION = 0.27;
  * before the two columns' text could ever meet at center, comfortably more
  * than this roster's longest row string (`"UNLOCK: ESTABLISH SCARP
  * OUTPOST"` at `UI_BODY_FONT_SIZE_PX`, ~300px wide) needs. */
+/** Milestone 16 (D24): each equipment row leads with its item-icon card,
+ * offset left of the row's centered text. */
+const EQUIPMENT_ICON_OFFSET_PX = 150;
 const WEAPON_COLUMN_X_FRACTION = 0.27;
 const UTILITY_COLUMN_X_FRACTION = 0.73;
 
@@ -401,11 +408,12 @@ export class LoadoutScene extends Phaser.Scene {
     this.track(
       this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT * TITLE_Y_FRACTION, 'LOADOUT', {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
-        .setOrigin(ORIGIN_CENTER),
+        .setOrigin(ORIGIN_CENTER)
+        .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0),
     );
 
     // Recomputed from resolveEquippedItems + totalCarriedMass every render
@@ -434,7 +442,7 @@ export class LoadoutScene extends Phaser.Scene {
             `${this.effectiveShip.equipmentSlots.toString()} · MASS ${totalMassThisLaunch.toString()}/` +
             `${this.effectiveShip.massBudget.toString()} MU`,
           {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_TEXT_COLOR),
           },
@@ -452,7 +460,7 @@ export class LoadoutScene extends Phaser.Scene {
     this.track(
       this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT * UPGRADES_LINE_Y_FRACTION, upgradesLine, {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_MUTED_TEXT_COLOR),
         })
@@ -465,7 +473,7 @@ export class LoadoutScene extends Phaser.Scene {
     this.track(
       this.add
         .text(weaponColumnX, headerY, 'WEAPONS', {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
@@ -474,7 +482,7 @@ export class LoadoutScene extends Phaser.Scene {
     this.track(
       this.add
         .text(utilityColumnX, headerY, 'UTILITY', {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
@@ -548,12 +556,13 @@ export class LoadoutScene extends Phaser.Scene {
   ): number {
     const name = item.name.toUpperCase();
     const statTag = equipmentStatTag(item);
+    this.track(createItemIconImage(this, item.id, x - EQUIPMENT_ICON_OFFSET_PX, y));
 
     if (!isEquipmentAvailable(item, this.equipmentProgress, this.baseProgress)) {
       this.track(
         this.add
           .text(x, y, `${name} (LOCKED)`, {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -562,7 +571,7 @@ export class LoadoutScene extends Phaser.Scene {
       this.track(
         this.add
           .text(x, y + TEXT_INFO_LINE_OFFSET_PX, equipmentLockedReasonText(item.acquisition), {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -586,7 +595,7 @@ export class LoadoutScene extends Phaser.Scene {
       this.track(
         this.add
           .text(x, y + BUTTON_INFO_LINE_OFFSET_PX, statTag, {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -620,7 +629,7 @@ export class LoadoutScene extends Phaser.Scene {
       this.track(
         this.add
           .text(x, y + BUTTON_INFO_LINE_OFFSET_PX, statTag, {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -633,7 +642,7 @@ export class LoadoutScene extends Phaser.Scene {
     this.track(
       this.add
         .text(x, y, name, {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_MUTED_TEXT_COLOR),
         })
@@ -642,7 +651,7 @@ export class LoadoutScene extends Phaser.Scene {
     this.track(
       this.add
         .text(x, y + TEXT_INFO_LINE_OFFSET_PX, noFitReasonText(wouldExceedSlots), {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_MUTED_TEXT_COLOR),
         })
@@ -703,7 +712,7 @@ export class LoadoutScene extends Phaser.Scene {
     this.track(
       this.add
         .text(x, y, missionTitleText(definition), {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
@@ -714,7 +723,7 @@ export class LoadoutScene extends Phaser.Scene {
     this.track(
       this.add
         .text(x, y, requirementLineText(definition, existingState), {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_MUTED_TEXT_COLOR),
         })
@@ -734,7 +743,7 @@ export class LoadoutScene extends Phaser.Scene {
           y,
           `CARGO BAY: ${cargoBayUsed.toString()}/${this.effectiveShip.cargoBayCapacity.toString()} MU`,
           {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           },
@@ -788,7 +797,7 @@ export class LoadoutScene extends Phaser.Scene {
       this.track(
         this.add
           .text(x, y, `LAUNCH${reason}`, {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -819,7 +828,7 @@ export class LoadoutScene extends Phaser.Scene {
     this.track(
       this.add
         .text(x, y, `${type.toUpperCase()}: ${amount.toString()}`, {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
@@ -853,7 +862,7 @@ export class LoadoutScene extends Phaser.Scene {
       this.track(
         this.add
           .text(minusX, buttonY, minusLabel, {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -878,7 +887,7 @@ export class LoadoutScene extends Phaser.Scene {
       this.track(
         this.add
           .text(plusX, buttonY, plusLabel, {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })

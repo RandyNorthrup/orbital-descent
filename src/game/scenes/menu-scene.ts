@@ -7,9 +7,12 @@ import {
   UI_BUTTON_PADDING_X,
   UI_BUTTON_PADDING_Y,
   UI_BUTTON_ROW_HEIGHT_PX,
+  UI_FONT_FAMILY,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
+  OUTLINE_COLOR,
+  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import { loadHighScores } from '../persistence/high-scores';
 import { initialCurrencyState, loadCurrencyState } from '../persistence/currency-progress';
@@ -73,11 +76,12 @@ export class MenuScene extends Phaser.Scene {
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT * TITLE_Y_FRACTION, 'ORBITAL DESCENT', {
-        fontFamily: 'monospace',
+        fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_TEXT_COLOR),
       })
-      .setOrigin(ORIGIN_CENTER);
+      .setOrigin(ORIGIN_CENTER)
+      .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0);
 
     // getSafeLocalStorage() returns null when storage access itself is
     // blocked (sandboxed iframe, privacy setting), in which case the menu
@@ -106,7 +110,7 @@ export class MenuScene extends Phaser.Scene {
     // screenshot).
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT * STAT_LINE_Y_FRACTION, statLine, {
-        fontFamily: 'monospace',
+        fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_MUTED_TEXT_COLOR),
         backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),

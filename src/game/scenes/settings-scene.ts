@@ -4,8 +4,11 @@ import {
   GAME_WIDTH,
   SETTINGS_OVERLAY_ALPHA,
   SETTINGS_OVERLAY_COLOR,
+  UI_FONT_FAMILY,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
+  OUTLINE_COLOR,
+  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createUiButton } from '../rendering/ui-button';
@@ -77,11 +80,12 @@ export class SettingsScene extends Phaser.Scene {
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT * HEADING_Y_FRACTION, 'SETTINGS', {
-        fontFamily: 'monospace',
+        fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_TEXT_COLOR),
       })
-      .setOrigin(ORIGIN_CENTER);
+      .setOrigin(ORIGIN_CENTER)
+      .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0);
 
     this.soundToggleButton = createUiButton(this, {
       x: GAME_WIDTH / 2,

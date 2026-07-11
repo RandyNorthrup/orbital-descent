@@ -52,6 +52,7 @@ const WEAPON_A: EquipmentItem = {
   tier: 1,
   damage: 10,
   cooldownMs: 300,
+  projectileColor: 0xf5e050,
   tags: [],
 };
 const WEAPON_B: EquipmentItem = {
@@ -67,6 +68,7 @@ const WEAPON_B: EquipmentItem = {
   tier: 2,
   damage: 20,
   cooldownMs: 500,
+  projectileColor: 0xf5e050,
   tags: [],
 };
 const UTILITY_A: EquipmentItem = {

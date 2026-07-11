@@ -123,8 +123,9 @@ export const COMBATANT_ACCENT_DARKEN_FRACTION = 0.28;
  * circle (`Phaser.GameObjects.Arc`), not a full paper-shape (shadow +
  * gradient fill + outline): at this size, and at whatever rate a fast
  * weapon fires, the full paper-cutout treatment would read as visual noise
- * rather than texture, and cost far more to bake/rebake per shot. */
-export const PROJECTILE_COLOR = 0xf5e050;
+ * rather than texture, and cost far more to bake/rebake per shot. Bolt
+ * hue is authored per weapon since Milestone 16
+ * (`WeaponEquipmentItem.projectileColor`). */
 export const PROJECTILE_RADIUS = 4;
 /** Crisp dark edge on the bolt disc, matching every other paper piece's
  * outline language — without it the pale-yellow bolt visually vanishes
@@ -201,8 +202,29 @@ export const MID_RIDGE_DARKEN_FRACTION = 0.24;
 export const MOON_GLOW_MAX_ALPHA = 0.55;
 export const MOON_RADIUS = 46;
 export const MOON_GLOW_RADIUS = 150;
-export const MOON_CENTER_X_FRACTION = 0.72;
-export const MOON_CENTER_Y_FRACTION = 0.18;
+
+/** Milestone 16 (D24): sky composition varies per world — the moon/sun
+ * hangs somewhere different at a different size, the cloud band sits at
+ * its own height, puff count differs — all drawn from one seeded layout
+ * stream (SKY_LAYOUT_SEED + body.distance, the worldSeed convention), so
+ * no two worlds share a composition even before palettes or set-dressing
+ * differ. Ranges replace the former fixed MOON_CENTER_X/Y_FRACTION
+ * (0.72/0.18), which every world used identically. */
+export const SKY_LAYOUT_SEED = 5050;
+export const MOON_CENTER_X_MIN_FRACTION = 0.58;
+export const MOON_CENTER_X_MAX_FRACTION = 0.84;
+export const MOON_CENTER_Y_MIN_FRACTION = 0.13;
+export const MOON_CENTER_Y_MAX_FRACTION = 0.25;
+export const MOON_SCALE_MIN = 0.8;
+export const MOON_SCALE_MAX = 1.25;
+export const CLOUD_BAND_BASELINE_MIN_FRACTION = 0.31;
+export const CLOUD_BAND_BASELINE_MAX_FRACTION = 0.44;
+/** Whole-world puff totals (the former fixed count was 6). */
+export const CLOUD_PUFF_MIN_COUNT = 3;
+export const CLOUD_PUFF_MAX_COUNT = 7;
+/** Additive jitter applied symmetrically to each ridge layer's authored
+ * min/max height fractions. */
+export const RIDGE_HEIGHT_JITTER_FRACTION = 0.05;
 
 /** `daylight: 'day'` worlds (Milestone 15) render a sun in the moon's
  * place: the same baked disc minus craters, with a wider, stronger halo so
@@ -212,6 +234,76 @@ export const MOON_CENTER_Y_FRACTION = 0.18;
 export const SUN_GLOW_RADIUS = 210;
 export const SUN_GLOW_MAX_ALPHA = 0.75;
 export const DUSK_STAR_COUNT_FRACTION = 0.35;
+
+/* ---------------------------------------------------------------------- */
+/* Terrain set-dressing (Milestone 16, Decision D24)                      */
+/* ---------------------------------------------------------------------- */
+
+/** Seeded per world via the worldSeed convention (base + body.distance),
+ * like every other per-world layout. Counts are placement ATTEMPTS across
+ * the whole 3-screen world (pad/obstacle exclusions skip, never retry —
+ * see `terrain/decorations.ts`); lush worlds read densest, moons
+ * sparsest, matching each kind's fiction. */
+export const DECORATION_SEED = 7070;
+export const DECORATION_COUNT_LUSH = 34;
+export const DECORATION_COUNT_BARREN = 18;
+export const DECORATION_COUNT_MOON = 14;
+export const DECORATION_CLEARANCE_MARGIN_PX = 40;
+export const DECORATION_EDGE_MARGIN_PX = 24;
+export const DECORATION_MIN_SCALE = 0.7;
+export const DECORATION_MAX_SCALE = 1.3;
+export const DECORATION_VARIANT_COUNT = 3;
+
+/** Paper-cutout treatment shared by every decoration glyph: piece-scale
+ * outline (the global 3px swallows small fills — the M14 ship lesson) and
+ * a hard offset shadow pass baked behind the glyph. */
+export const DECORATION_OUTLINE_WIDTH = 2;
+export const DECORATION_SHADOW_OFFSET_PX = 3;
+export const DECORATION_SHADOW_ALPHA = 0.3;
+
+/** Decoration colors derive from the world's own palettes (one lighting
+ * logic, twelve palettes — the skyPalette convention): vegetation keys
+ * off ridgeColor (the world's landform identity), trunks/rocks off the
+ * terrain fills, flowers/reed-heads off moonColor (the sky's warm
+ * accent), ore crystals off the horizon glow. */
+export const DECOR_CANOPY_LIGHTEN_FRACTION = 0.22;
+export const DECOR_TRUNK_DARKEN_FRACTION = 0.18;
+export const DECOR_ACCENT_LIGHTEN_FRACTION = 0.12;
+export const DECOR_ROCK_DARKEN_FRACTION = 0.26;
+export const DECOR_FACET_LIGHTEN_FRACTION = 0.35;
+export const DECOR_CRYSTAL_LIGHTEN_FRACTION = 0.3;
+export const DECOR_SHADE_DARKEN_FRACTION = 0.3;
+export const DECOR_CRATER_DARKEN_FRACTION = 0.25;
+
+/** Base structures & inhabitants (Milestone 16, D24). Friendly structures
+ * are faction-colored (man-made cream paper + a shared warm trim), not
+ * world-derived — a base should read as the same organization on every
+ * world it reaches. The enemy camps are keyed by base id in
+ * `rendering/base-structures.ts` (Meridian Yard's wasp hive, Frostgate's
+ * crashed raider skiff). */
+export const FRIENDLY_STRUCTURE_COLOR = 0xded5c2;
+export const FRIENDLY_STRUCTURE_TRIM_COLOR = 0xc9a86a;
+const CREW_SUIT_COLOR_A = 0xe8e4f4;
+const CREW_SUIT_COLOR_B = 0xc97a5a;
+export const CREW_SUIT_COLORS: readonly number[] = [CREW_SUIT_COLOR_A, CREW_SUIT_COLOR_B];
+export const CREW_VISOR_COLOR = 0x35507a;
+export const ENEMY_HIVE_COLOR = 0x4a3555;
+export const ENEMY_HIVE_ENTRANCE_COLOR = 0x241a2c;
+export const RAIDER_HULL_COLOR = 0x3a3342;
+export const RAIDER_ACCENT_COLOR = 0xc44536;
+/** Structures plant just outside the pad; the enemy camp sits farther
+ * out, trying these pad-relative offsets in order and taking the first
+ * spot clear of world edges and curated obstacles. */
+export const BASE_STRUCTURE_PAD_GAP_PX = 26;
+const ENEMY_CAMP_OFFSET_NEAR_PX = 340;
+const ENEMY_CAMP_OFFSET_FAR_PX = 500;
+export const ENEMY_CAMP_CANDIDATE_OFFSETS_PX: readonly number[] = [
+  ENEMY_CAMP_OFFSET_NEAR_PX,
+  -ENEMY_CAMP_OFFSET_NEAR_PX,
+  ENEMY_CAMP_OFFSET_FAR_PX,
+  -ENEMY_CAMP_OFFSET_FAR_PX,
+];
+export const ENEMY_CAMP_OBSTACLE_CLEARANCE_PX = 70;
 
 /** Flat darker crater blobs baked into the moon disc (Milestone 14) — the
  * reference art's moons are cratered paper cutouts, not plain gradients.
@@ -257,7 +349,6 @@ export const STARFIELD_SEED = 20260706;
  * (see each skyPalette's own cloudColor doc). Band geometry in px /
  * fractions of GAME_HEIGHT; both layers are seeded per world the same
  * base-seed + distance way the ridges are. */
-export const CLOUD_BAND_BASELINE_Y_FRACTION = 0.37;
 export const CLOUD_BAND_MIN_RADIUS_PX = 26;
 export const CLOUD_BAND_MAX_RADIUS_PX = 54;
 export const CLOUD_BAND_OVERLAP_FRACTION = 0.42;
@@ -269,8 +360,6 @@ export const CLOUD_BAND_BACK_ROW_RISE_PX = 16;
  * paper edge along every scallop top. */
 export const CLOUD_RIM_OFFSET_PX = 3;
 export const CLOUD_BAND_SEED = 9090;
-const CLOUD_PUFF_COUNT_PER_SCREEN = 2;
-export const CLOUD_PUFF_COUNT = CLOUD_PUFF_COUNT_PER_SCREEN * WORLD_WIDTH_MULTIPLIER;
 export const CLOUD_PUFF_CORE_RADIUS_PX = 32;
 export const CLOUD_PUFF_MIN_SCALE = 0.55;
 export const CLOUD_PUFF_MAX_SCALE = 1.25;
@@ -360,8 +449,21 @@ export const HUD_LAYER_DEPTH = 2;
 /* scenes/result-scene.ts, scenes/settings-scene.ts                       */
 /* ---------------------------------------------------------------------- */
 
-export const UI_TEXT_COLOR = 0xe0e0e0;
-export const UI_MUTED_TEXT_COLOR = 0x8899aa;
+/** One shared handcrafted font stack for EVERY text in the game
+ * (Milestone 16, D24 — user directive: "all of the text and fonts,
+ * dialogue, menus, huds, etc all share the same paper theme"). Web-safe
+ * rounded/marker faces only — this project ships zero external assets,
+ * so no @font-face files; the chain degrades gracefully per platform. */
+export const UI_FONT_FAMILY =
+  '"Chalkboard SE", "Comic Sans MS", "Marker Felt", "Segoe Print", sans-serif';
+/** Hard paper drop shadow behind titles and button labels — the same
+ * blur-0 offset-shadow language every game cutout uses. */
+export const UI_TEXT_SHADOW_OFFSET_PX = 2;
+
+/** Warm paper ink, not terminal white/blue-gray (Milestone 16): body text
+ * is cream stock, muted text warm oatmeal, buttons dark cardboard. */
+export const UI_TEXT_COLOR = 0xf6efdd;
+export const UI_MUTED_TEXT_COLOR = 0xb9ac93;
 export const UI_TITLE_FONT_SIZE_PX = 40;
 export const UI_BODY_FONT_SIZE_PX = 16;
 
@@ -369,10 +471,10 @@ export const UI_BODY_FONT_SIZE_PX = 16;
  * lean on the same cool cyan used for the lander's engine glow (D18), so
  * interactive UI reads as part of the same palette, not a bolted-on system. */
 export const UI_BUTTON_FONT_SIZE_PX = 22;
-export const UI_BUTTON_TEXT_COLOR = 0xe0e0e0;
+export const UI_BUTTON_TEXT_COLOR = 0xf6efdd;
 export const UI_BUTTON_HOVER_TEXT_COLOR = 0x8fd8ff;
-export const UI_BUTTON_BG_COLOR = 0x2a2a45;
-export const UI_BUTTON_BG_HOVER_COLOR = 0x3a3a5a;
+export const UI_BUTTON_BG_COLOR = 0x3b3226;
+export const UI_BUTTON_BG_HOVER_COLOR = 0x54483a;
 export const UI_BUTTON_PADDING_X = 18;
 export const UI_BUTTON_PADDING_Y = 10;
 /** Not exported — only consumed below to compute UI_BUTTON_ROW_HEIGHT_PX;
@@ -815,3 +917,17 @@ export const SCREEN_SHAKE_SHIP_CONTACT_DURATION_MS = 150;
 export const SCREEN_SHAKE_SHIP_CONTACT_INTENSITY = 0.008;
 export const SCREEN_SHAKE_SHIP_RANGED_DURATION_MS = 220;
 export const SCREEN_SHAKE_SHIP_RANGED_INTENSITY = 0.014;
+
+/** Item-icon glyphs (Milestone 16, D24 — `rendering/item-icons.ts`): a
+ * fixed icon palette shared across the STORE/LOADOUT so every item card
+ * reads as the same product line; per-icon accents reuse the game's own
+ * semantic hues (flame/energy warm, cold blue, acid green, shield cyan,
+ * medic red). */
+export const ICON_SIZE_PX = 30;
+export const ICON_METAL_COLOR = 0xb9c4d0;
+export const ICON_METAL_DARK_COLOR = 0x4b5261;
+export const ICON_ACCENT_FLAME_COLOR = 0xf2a13c;
+export const ICON_ACCENT_COLD_COLOR = 0x8cd7f0;
+export const ICON_ACCENT_ACID_COLOR = 0xa8c94b;
+export const ICON_ACCENT_SHIELD_COLOR = 0x8fd8ff;
+export const ICON_ACCENT_MEDIC_COLOR = 0xd95a5a;

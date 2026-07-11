@@ -6,9 +6,12 @@ import {
   UI_BUTTON_FONT_SIZE_PX,
   UI_BUTTON_PADDING_Y,
   UI_BUTTON_ROW_HEIGHT_PX,
+  UI_FONT_FAMILY,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
+  OUTLINE_COLOR,
+  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import {
   equipmentListings,
@@ -18,7 +21,7 @@ import {
   type StoreListing,
   type StoreListingKind,
 } from '../economy/store';
-import { SHIPS } from '../ships/ships';
+import { SHIPS, findShipById } from '../ships/ships';
 import { UPGRADES } from '../ships/upgrades';
 import { EQUIPMENT_ITEMS, findEquipmentById } from '../equipment/equipment';
 import {
@@ -52,6 +55,8 @@ import {
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createUiButton } from '../rendering/ui-button';
+import { createShipVisual } from '../rendering/ship-visual';
+import { createItemIconImage } from '../rendering/item-icons';
 import { SCENE_KEY_MENU, SCENE_KEY_STORE } from './scene-keys';
 import { ArmedKeyGuard, requireKeyboard } from './scene-utils';
 
@@ -173,6 +178,22 @@ function priceReasonText(listing: StoreListing): string {
  * established "no automated collision detection, hand-verified margin"
  * convention for this kind of layout (e.g. `ShipSelectScene`'s
  * `NAME_COLUMN_OFFSET_PX`). */
+/** Milestone 16 (D24): every row leads with its item's own paper art.
+ * The four store columns leave no reliable gutter between the widest
+ * neighboring rows (every fixed/outside placement either clipped the
+ * screen edge, hid behind a button, covered its first letters, or
+ * collided with the next column — all caught by screenshots), so art is
+ * drawn SMALL: inside a button's own left padding for button rows, and
+ * just outside the text for plain-text rows (flipping right when the
+ * leftmost column would clip the screen edge). Labels themselves are
+ * never altered — e2e click targeting matches exact label text. */
+const LISTING_ART_SCALE = 0.6;
+const LISTING_ART_GAP_PX = 12;
+const LISTING_ART_MIN_X_PX = 18;
+/** Half the scaled icon + a sliver, keeping the icon within
+ * UI_BUTTON_PADDING_X so it never covers label glyphs. */
+const LISTING_ART_BUTTON_INSET_PX = 10;
+const STORE_SHIP_PREVIEW_SCALE = 0.55;
 const SHIPS_COLUMN_X_FRACTION = 0.1;
 const UPGRADES_COLUMN_X_FRACTION = 0.35;
 const EQUIPMENT_WEAPON_COLUMN_X_FRACTION = 0.61;
@@ -268,11 +289,12 @@ export class StoreScene extends Phaser.Scene {
     this.track(
       this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT * TITLE_Y_FRACTION, 'STORE', {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_TITLE_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
         })
-        .setOrigin(ORIGIN_CENTER),
+        .setOrigin(ORIGIN_CENTER)
+        .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0),
     );
 
     // Always shown, including at 0 -- unlike MenuScene's BEST score line
@@ -285,7 +307,7 @@ export class StoreScene extends Phaser.Scene {
           GAME_HEIGHT * BALANCE_Y_FRACTION,
           `BALANCE: ${this.currencyState.balance.toString()} CREDITS`,
           {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_TEXT_COLOR),
           },
@@ -340,7 +362,7 @@ export class StoreScene extends Phaser.Scene {
       this.track(
         this.add
           .text(column.x, headerY, column.header, {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_TEXT_COLOR),
           })
@@ -404,33 +426,37 @@ export class StoreScene extends Phaser.Scene {
     const name = listing.name.toUpperCase();
 
     if (status === 'owned') {
-      this.track(
-        this.add
-          .text(x, y, `${name} (OWNED)`, {
-            fontFamily: 'monospace',
-            fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
-          })
-          .setOrigin(ORIGIN_CENTER),
-      );
+      const row = this.add
+        .text(x, y, `${name} (OWNED)`, {
+          fontFamily: UI_FONT_FAMILY,
+          fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
+          color: hexToCss(UI_MUTED_TEXT_COLOR),
+        })
+        .setOrigin(ORIGIN_CENTER);
+      this.track(row);
+      this.renderListingArt(listing, this.listingArtX(x, row.displayWidth / 2), y);
       return y + ROW_HEIGHT_PX;
     }
 
     if (status === 'affordable') {
-      this.track(
-        createUiButton(this, {
-          x,
-          y,
-          label: name,
-          onClick: () => {
-            this.purchaseAndRerender(listing);
-          },
-        }),
+      const button = createUiButton(this, {
+        x,
+        y,
+        label: name,
+        onClick: () => {
+          this.purchaseAndRerender(listing);
+        },
+      });
+      this.track(button);
+      this.renderListingArt(
+        listing,
+        x - button.getBounds().width / 2 + LISTING_ART_BUTTON_INSET_PX,
+        y,
       );
       this.track(
         this.add
           .text(x, y + BUTTON_REASON_LINE_OFFSET_PX, priceReasonText(listing), {
-            fontFamily: 'monospace',
+            fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
             color: hexToCss(UI_MUTED_TEXT_COLOR),
           })
@@ -440,25 +466,53 @@ export class StoreScene extends Phaser.Scene {
     }
 
     // status === 'too-expensive'
-    this.track(
-      this.add
-        .text(x, y, `${name} (LOCKED)`, {
-          fontFamily: 'monospace',
-          fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_MUTED_TEXT_COLOR),
-        })
-        .setOrigin(ORIGIN_CENTER),
-    );
+    const lockedRow = this.add
+      .text(x, y, `${name} (LOCKED)`, {
+        fontFamily: UI_FONT_FAMILY,
+        fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
+        color: hexToCss(UI_MUTED_TEXT_COLOR),
+      })
+      .setOrigin(ORIGIN_CENTER);
+    this.track(lockedRow);
+    this.renderListingArt(listing, this.listingArtX(x, lockedRow.displayWidth / 2), y);
     this.track(
       this.add
         .text(x, y + REASON_LINE_OFFSET_PX, priceReasonText(listing), {
-          fontFamily: 'monospace',
+          fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_MUTED_TEXT_COLOR),
         })
         .setOrigin(ORIGIN_CENTER),
     );
     return y + LOCKED_ROW_HEIGHT_PX;
+  }
+
+  /** Outside-left of the measured row, flipping to outside-right when the
+   * left slot would clip the screen edge (leftmost column). */
+  private listingArtX(rowCenterX: number, rowHalfWidth: number): number {
+    const left = rowCenterX - rowHalfWidth - LISTING_ART_GAP_PX;
+    return left < LISTING_ART_MIN_X_PX ? rowCenterX + rowHalfWidth + LISTING_ART_GAP_PX : left;
+  }
+
+  /** Outside-left of a MEASURED plain-text row (flipping right at the
+   * screen edge) — button rows instead inset their art into their own
+   * left padding; see the LISTING_ART_* constants' doc comment. */
+
+  /** The row's leading art (Milestone 16, D24): a ship listing shows its
+   * real in-flight hull at mini scale (the same silhouette system SHIP
+   * SELECT uses, per-listing texture prefix); everything else shows its
+   * item-icon card. */
+  private renderListingArt(listing: StoreListing, x: number, y: number): void {
+    if (listing.kind === 'ship') {
+      const visual = createShipVisual(this, {
+        ship: findShipById(listing.id),
+        textureKeyPrefix: `store-ship-${listing.id}`,
+      });
+      visual.container.setPosition(x, y).setScale(STORE_SHIP_PREVIEW_SCALE).setDepth(1);
+      this.track(visual.container);
+      return;
+    }
+    this.track(createItemIconImage(this, listing.id, x, y).setScale(LISTING_ART_SCALE).setDepth(1));
   }
 
   /** Completes a purchase in one synchronous handler: deducts the balance,

@@ -130,6 +130,7 @@ describe('evaluateBaseFit — mechanical (TWR) branch', () => {
       tier: 1,
       damage: 1,
       cooldownMs: 300,
+      projectileColor: 0xf5e050,
       tags: [],
     };
     const unloaded = evaluateBaseFit(ship, [], [], body, makeBase());
@@ -316,6 +317,7 @@ describe('evaluateBaseFit — combat branch', () => {
       tier: 1,
       damage: 20,
       cooldownMs: 100,
+      projectileColor: 0xf5e050,
       tags: [],
     };
     const result = evaluateBaseFit(makeShip(), [], [weapon], makeBody(18), base);
@@ -336,6 +338,7 @@ describe('evaluateBaseFit — combat branch', () => {
       tier: 1,
       damage: 10,
       cooldownMs: 100,
+      projectileColor: 0xf5e050,
       tags: [],
     };
     const strong: EquipmentItem = {
@@ -347,6 +350,7 @@ describe('evaluateBaseFit — combat branch', () => {
       tier: 2,
       damage: 60,
       cooldownMs: 100,
+      projectileColor: 0xf5e050,
       tags: [],
     };
     // Weak-then-strong: bestCarriedWeapon's reduce must swap to the later,
@@ -375,6 +379,7 @@ describe('evaluateBaseFit — combat branch', () => {
       tier: 1,
       damage: 20,
       cooldownMs: 100,
+      projectileColor: 0xf5e050,
       tags: [],
     };
     const result = evaluateBaseFit(makeShip(), [], [weapon], makeBody(18), base);

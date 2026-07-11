@@ -49,6 +49,33 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Added
 
+- **Milestone 16 — Inhabited Worlds: set-dressing, structures, NPCs, item
+  art, paper UI (Decision D24, certified)**: the taxonomy became visible
+  and every screen became crafted, per the user's named references (Paper
+  Mario's crafted-object dioramas, Duck Detective's cardboard standees,
+  and temp/'s two inhabited-scene images). Terrain set-dressing
+  (`terrain/decorations.ts` seeded generator +
+  `rendering/decoration-visual.ts` paper cutouts): lush worlds grow
+  puff-canopy trees, bushes, reeds, flowers, and grass by biome; barren
+  worlds scatter jagged rock, dead snags, and the ore crystals the
+  extraction economy mines; moons collect boulders and surface craters —
+  all excluded from the pad and every curated obstacle (pinned by tests).
+  Every curated base now stands as a place: a habitat dome, antenna
+  tower, and two big-eyed crew standees (`rendering/base-structures.ts`,
+  obstacle-dodging placement); Meridian Yard's wasps got their hive, and
+  Frostgate got an abandoned raider camp with a crashed raider skiff —
+  the game's first enemy-ship art (set dressing by design; a flyable
+  raider combatant is named future work). Sky compositions now vary per
+  world (seeded moon/sun position + size, cloud-band height, puff count,
+  ridge bands). The STORE and LOADOUT show real item art: paper icon
+  cards for all 8 equipment items and all 4 permanent upgrades
+  (registry-completeness pinned), mini ship hulls on ship listings, and
+  each weapon now fires its own bolt color (pulse cannon gold,
+  autocannon ember — per-weapon glow textures). The entire UI moved to
+  one paper theme: a rounded handcrafted font stack, warm cream ink,
+  cardboard buttons, and hard paper drop shadows on every title and
+  button across menu/HUD/store/loadout/map/results/settings/toasts.
+
 - **Milestone 15 — Living Worlds: taxonomy, time-of-day, extraction
   (Decision D22, certified)**: every world now declares what it _is_ and
   when you see it. `CelestialBody.kind` classifies the registry into
