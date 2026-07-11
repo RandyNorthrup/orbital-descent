@@ -41,12 +41,14 @@ state distinction anywhere in the game (the one candidate — landed/green
 vs. crashed/red — already has a redundant text label) and confirmed via a
 fresh Lighthouse run that the Accessibility score is still a perfect 1.00,
 matching the Milestone 1 baseline. On top of: Milestone 12 (Achievements &
-Notifications, certified). Five achievements (Decision D16, exactly the
-triggers PLAN.md
-§9.5.4 specifies): founding your first base, pioneering a world, fully
-securing a multi-base world, three resupply-streak tiers, and claiming
-every critical-path base in the game — each shows a toast notification on
-the World Map and persists across reloads. On top of: Milestone 11
+Notifications, certified). Five achievement families (Decision D16,
+exactly the trigger families PLAN.md §9.5.4 specifies), expanding against
+the real base roster into 13 unlockable achievements: founding your first
+base, pioneering each world (one per world), fully securing each world's
+bases (one per world, including single-base worlds), three
+resupply-streak tiers, and claiming every critical-path base in the
+game — each shows a toast notification on the World Map and persists
+across reloads. On top of: Milestone 11
 (Weapons & Combat, certified) — the weapon/utility trigger input
 Milestone 9 already wired now does something: Space fires a real,
 cooldown-gated projectile along whichever heading the ship is currently
@@ -198,11 +200,15 @@ pnpm test:e2e          # Playwright, real browsers, against a production build
 pnpm test:e2e:ui       # Playwright's interactive UI runner
 ```
 
-The Vitest coverage gate (90% statements/lines/functions, 85% branches) only
-applies to the Phaser-free pure-logic layers
-(`src/game/physics/**`, `src/game/flight/**`). Phaser scene glue
-(`src/game/scenes/**`, `src/main.ts`) is intentionally verified by the
-Playwright e2e suite instead — see `PLAN.md` §4 "Architecture Notes" for why.
+The Vitest coverage gate (90% statements/lines/functions, 85% branches)
+applies to every Phaser-free logic module — physics, flight, terrain,
+scoring, persistence, planets, bases, ships, equipment, economy, missions,
+combat, achievements, audio, effects, random, and the pure rendering
+generators (starfield/ridgeline/color-mix/cloud-bank/moon-craters); see
+`vitest.config.ts`'s `coverage.include` for the authoritative list. Phaser
+scene glue (`src/game/scenes/**`, `src/main.ts`) is intentionally verified
+by the Playwright e2e suite instead — see `PLAN.md` §4 "Architecture
+Notes" for why.
 
 ## Quality gates
 

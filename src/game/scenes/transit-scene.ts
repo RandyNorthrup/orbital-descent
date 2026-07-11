@@ -22,7 +22,7 @@ import { EQUIPMENT_ITEMS, totalCarriedMass } from '../equipment/equipment';
 import { resolveEquippedItems } from '../equipment/loadout';
 import { SHIPS, findShipById } from '../ships/ships';
 import type { ShipClass } from '../ships/ship';
-import { EMPTY_MANIFEST, cargoMass, type CargoManifest } from '../missions/cargo';
+import { cargoMass, type CargoManifest } from '../missions/cargo';
 import type { MissionState } from '../missions/mission';
 import { remainingFuelAfterTransit, transitDistanceTU, transitFuelCost } from '../missions/relay';
 import type { GameSceneData, MissionContext } from './game-scene';
@@ -124,8 +124,18 @@ export class TransitScene extends Phaser.Scene {
       );
     }
 
-    const relayManifest =
-      (this.registry.get('relayManifest') as CargoManifest | undefined) ?? EMPTY_MANIFEST;
+    // Throws like its two registry-read neighbors above/below (found by
+    // the post-M15 completeness audit: this one read silently defaulted to
+    // an empty manifest instead) — a missing manifest here is the same
+    // caller-programming-error class as a missing missionState, and a
+    // silent empty default would fly the destination leg with no cargo and
+    // conclude the relay as a quiet failure instead of surfacing the bug.
+    const relayManifest = this.registry.get('relayManifest') as CargoManifest | undefined;
+    if (relayManifest === undefined) {
+      throw new Error(
+        "TransitScene: this.registry is missing 'relayManifest' -- LoadoutScene must set it when launching a relay's origin leg.",
+      );
+    }
     const fuelRemainingAtTouchdown = this.registry.get('fuelRemainingAtTouchdown') as
       number | null | undefined;
     if (fuelRemainingAtTouchdown === undefined || fuelRemainingAtTouchdown === null) {

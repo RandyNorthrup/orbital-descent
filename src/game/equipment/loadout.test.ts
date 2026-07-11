@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  cycleActiveItem,
-  equipmentIdsOfSlotType,
-  resolveEquippedItems,
-  resolvedCarriedMass,
-} from './loadout';
+import { cycleActiveItem, equipmentIdsOfSlotType, resolveEquippedItems } from './loadout';
 import { EQUIPMENT_ITEMS, findEquipmentById } from './equipment';
 import { SHIPS, findShipById } from '../ships/ships';
 
@@ -56,16 +51,6 @@ describe('resolveEquippedItems', () => {
     expect(onVanguard.length).toBeLessThanOrEqual(3);
     const carried = onVanguard.reduce((sum, item) => sum + item.mass, 0);
     expect(carried).toBeLessThanOrEqual(vanguard.massBudget);
-  });
-});
-
-describe('resolvedCarriedMass', () => {
-  it('matches the sum of the resolved items’ mass', () => {
-    const falcon = findShipById('falcon');
-    const ids = ['pulse-cannon', 'fuel-tank'];
-    expect(resolvedCarriedMass(falcon, ids, EQUIPMENT_ITEMS)).toBe(
-      findEquipmentById('pulse-cannon').mass + findEquipmentById('fuel-tank').mass,
-    );
   });
 });
 

@@ -15,8 +15,8 @@ import {
  *
  * @public every `MissionDefinition` authors `structure` as a plain string
  * literal (`mission-offers.ts`), satisfying this type structurally without
- * importing it by name — not dead code, matches `bases/base.ts`'s
- * `HandlingBand`/`WeaponTier` precedent for a field's type alias with no
+ * importing it by name — not dead code, this project's established
+ * convention for a field's type alias with no
  * by-name importer yet.
  */
 export type MissionStructure = 'single-trip' | 'multi-trip-same-base' | 'relay';
@@ -42,7 +42,7 @@ export type MissionFlavor = 'establish-presence' | 'resupply' | 'extraction';
  * @public every multi-trip `MissionDefinition` authors `crashPolicy` as a
  * plain string literal (`mission-offers.ts`), satisfying this type
  * structurally without importing it by name — not dead code, same
- * `HandlingBand`/`WeaponTier` precedent as `MissionStructure` above. */
+ * no-by-name-importer convention as `MissionStructure` above. */
 export type CrashPolicy = 'endMission' | 'loseTripOnly';
 
 /** What a mission resolved to — deliberately has no `'active'` member.

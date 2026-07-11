@@ -42,12 +42,10 @@ export interface EncounterSpec {
   readonly seed: number;
 }
 
-/** @public forward-declared for Milestone 9's loadout-select UI (its
- * `hazardCounterTags`/`recommendedTags` hints below reference these tag
- * values as plain string literals today, satisfying `BaseRequirements`
- * structurally without importing this type by name — the type itself
- * isn't consumed elsewhere until M9 builds real tag-matching logic). Not
- * dead code. */
+/** The shared tag vocabulary connecting a base's needs to gear/upgrades
+ * that answer them: `hazardCounterTags`/`recommendedTags` below name
+ * these values, and `ships/upgrades.ts` + `equipment/equipment.ts` import
+ * this type by name to tag what each upgrade/item actually provides. */
 export type LoadoutTag =
   | 'fuel-efficient'
   | 'high-thrust'
@@ -86,10 +84,9 @@ export interface HandlingBand {
  * `type X = ...` alias declaration, not when it's inline in an interface
  * property's type position.
  *
- * @public every M6-era base authors `combat.minWeaponTier: 0` as a plain
- * literal (satisfying `BaseRequirements` structurally); this named alias
- * isn't imported by name anywhere until Milestone 9 builds real
- * weapon-tier comparisons. Not dead code.
+ * Imported by name in `equipment/equipment.ts`, which types every weapon
+ * item's own tier against this same scale so base requirement and item
+ * capability compare directly.
  */
 export type WeaponTier = 0 | 1 | 2 | 3;
 

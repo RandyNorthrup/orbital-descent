@@ -126,6 +126,14 @@ export const COMBATANT_ACCENT_DARKEN_FRACTION = 0.28;
  * rather than texture, and cost far more to bake/rebake per shot. */
 export const PROJECTILE_COLOR = 0xf5e050;
 export const PROJECTILE_RADIUS = 4;
+/** Crisp dark edge on the bolt disc, matching every other paper piece's
+ * outline language — without it the pale-yellow bolt visually vanishes
+ * against Milestone 15's bright day skies (found by the completeness
+ * pass's weapon-fire screenshot on daylit Verdalis: a live projectile was
+ * present in the frame and genuinely unfindable by eye). Thinner than the
+ * global OUTLINE_WIDTH for the same reason ship pieces use 2px — a 3px
+ * ring would swallow a 4px-radius fill. */
+export const PROJECTILE_OUTLINE_WIDTH = 1.5;
 /** Milestone 14: a soft radial glow behind each bolt so a shot reads as an
  * energy bolt, not a flat dot — baked once (parameter-identical for every
  * shot) and shared by reference. */

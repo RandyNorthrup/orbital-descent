@@ -952,7 +952,15 @@ function missionTitleText(definition: MissionDefinition): string {
 
 function baseNameOf(baseId: string): string {
   const base = BASES.find((candidate) => candidate.id === baseId);
-  return (base?.name ?? baseId).toUpperCase();
+  if (!base) {
+    // Throw-on-unknown, matching findShipById/findBodyById/findRelayRoute
+    // and this scene's own launchMission lookup (the post-M15 completeness
+    // audit found this one helper silently rendering the raw id slug
+    // instead) — a MissionDefinition naming a nonexistent base is a real
+    // data bug, not a display case to paper over.
+    throw new Error(`baseNameOf: no Base registered with id '${baseId}'`);
+  }
+  return base.name.toUpperCase();
 }
 
 /** "TARGET: 60 SUPPLIES" (fresh multi-trip) / "DELIVERED: 20/60 SUPPLIES"

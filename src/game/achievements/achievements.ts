@@ -129,7 +129,11 @@ function buildAchievementRules(bases: readonly Base[]): readonly AchievementRule
  * `bases` — deliberately not a fixed-count literal: world-scoped and
  * resupply-tier rules scale with however many distinct worlds/tiers are
  * configured, so this grows automatically if a future milestone adds more
- * bases/worlds.
+ * bases/worlds. Production consumes only `evaluateNewlyUnlockedAchievements`
+ * below (no shipped screen lists every achievement yet); this is the one
+ * public enumeration of the full derivable registry, which
+ * `achievements.test.ts` pins size/shape through — the same
+ * test-support-enumeration role as `ALL_IMPACT_KINDS`/`ALL_SFX_CUES`.
  */
 export function buildAchievementRegistry(bases: readonly Base[]): readonly AchievementDefinition[] {
   return buildAchievementRules(bases).map(({ id, displayText }) => ({ id, displayText }));

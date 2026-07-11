@@ -1177,9 +1177,10 @@ interface CurrentShipContext {
 }
 
 /** "MECH 5 · NAV 3 (MECHANICAL)" — omits an axis entirely at 0 rather than
- * showing a misleadingly-precise "COMBAT 0" for every base today (combat
- * stays 0 until Milestone 11), per `BaseDifficultyProfile.axes`'s own doc
- * comment. */
+ * showing a misleadingly-precise "COMBAT 0" on a base with no combat
+ * content (per `BaseDifficultyProfile.axes`'s own doc comment); bases with
+ * real encounters (Meridian Yard, Frostgate since Milestone 11) render
+ * their genuine nonzero COMBAT axis. */
 function formatDifficultyBadge(difficulty: BaseDifficultyProfile): string {
   const axisParts: string[] = [];
   if (difficulty.axes.mechanical > 0) {

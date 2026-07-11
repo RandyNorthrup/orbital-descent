@@ -22,8 +22,8 @@ export interface LandingPad {
  * @public every `Obstacle.kind` is authored as a plain string literal
  * (`bases.ts`, `game-scene.ts`'s own `obstacle.kind === 'spire'` check),
  * satisfying this type structurally without importing it by name —
- * not dead code, matches `bases/base.ts`'s `HandlingBand`/`WeaponTier`
- * precedent for a field's type alias with no by-name importer yet. */
+ * not dead code, this project's established convention for a field's
+ * type alias with no by-name importer yet. */
 export type ObstacleKind = 'spire' | 'debris';
 
 export interface Obstacle {

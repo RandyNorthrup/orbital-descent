@@ -45,7 +45,11 @@ export const RELAY_ROUTES: readonly RelayRoute[] = [
  * Looks up a `RelayRoute` by id. A caller referencing a nonexistent route
  * id is a real data-integrity bug, not a reachable runtime condition —
  * throws rather than silently falling back, matching `findShipById`/
- * `findEquipmentById`'s identical convention.
+ * `findEquipmentById`'s identical convention. Production currently
+ * derives its relay offers by filtering `RELAY_ROUTES` per origin base
+ * (`world-map-scene.ts`), never by single id, so today's callers are this
+ * module's own tests — kept as the registry's blessed throw-on-unknown
+ * lookup rather than each test reinventing it.
  */
 export function findRelayRoute(id: string): RelayRoute {
   const route = RELAY_ROUTES.find((candidate) => candidate.id === id);

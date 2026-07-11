@@ -12,9 +12,8 @@ import type { LoadoutTag } from '../bases/base';
  * @public every entry in this file's own `UPGRADES` registry authors a
  * `stat` value satisfying this type structurally (a plain string literal);
  * this named alias isn't imported by name anywhere else yet since no code
- * outside this file branches on it. Not dead code — matches
- * `ships/ship.ts`'s `ShipArchetype`/`bases/base.ts`'s `HandlingBand`/
- * `WeaponTier` precedent for a field's type alias with no by-name importer
+ * outside this file branches on it. Not dead code — this project's
+ * established convention for a field's type alias with no by-name importer
  * yet.
  */
 export type PermanentUpgradeStat = 'baseThrustAccel' | 'dryMass' | 'fuelCapacity' | 'burnRate';
@@ -82,7 +81,11 @@ export const UPGRADES: readonly PermanentUpgrade[] = [
  * a nonexistent upgrade id (a stale persisted `purchasedUpgradeIds` entry
  * surviving a roster change) is a real data-integrity bug, not a reachable
  * runtime condition otherwise — throwing surfaces it loudly, matching
- * `ships/ships.ts`'s `findShipById` convention.
+ * `ships/ships.ts`'s `findShipById` convention. Production currently
+ * resolves owned upgrades by filtering the whole registry
+ * (`ownedUpgrades`), never by single id, so today's callers are the
+ * upgrade/store test suites — kept as this registry's blessed
+ * throw-on-unknown lookup rather than each test reinventing it.
  */
 export function findUpgradeById(id: string): PermanentUpgrade {
   const upgrade = UPGRADES.find((candidate) => candidate.id === id);

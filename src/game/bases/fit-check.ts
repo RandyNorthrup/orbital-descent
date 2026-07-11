@@ -22,8 +22,8 @@ const FUEL_MARGIN_WARNING_THRESHOLD = 1;
  * (both `twrBand`/`handlingBand` are typed against it) — not imported by
  * name anywhere else yet, since no scene wires `evaluateBaseFit` into live
  * UI this milestone (a deliberate, documented scope decision — see PLAN.md's
- * Milestone 9 certification notes). Not dead code — matches
- * `bases/base.ts`'s `HandlingBand`/`WeaponTier` precedent for a type alias
+ * Milestone 9 certification notes). Not dead code — this project's
+ * established convention for a type alias
  * with no by-name importer yet.
  */
 export type FitBand = 'impossible' | 'risky' | 'comfortable';

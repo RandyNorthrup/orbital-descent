@@ -1,14 +1,10 @@
 /**
- * A ship's archetype flavor (PLAN.md §7/Milestone 7) — purely descriptive
- * today; no code branches on this value. Flight feel comes entirely from
- * the numeric stats below. Forward-compatible with a future tag-based hint
- * system (mirrors `bases/base.ts`'s `LoadoutTag`) without needing one yet.
- *
- * @public every ship in `ships/ships.ts`'s registry authors an `archetype`
- * value satisfying this type structurally (a plain string literal); this
- * named alias isn't imported by name anywhere yet since no code branches on
- * it. Not dead code — matches `bases/base.ts`'s `HandlingBand`/`WeaponTier`
- * precedent for a field's type alias with no by-name importer yet.
+ * A ship's archetype — a hull FAMILY, not just flavor text since Milestone
+ * 14: `ships/silhouette.ts` keys `SHIP_SILHOUETTES` on this value, and
+ * `rendering/ship-visual.ts` selects each craft's multi-piece papercraft
+ * artwork through it, so an archetype now visibly IS the ship's shape in
+ * flight. Flight feel still comes entirely from the numeric stats below —
+ * the archetype drives art, never physics.
  */
 export type ShipArchetype =
   'balanced' | 'scout' | 'courier' | 'hauler' | 'gunship' | 'interceptor' | 'specialist';
@@ -38,14 +34,12 @@ export interface ShipClass {
 
   /** Mass units (MU). Thrust model (PLAN.md §7, resolving §6b.6 item 2's
    * "mass or thrust multiplier" ambiguity): `engineForce = baseThrustAccel
-   * × dryMass`, held fixed once a ship is registered — bolting on
-   * Milestone 9 equipment/cargo mass lowers realized acceleration without
-   * changing the engine itself. Every flight before Milestone 9 ships
-   * carries zero equipment/cargo mass, so realized thrust acceleration
-   * equals `baseThrustAccel` exactly (`engineForce / dryMass` cancels to
-   * `baseThrustAccel` whenever carried mass is zero) — this milestone
-   * doesn't need to compute `engineForce` anywhere itself, only preserve
-   * the invariant for Milestone 9 to build on. */
+   * × dryMass`, held fixed once a ship is registered — equipment/cargo
+   * mass lowers realized acceleration without changing the engine itself,
+   * via `equipment/equipment.ts`'s `effectiveThrustAccel(ship,
+   * carriedMass) = baseThrustAccel × dryMass / (dryMass + carriedMass)`
+   * (which cancels back to `baseThrustAccel` exactly at zero carried
+   * mass). */
   readonly dryMass: number;
   /** px/s², realized at zero carried mass — see `dryMass`'s doc comment. */
   readonly baseThrustAccel: number;
@@ -58,22 +52,27 @@ export interface ShipClass {
    * deg/s convention (`bases/base.ts`) so a base's handling requirement
    * compares directly against this value with no unit conversion. */
   readonly handling: number;
-  /** Equipment slot count (Milestone 9) — unused until that milestone reads
-   * it, exists now so a ship's slot budget doesn't need retrofitting in. */
+  /** Equipment slot count — the loadout screen's live slot budget
+   * (`equipment/loadout.ts`'s `resolveEquippedItems` trims the persisted
+   * loadout to this many items; `loadout-scene.ts` renders it). */
   readonly equipmentSlots: number;
   /** Total mass-units this class can carry across equipment and cargo
-   * combined (Milestones 9/9.5) — cheaper to bake into this not-yet-built
-   * interface now than retrofit after this milestone certifies (PLAN.md
-   * §7). Every flight before Milestone 9 carries zero mass, so this field
-   * exists but drives nothing yet. */
+   * combined — the one shared budget every carried thing draws from
+   * (PLAN.md §9.5.1): loadout/cargo fit checks (`equipment/loadout.ts`,
+   * `missions/cargo.ts`'s `evaluateCargoFit`, `missions/relay.ts`'s
+   * feasibility) gate against it, and `missions/reward.ts`'s
+   * `massUtilization` scales the per-trip risk bonus by how much of it a
+   * flight actually committed. */
   readonly massBudget: number;
   /** Secondary, cargo-only ceiling (Milestone 9.5); independent of
    * remaining `massBudget` headroom — `0` would be valid for a pure-combat
    * class with no cargo bay at all (none of this roster's ships need that
    * yet). */
   readonly cargoBayCapacity: number;
-  /** Fuel units per Transit Unit of same/cross-world relay distance
-   * (Milestone 9.5's `transitFuelCost`); unused until that milestone. */
+  /** Fuel units per Transit Unit of same/cross-world relay distance —
+   * `missions/relay.ts`'s `transitFuelCost` multiplies it against a
+   * route's distance, and `TransitScene` charges the result between relay
+   * legs. */
   readonly fuelPerDistanceUnit: number;
 
   /** Hull gradient fill (top lighter, bottom darker — matches every other

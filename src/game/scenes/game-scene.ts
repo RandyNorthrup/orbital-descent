@@ -33,11 +33,13 @@ import {
   PARTICLE_BURST_ALPHA_START,
   PARTICLE_BURST_ANGLE_MAX_DEG,
   PARTICLE_BURST_ANGLE_MIN_DEG,
+  OUTLINE_COLOR,
   PARTICLE_DOT_MAX_ALPHA,
   PARTICLE_DOT_RADIUS_PX,
   PROJECTILE_COLOR,
   PROJECTILE_GLOW_MAX_ALPHA,
   PROJECTILE_GLOW_RADIUS,
+  PROJECTILE_OUTLINE_WIDTH,
   PROJECTILE_RADIUS,
   RESULT_TRANSITION_DELAY_MS,
   SCORE_BASE_LANDING_BONUS,
@@ -501,6 +503,13 @@ export class GameScene extends Phaser.Scene {
     this.data.remove('shipHull');
     this.data.remove('shieldHitsRemaining');
     this.data.remove('liveCombatantCount');
+    // These two were the one omission from this list (found by the
+    // post-M15 completeness audit): a flight that never fires would
+    // otherwise still report the PREVIOUS flight's last-triggered ids to
+    // the e2e observation surface — the same stale-per-flight-data class
+    // as M11's hullText and M12's toast queue.
+    this.data.remove('lastTriggeredWeaponId');
+    this.data.remove('lastTriggeredUtilityId');
     this.data.set('activeWeaponId', this.equipmentProgress.activeWeaponId);
     this.data.set('activeUtilityId', this.equipmentProgress.activeUtilityId);
     this.elapsedMs = 0;
@@ -1485,6 +1494,9 @@ export class GameScene extends Phaser.Scene {
     }
     const glow = this.add.image(0, 0, PROJECTILE_GLOW_TEXTURE_KEY);
     const bolt = this.add.circle(0, 0, PROJECTILE_RADIUS, PROJECTILE_COLOR);
+    // Outlined like every other paper piece — see PROJECTILE_OUTLINE_WIDTH's
+    // own doc comment (an unoutlined pale bolt disappears on day skies).
+    bolt.setStrokeStyle(PROJECTILE_OUTLINE_WIDTH, OUTLINE_COLOR);
     const visual = this.add.container(projectile.position.x, projectile.position.y, [glow, bolt]);
     visual.setDepth(LANDER_LAYER_DEPTH);
     this.liveProjectiles.push({ state: projectile, visual });

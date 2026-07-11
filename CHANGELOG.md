@@ -6,10 +6,51 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Post-M15 completeness pass** (three-dimension audit — placeholders/
+  dead code, fallbacks/error-masking, stale claims — plus a full
+  screenshot sweep of every screen and visual state):
+  - Projectile bolts gained a crisp dark outline
+    (`PROJECTILE_OUTLINE_WIDTH`) — the pale-yellow bolt was genuinely
+    invisible against Milestone 15's bright day skies (caught by a
+    weapon-fire screenshot on daylit Verdalis in which a live projectile
+    was present and unfindable by eye).
+  - `GameScene.create()` now clears `lastTriggeredWeaponId`/
+    `lastTriggeredUtilityId` — the one omission from its stale-key
+    cleanup list, the same stale-per-flight-data class as M11's
+    `hullText` and M12's toast queue (observation-surface only, no
+    gameplay effect).
+  - `TransitScene` now throws on a missing `relayManifest` registry key
+    (its two sibling registry reads already threw; this one silently
+    defaulted to an empty manifest, which would have concluded a relay as
+    a quiet failure instead of surfacing the caller bug), and
+    `loadout-scene.ts`'s `baseNameOf` now throws on an unknown base id
+    instead of rendering the raw slug — both per the project's
+    throw-on-unknown convention.
+  - Removed `equipment/loadout.ts`'s `resolvedCarriedMass`: zero
+    production call sites (every consumer composes
+    `resolveEquippedItems` + `totalCarriedMass` directly) and a doc
+    comment that falsely claimed `GameScene`/`fit-check.ts` used it.
+  - Corrected every stale doc/README claim the audit surfaced: M7-era
+    "unused until Milestone 9/9.5" comments on `ShipClass` fields all
+    those milestones now read (`equipmentSlots`/`massBudget`/
+    `fuelPerDistanceUnit`), `ShipArchetype`'s "no code branches on this"
+    (it selects each ship's hull artwork since M14), `LoadoutTag`/
+    `WeaponTier`'s obsolete "@public, no importer yet" justifications,
+    a "combat stays 0 until M11" badge comment, README's understated
+    coverage-gate scope (it lists every Phaser-free module family, not
+    just physics/flight), and README's "five achievements" (five
+    families → 13 unlockable achievements, including single-base
+    worlds).
+- **Decision D6 upgraded to permanent** (user decision): this game will
+  not do mobile/touch — desktop keyboard is the only input target, and
+  PLAN.md §3's open question is closed.
+
 ### Added
 
 - **Milestone 15 — Living Worlds: taxonomy, time-of-day, extraction
-  (Decision D22, certified)**: every world now declares what it *is* and
+  (Decision D22, certified)**: every world now declares what it _is_ and
   when you see it. `CelestialBody.kind` classifies the registry into
   3 moons / 4 barren (dead) worlds / 5 lush (living) ones, and
   `skyPalette.daylight` splits it into 4 day / 4 dusk / 4 night scenes —
@@ -23,7 +64,7 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
   established bases on barren worlds additionally offer a new
   **EXTRACT MATERIALS** mission (new `extraction` `MissionFlavor`: an
   ordinary zero-cargo single-trip — no outbound stepper, `HAUL ON
-  TOUCHDOWN: 12 RAW MATERIALS` — whose safe touchdown pays the fixed
+TOUCHDOWN: 12 RAW MATERIALS` — whose safe touchdown pays the fixed
   materials haul × riskBonus via `reward.ts`'s new `perTripReward`,
   crediting currency without establishing or resupplying anything);
   moons keep their supply-drop focus. The world map tags every row

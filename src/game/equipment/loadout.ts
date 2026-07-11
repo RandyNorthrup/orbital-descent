@@ -1,5 +1,5 @@
 import type { ShipClass } from '../ships/ship';
-import { totalCarriedMass, type EquipmentItem, type EquipmentSlotType } from './equipment';
+import type { EquipmentItem, EquipmentSlotType } from './equipment';
 
 /**
  * Resolves which equipped-item ids are actually carried right now, against
@@ -40,19 +40,6 @@ export function resolveEquippedItems(
   }
 
   return resolved;
-}
-
-/** Convenience wrapper combining `resolveEquippedItems` with
- * `equipment.ts`'s `totalCarriedMass` — the one place `GameScene`/
- * `fit-check.ts` need to go from "what's persisted" to "how much mass is
- * actually carried right now" without duplicating the resolve-then-sum
- * pair at each call site. */
-export function resolvedCarriedMass(
-  ship: ShipClass,
-  equippedItemIdsInEquipOrder: readonly string[],
-  allItems: readonly EquipmentItem[],
-): number {
-  return totalCarriedMass(resolveEquippedItems(ship, equippedItemIdsInEquipOrder, allItems));
 }
 
 /**
