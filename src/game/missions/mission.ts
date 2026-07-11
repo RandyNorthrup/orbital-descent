@@ -21,9 +21,16 @@ import {
  */
 export type MissionStructure = 'single-trip' | 'multi-trip-same-base' | 'relay';
 
-/** The two mission flavors (PLAN.md §9.5.4), orthogonal to `MissionStructure`
- * above. */
-export type MissionFlavor = 'establish-presence' | 'resupply';
+/** The mission flavors (PLAN.md §9.5.4; `extraction` added by Milestone
+ * 15), orthogonal to `MissionStructure` above. Extraction is a raw-material
+ * pickup at an established base on a barren world (dead planets are mined,
+ * not garrisoned — `mission-offers.ts`'s `offersExtractionMission` owns
+ * that gate): structurally an ordinary single-trip with an empty
+ * `minManifest`, so a safe touchdown concludes it `'success'` through the
+ * exact machinery below with no new states — only its per-trip reward
+ * differs (`reward.ts`'s `perTripReward` pays the materials haul instead
+ * of delivered-cargo value). */
+export type MissionFlavor = 'establish-presence' | 'resupply' | 'extraction';
 
 /** Multi-trip-same-base only (PLAN.md §9.5.2): whether a crash ends the
  * mission early with partial progress banked, or merely loses that one

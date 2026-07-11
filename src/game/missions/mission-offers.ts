@@ -1,4 +1,5 @@
 import type { Base, BaseProgress } from '../bases/base';
+import type { WorldKind } from '../planets/celestial-body';
 import type { BaseProgressMap } from '../persistence/base-progress';
 import {
   MULTI_TRIP_RESUPPLY_TARGET_SUPPLIES,
@@ -92,6 +93,44 @@ export function deriveMissionFlavor(status: BaseProgress['status']): MissionFlav
     case 'locked':
       return null;
   }
+}
+
+/**
+ * Whether `base` additionally offers Milestone 15's raw-material
+ * Extraction mission: only at an `established` base on a `barren` world
+ * (Decision D22's world-taxonomy guideline — dead planets focus on supply
+ * drops and raw-material pickups; moons on supply drops alone; lush worlds
+ * host the hostiles instead). Additive next to the Resupply offers an
+ * established base already has, never replacing them. `worldKind` is the
+ * caller's own `findBodyById(base.worldId).kind` — passed in, not looked
+ * up here, keeping this a pure predicate like `deriveMissionFlavor` above.
+ */
+export function offersExtractionMission(
+  worldKind: WorldKind,
+  status: BaseProgress['status'],
+): boolean {
+  return worldKind === 'barren' && status === 'established';
+}
+
+/**
+ * Milestone 15's raw-material pickup (PLAN.md §15): structurally an
+ * ordinary single-trip mission with no cargo minimum — fly to the barren
+ * world, touch down safely, and the pad crew loads the fixed materials
+ * haul `reward.ts`'s `perTripReward` pays out. Offered only where
+ * `offersExtractionMission` says so.
+ */
+export function buildExtractionMission(base: Base): MissionDefinition {
+  return {
+    id: `single-trip--extraction--${base.id}`,
+    structure: 'single-trip',
+    flavor: 'extraction',
+    originBaseId: base.id,
+    destinationBaseId: null,
+    minManifest: {},
+    cargoTarget: null,
+    timeLimitMs: null,
+    crashPolicy: null,
+  };
 }
 
 /**

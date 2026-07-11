@@ -28,6 +28,7 @@ import {
   COMPANION_MOON_CRATER_COUNT,
   COMPANION_MOON_RADIUS,
   COMPANION_MOON_SKY_MIX_FRACTION,
+  DUSK_STAR_COUNT_FRACTION,
   FAR_RIDGE_ALPHA,
   FAR_RIDGE_BLUR_PX,
   FAR_RIDGE_LAYER_DEPTH,
@@ -72,6 +73,8 @@ import {
   STAR_SPARKLE_RADIUS_MULTIPLIER,
   STAR_SPARKLE_WAIST_FRACTION,
   STARFIELD_SEED,
+  SUN_GLOW_MAX_ALPHA,
+  SUN_GLOW_RADIUS,
   WORLD_WIDTH,
 } from '../constants';
 import type { CelestialBody } from '../planets/celestial-body';
@@ -149,14 +152,18 @@ function buildMoons(scene: Phaser.Scene, body: CelestialBody): void {
   const moonX = GAME_WIDTH * MOON_CENTER_X_FRACTION;
   const moonY = GAME_HEIGHT * MOON_CENTER_Y_FRACTION;
 
+  // A day world's disc is a sun, not a moon (Milestone 15): crater-free,
+  // with a wider and stronger halo so it reads as the light source the
+  // bright sky implies rather than an object hanging in it.
+  const isSun = palette.daylight === 'day';
   const moonGlow = createRadialGlowImage(
     scene,
     MOON_GLOW_TEXTURE_KEY,
     moonX,
     moonY,
-    MOON_GLOW_RADIUS,
+    isSun ? SUN_GLOW_RADIUS : MOON_GLOW_RADIUS,
     palette.moonColor,
-    MOON_GLOW_MAX_ALPHA,
+    isSun ? SUN_GLOW_MAX_ALPHA : MOON_GLOW_MAX_ALPHA,
   );
   moonGlow.setDepth(SKY_LAYER_DEPTH).setScrollFactor(SKY_SCROLL_FACTOR);
 
@@ -165,7 +172,7 @@ function buildMoons(scene: Phaser.Scene, body: CelestialBody): void {
     MOON_DISC_TEXTURE_KEY,
     MOON_RADIUS,
     palette.moonColor,
-    MOON_CRATER_COUNT,
+    isSun ? 0 : MOON_CRATER_COUNT,
     worldSeed(MOON_CRATER_SEED, body),
   );
   scene.add
@@ -230,10 +237,20 @@ function fillSparkle(
 }
 
 function buildStars(scene: Phaser.Scene, body: CelestialBody): void {
-  const count =
+  const daylight = body.skyPalette.daylight;
+  // No stars against a daylit sky (Milestone 15); dusk keeps only the
+  // brightest fraction of the night count. Airless worlds are always
+  // authored 'night' (pinned by bodies.test.ts), so the airless density
+  // multiplier below never fights either branch.
+  if (daylight === 'day') {
+    return;
+  }
+  const nightCount =
     body.atmosphereDensity === 0
       ? Math.round(STAR_COUNT * AIRLESS_STAR_COUNT_MULTIPLIER)
       : STAR_COUNT;
+  const count =
+    daylight === 'dusk' ? Math.round(nightCount * DUSK_STAR_COUNT_FRACTION) : nightCount;
   const stars = generateStarfield({
     seed: worldSeed(STARFIELD_SEED, body),
     width: WORLD_WIDTH,
@@ -479,12 +496,14 @@ function buildCloudPuffs(scene: Phaser.Scene, body: CelestialBody, cloudColor: n
 
 /**
  * Builds the world-specific papercraft background behind the gameplay
- * terrain (PLAN.md Milestone 14): a sky gradient, a glowing cratered moon
- * (plus a companion moon and denser stars on airless worlds), a starfield
- * with 4-point sparkles, scalloped cloud layers on atmosphere worlds, and
- * two smooth, rim-lit parallax ridges — every color drawn from `body`'s
- * own `skyPalette`, every layout seeded per world, each layer scrolling at
- * its own depth-plane speed (Milestone 2.5).
+ * terrain (PLAN.md Milestone 14; daylight variants Milestone 15): a sky
+ * gradient, a glowing celestial disc — a crater-free sun with a wide halo
+ * on `daylight: 'day'` worlds, a cratered moon otherwise (plus a companion
+ * moon and denser stars on airless worlds) — a starfield with 4-point
+ * sparkles (skipped at day, thinned at dusk), scalloped cloud layers on
+ * atmosphere worlds, and two smooth, rim-lit parallax ridges — every color
+ * drawn from `body`'s own `skyPalette`, every layout seeded per world,
+ * each layer scrolling at its own depth-plane speed (Milestone 2.5).
  */
 export function buildBackground(scene: Phaser.Scene, body: CelestialBody): void {
   const palette = body.skyPalette;

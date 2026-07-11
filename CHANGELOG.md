@@ -8,6 +8,31 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Added
 
+- **Milestone 15 — Living Worlds: taxonomy, time-of-day, extraction
+  (Decision D22, certified)**: every world now declares what it *is* and
+  when you see it. `CelestialBody.kind` classifies the registry into
+  3 moons / 4 barren (dead) worlds / 5 lush (living) ones, and
+  `skyPalette.daylight` splits it into 4 day / 4 dusk / 4 night scenes —
+  Verdalis, Thessaly Shoals, Kharun Wastes, and Pyrrhine Expanse got
+  brand-new daylit skies (crater-free sun disc with a wide halo, no
+  stars; dusk worlds keep their moon and thin the starfield), and
+  Thornreach Expanse went airless to become the third moon (companion
+  moon + dense sparkles). Content follows the taxonomy: hostile
+  encounters live only on lush worlds (pinned by test — the wasps'
+  Verdalis prairie and the warden's boreal Glacian Drift both qualify);
+  established bases on barren worlds additionally offer a new
+  **EXTRACT MATERIALS** mission (new `extraction` `MissionFlavor`: an
+  ordinary zero-cargo single-trip — no outbound stepper, `HAUL ON
+  TOUCHDOWN: 12 RAW MATERIALS` — whose safe touchdown pays the fixed
+  materials haul × riskBonus via `reward.ts`'s new `perTripReward`,
+  crediting currency without establishing or resupplying anything);
+  moons keep their supply-drop focus. The world map tags every row
+  MOON/BARREN/LUSH under its planet disc, and all three in-flight HUD
+  readouts sit on dark chips so they stay legible over daylit skies.
+  Verified in-browser via real screenshots of all 12 worlds, the
+  world-map tags, the full extraction mission-select/loadout flow, and a
+  real piloted e2e extraction touchdown at Rustwell Landing.
+
 - **Milestone 14 — Production Art Pass, "Papercraft Diorama" (Decision
   D21, certified)**: the full-game visual overhaul to the reference-art
   standard, on top of D18's unchanged technique stack (gradient paper

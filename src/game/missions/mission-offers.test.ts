@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   RELAY_ROUTES,
+  buildExtractionMission,
   buildMultiTripResupplyMission,
   buildRelayMission,
   buildSingleTripMission,
   deriveMissionFlavor,
   findRelayRoute,
   isRelaySelectable,
+  offersExtractionMission,
 } from './mission-offers';
-import { BASES } from '../bases/bases';
+import { BASES, findBodyById } from '../bases/bases';
 import { establishBase, initialBaseProgress } from '../persistence/base-progress';
 
 function findBase(id: string): (typeof BASES)[number] {
@@ -114,6 +116,39 @@ describe('buildMultiTripResupplyMission', () => {
     expect(mission.cargoTarget).toEqual({ type: 'supplies', units: 60 });
     expect(mission.timeLimitMs).toBe(300000);
     expect(mission.crashPolicy).toBe('loseTripOnly');
+  });
+});
+
+describe('offersExtractionMission', () => {
+  it('offers extraction only at an established base on a barren world', () => {
+    expect(offersExtractionMission('barren', 'established')).toBe(true);
+    expect(offersExtractionMission('barren', 'discovered-unclaimed')).toBe(false);
+    expect(offersExtractionMission('barren', 'locked')).toBe(false);
+    expect(offersExtractionMission('moon', 'established')).toBe(false);
+    expect(offersExtractionMission('lush', 'established')).toBe(false);
+  });
+
+  it("qualifies rustwell-landing (Pyrrhine Expanse, this registry's one barren-world base) and no other base once everything is established", () => {
+    const qualifying = BASES.filter((base) =>
+      offersExtractionMission(findBodyById(base.worldId).kind, 'established'),
+    ).map((base) => base.id);
+    expect(qualifying).toEqual(['rustwell-landing']);
+  });
+});
+
+describe('buildExtractionMission', () => {
+  it('builds a plain single-trip with no cargo minimum — a safe touchdown alone concludes it', () => {
+    const rustwell = findBase('rustwell-landing');
+    const mission = buildExtractionMission(rustwell);
+    expect(mission.id).toBe('single-trip--extraction--rustwell-landing');
+    expect(mission.structure).toBe('single-trip');
+    expect(mission.flavor).toBe('extraction');
+    expect(mission.originBaseId).toBe('rustwell-landing');
+    expect(mission.destinationBaseId).toBeNull();
+    expect(mission.minManifest).toEqual({});
+    expect(mission.cargoTarget).toBeNull();
+    expect(mission.timeLimitMs).toBeNull();
+    expect(mission.crashPolicy).toBeNull();
   });
 });
 

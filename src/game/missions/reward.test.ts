@@ -4,6 +4,7 @@ import {
   massUtilization,
   missionReward,
   perTripCargoReward,
+  perTripReward,
   riskBonus,
 } from './reward';
 
@@ -30,9 +31,10 @@ describe('riskBonus', () => {
 });
 
 describe('flavorMultiplier', () => {
-  it('is 2.5 for establish-presence and 1.0 for resupply', () => {
+  it('is 2.5 for establish-presence and 1.0 for every repeatable flavor', () => {
     expect(flavorMultiplier('establish-presence')).toBe(2.5);
     expect(flavorMultiplier('resupply')).toBe(1);
+    expect(flavorMultiplier('extraction')).toBe(1);
   });
 });
 
@@ -45,6 +47,24 @@ describe('perTripCargoReward', () => {
   it('matches PLAN.md §9.5.7 Example B: 20 supply units at riskBonus 1.444', () => {
     const reward = perTripCargoReward({ troops: 0, supplies: 20 }, 1.444);
     expect(reward).toBeCloseTo(144.4, 1);
+  });
+});
+
+describe('perTripReward', () => {
+  it('pays the fixed materials haul (12 × 10 CR) for an extraction trip, scaled by riskBonus, ignoring the (always-empty) delivered manifest', () => {
+    expect(perTripReward('extraction', { troops: 0, supplies: 0 }, 1)).toBe(120);
+    expect(perTripReward('extraction', { troops: 0, supplies: 0 }, 1.15)).toBeCloseTo(138);
+    // Even a hypothetically non-empty manifest wouldn't change the haul —
+    // extraction pays on what the trip brings back, not what it carried out.
+    expect(perTripReward('extraction', { troops: 6, supplies: 20 }, 1)).toBe(120);
+  });
+
+  it('defers to perTripCargoReward for every delivery flavor', () => {
+    const manifest = { troops: 6, supplies: 0 };
+    expect(perTripReward('establish-presence', manifest, 1.15)).toBe(
+      perTripCargoReward(manifest, 1.15),
+    );
+    expect(perTripReward('resupply', manifest, 1.444)).toBe(perTripCargoReward(manifest, 1.444));
   });
 });
 

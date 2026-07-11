@@ -1,6 +1,8 @@
 import {
   CARGO_RISK_BONUS_COEFFICIENT,
   ESTABLISH_PRESENCE_BONUS_MULTIPLIER,
+  EXTRACTION_MATERIAL_UNIT_VALUE,
+  EXTRACTION_MATERIALS_UNITS,
   MISSION_BASE_COMPLETION_REWARD,
 } from '../constants';
 import { cargoValue, type CargoManifest } from './cargo';
@@ -22,9 +24,10 @@ export function riskBonus(utilization: number): number {
   return 1 + CARGO_RISK_BONUS_COEFFICIENT * utilization;
 }
 
-/** `1.0` for Resupply, `ESTABLISH_PRESENCE_BONUS_MULTIPLIER` for Establish
- * Presence — the one-time bonus a base can only ever pay once (PLAN.md
- * §9.5.4). */
+/** `ESTABLISH_PRESENCE_BONUS_MULTIPLIER` for Establish Presence — the
+ * one-time bonus a base can only ever pay once (PLAN.md §9.5.4) — and
+ * `1.0` for every repeatable flavor (Resupply, and Milestone 15's
+ * Extraction, whose materials haul is already its own payout). */
 export function flavorMultiplier(flavor: MissionFlavor): number {
   return flavor === 'establish-presence' ? ESTABLISH_PRESENCE_BONUS_MULTIPLIER : 1;
 }
@@ -37,6 +40,28 @@ export function perTripCargoReward(
   riskBonusValue: number,
 ): number {
   return cargoValue(unitsDeliveredThisTrip) * riskBonusValue;
+}
+
+/**
+ * One trip's reward for whatever that trip's flavor actually pays on
+ * (Milestone 15): an extraction touchdown pays the fixed raw-materials
+ * haul it loads at the pad (the trip delivers nothing outbound, so its
+ * delivered-cargo value is always zero by construction); every other
+ * flavor pays `perTripCargoReward` on what was delivered. The riskBonus
+ * multiplier applies either way — a heavier-committed ship earns more per
+ * run regardless of which direction the value flows. The one place this
+ * flavor branch lives, so `GameScene` calls this with plain data and never
+ * re-implements it (AGENTS.md's "scenes render state" rule).
+ */
+export function perTripReward(
+  flavor: MissionFlavor,
+  unitsDeliveredThisTrip: CargoManifest,
+  riskBonusValue: number,
+): number {
+  if (flavor === 'extraction') {
+    return EXTRACTION_MATERIALS_UNITS * EXTRACTION_MATERIAL_UNIT_VALUE * riskBonusValue;
+  }
+  return perTripCargoReward(unitsDeliveredThisTrip, riskBonusValue);
 }
 
 export interface MissionRewardInputs {

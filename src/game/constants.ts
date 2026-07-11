@@ -37,6 +37,13 @@ export const DEGREES_PER_HALF_TURN = 180;
 /** Uniform spacing, in px, between HUD text elements and the viewport edge. */
 export const HUD_MARGIN = 16;
 
+/** Padding of the dark chip behind each in-flight HUD readout (Milestone
+ * 15) — slimmer than UI_BUTTON_PADDING_X/Y so two stacked readouts (fuel +
+ * hull) still fit their existing HUD_ROW_HEIGHT_PX rhythm: chip height
+ * (font 16 + 2×4) stays under the 32px row. */
+export const HUD_CHIP_PADDING_X = 8;
+export const HUD_CHIP_PADDING_Y = 4;
+
 /* ---------------------------------------------------------------------- */
 /* Terrain generation (src/game/terrain/terrain-generator.ts)             */
 /* ---------------------------------------------------------------------- */
@@ -188,6 +195,15 @@ export const MOON_RADIUS = 46;
 export const MOON_GLOW_RADIUS = 150;
 export const MOON_CENTER_X_FRACTION = 0.72;
 export const MOON_CENTER_Y_FRACTION = 0.18;
+
+/** `daylight: 'day'` worlds (Milestone 15) render a sun in the moon's
+ * place: the same baked disc minus craters, with a wider, stronger halo so
+ * it reads as the sky's light source rather than an object in it. Dusk
+ * worlds keep the cratered moon but thin the starfield — only the
+ * brightest stars are out before full dark. */
+export const SUN_GLOW_RADIUS = 210;
+export const SUN_GLOW_MAX_ALPHA = 0.75;
+export const DUSK_STAR_COUNT_FRACTION = 0.35;
 
 /** Flat darker crater blobs baked into the moon disc (Milestone 14) — the
  * reference art's moons are cratered paper cutouts, not plain gradients.
@@ -450,6 +466,16 @@ export const MISSION_BASE_COMPLETION_REWARD = 100;
  * repeated once established) — Resupply missions use a 1.0 multiplier
  * (no bonus). */
 export const ESTABLISH_PRESENCE_BONUS_MULTIPLIER = 2.5;
+
+/** Extraction missions (Milestone 15, barren worlds only — dead planets
+ * are mined, not garrisoned): a safe touchdown loads this many units of
+ * raw materials, each worth this many credits, sold on mission completion.
+ * The haul is what the trip *brings back*, so unlike delivered cargo it
+ * costs no outbound cargo-bay space or mass budget; its per-unit value is
+ * set between troops and supplies so a Falcon-sized extraction run pays
+ * comparably to a well-loaded resupply. */
+export const EXTRACTION_MATERIALS_UNITS = 12;
+export const EXTRACTION_MATERIAL_UNIT_VALUE = 10;
 
 /** Flat fuel-unit overhead for a relay's launch-to-transfer-orbit burn,
  * charged once per relay mission regardless of transit distance. */

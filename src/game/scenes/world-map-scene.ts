@@ -3,6 +3,8 @@ import {
   ACHIEVEMENT_TOAST_DEPTH,
   ACHIEVEMENT_TOAST_DISPLAY_MS,
   ACHIEVEMENT_TOAST_Y_FRACTION,
+  EXTRACTION_MATERIAL_UNIT_VALUE,
+  EXTRACTION_MATERIALS_UNITS,
   GAME_HEIGHT,
   GAME_WIDTH,
   UI_BODY_FONT_SIZE_PX,
@@ -63,11 +65,13 @@ import { missionReward } from '../missions/reward';
 import { relayFeasibility, transitDistanceTU } from '../missions/relay';
 import {
   RELAY_ROUTES,
+  buildExtractionMission,
   buildMultiTripResupplyMission,
   buildRelayMission,
   buildSingleTripMission,
   deriveMissionFlavor,
   isRelaySelectable,
+  offersExtractionMission,
   type RelayRoute,
 } from '../missions/mission-offers';
 import { hexToCss } from '../rendering/canvas-texture-utils';
@@ -106,6 +110,12 @@ const ROW_HEIGHT_PX = UI_BUTTON_ROW_HEIGHT_PX;
 const WORLD_LIST_ROWS_PER_COLUMN = 6;
 const WORLD_LIST_COLUMN_OFFSET_PX = 235;
 const WORLD_DISC_OFFSET_PX = 165;
+/** Milestone 15's world-kind tag (MOON / BARREN / LUSH) sits directly
+ * under each row's planet disc: offset clears the disc's 13px radius, and
+ * the small size keeps the tag subordinate to the world name while the
+ * next row's disc (62px row pitch) stays clear below it. */
+const WORLD_KIND_TAG_OFFSET_PX = 22;
+const WORLD_KIND_TAG_FONT_SIZE_PX = 11;
 /** Locked/uncharted worlds dim their disc to match their muted text (same
  * convention as ship-select's locked preview). */
 const WORLD_DISC_LOCKED_ALPHA = 0.45;
@@ -462,6 +472,25 @@ export class WorldMapScene extends Phaser.Scene {
       }
       this.track(disc);
 
+      // Milestone 15 (Decision D22): every row states its world's kind, so
+      // the taxonomy driving mission focus (moons: supply drops; barren:
+      // extraction; lush: the worlds hostiles live on) is visible where
+      // players pick destinations.
+      this.track(
+        this.add
+          .text(
+            columnX - WORLD_DISC_OFFSET_PX,
+            y + WORLD_KIND_TAG_OFFSET_PX,
+            body.kind.toUpperCase(),
+            {
+              fontFamily: 'monospace',
+              fontSize: `${WORLD_KIND_TAG_FONT_SIZE_PX.toString()}px`,
+              color: hexToCss(UI_MUTED_TEXT_COLOR),
+            },
+          )
+          .setOrigin(ORIGIN_CENTER),
+      );
+
       if (hasBases && this.worldIsReachable(worldId)) {
         this.track(
           createUiButton(this, {
@@ -703,6 +732,24 @@ export class WorldMapScene extends Phaser.Scene {
           },
         });
       }
+    }
+
+    // Milestone 15 (Decision D22): established bases on barren worlds
+    // additionally offer a raw-material pickup — dead planets are mined,
+    // not garrisoned.
+    if (offersExtractionMission(findBodyById(base.worldId).kind, this.statusOf(base))) {
+      const extractionDefinition = buildExtractionMission(base);
+      const haulValue = EXTRACTION_MATERIALS_UNITS * EXTRACTION_MATERIAL_UNIT_VALUE;
+      rows.push({
+        label: 'EXTRACT MATERIALS',
+        detailLines: [
+          `NO CARGO REQUIRED · HAUL: ${EXTRACTION_MATERIALS_UNITS.toString()} RAW MATERIALS ` +
+            `(${haulValue.toString()} CR)`,
+        ],
+        onClick: () => {
+          this.openLoadout(extractionDefinition);
+        },
+      });
     }
 
     const relevantRoutes = RELAY_ROUTES.filter((route) => route.originBaseId === base.id);
@@ -969,6 +1016,9 @@ export class WorldMapScene extends Phaser.Scene {
     } else if ((status === 'success' || status === 'partial') && definition.flavor === 'resupply') {
       progress = resupplyBase(progress, targetBaseId);
     }
+    // Milestone 15's 'extraction' flavor deliberately matches neither
+    // branch: hauling raw materials off a barren world pays credits (below)
+    // but neither establishes anything nor counts as a resupply.
     this.progress = progress;
 
     const storage = getSafeLocalStorage();

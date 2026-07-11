@@ -88,8 +88,10 @@ describe('BODIES', () => {
         expect(color).toBeGreaterThanOrEqual(0x000000);
         expect(color).toBeLessThanOrEqual(MAX_COLOR);
       }
-      // Every palette is a night sky lit from the horizon: top darker than
-      // bottom, so the moon/stars read against the darkest band.
+      // Every palette deepens overhead: top darker than bottom, whether
+      // that's a night sky whose moon/stars read against the darkest band
+      // or a day sky's zenith blue over brighter horizon haze (Milestone
+      // 15's day palettes obey the same gradient direction).
       expect(channelAverage(palette.skyTopColor)).toBeLessThan(
         channelAverage(palette.skyBottomColor),
       );
@@ -104,6 +106,39 @@ describe('BODIES', () => {
         expect(body.skyPalette.cloudColor).toBeUndefined();
       }
     }
+  });
+
+  it("classifies a body as a moon exactly when it is airless (kind 'moon' ⇔ atmosphereDensity 0)", () => {
+    for (const body of BODIES) {
+      if (body.kind === 'moon') {
+        expect(body.atmosphereDensity).toBe(0);
+      } else {
+        expect(body.atmosphereDensity).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("authors every moon at night — an airless sky is black regardless of sun position, so daylight 'day'/'dusk' on a moon would be a physics lie", () => {
+    for (const body of BODIES) {
+      if (body.kind === 'moon') {
+        expect(body.skyPalette.daylight).toBe('night');
+      }
+    }
+  });
+
+  it('authors a real daylight sun only where an atmosphere can scatter it (day ⇒ atmosphere)', () => {
+    for (const body of BODIES) {
+      if (body.skyPalette.daylight === 'day') {
+        expect(body.atmosphereDensity).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('spans all three world kinds and all three daylights (Milestone 15 — the map must not read as twelve night scenes)', () => {
+    const kinds = new Set(BODIES.map((body) => body.kind));
+    expect(kinds).toEqual(new Set(['moon', 'barren', 'lush']));
+    const daylights = new Set(BODIES.map((body) => body.skyPalette.daylight));
+    expect(daylights).toEqual(new Set(['day', 'dusk', 'night']));
   });
 
   // Pin test: a later milestone's worked examples in PLAN.md do exact

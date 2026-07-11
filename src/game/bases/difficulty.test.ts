@@ -29,11 +29,13 @@ function makeBody(gravityAccel: number, hazard: Hazard): CelestialBody {
   return {
     id: 'test-body',
     name: 'Test Body',
+    kind: 'moon',
     gravityAccel,
     atmosphereDensity: 0,
     hazard,
     terrainPalette: { fillTopColor: 0x000000, fillBottomColor: 0xffffff, etchStyle: 'rock' },
     skyPalette: {
+      daylight: 'night',
       skyTopColor: 0x000000,
       skyBottomColor: 0xffffff,
       moonColor: 0xffffff,

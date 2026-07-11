@@ -3,6 +3,19 @@
  * different places, not the same gray rock recolored twelve times. */
 export type EtchStyle = 'rock' | 'sand' | 'water' | 'foliage';
 
+/**
+ * The world-taxonomy axis missions and content design key off (PLAN.md
+ * Milestone 15, Decision D22): `moon`s are airless satellites focused on
+ * supply-drop logistics, `barren` worlds are dead planets focused on
+ * supply drops and raw-material extraction, and `lush` worlds are the
+ * habitable ones — the only places hostile encounters may live (hostiles
+ * need a biosphere to live in; `bases.test.ts` pins that every base with
+ * encounters sits on a lush world). `moon` ⇔ `atmosphereDensity === 0` is
+ * likewise pinned by `bodies.test.ts` — an airless "planet" or an
+ * atmosphere-bearing "moon" would be a data bug, not flavor.
+ */
+export type WorldKind = 'moon' | 'barren' | 'lush';
+
 /** Not exported — nothing outside this file needs to name this shape on its
  * own, only as `CelestialBody.terrainPalette`. */
 interface TerrainPalette {
@@ -23,10 +36,20 @@ interface TerrainPalette {
  * same convention as `TerrainPalette` above.
  */
 interface SkyPalette {
+  /**
+   * Time of day this world's diorama is authored at (Milestone 15 — twelve
+   * worlds must not read as twelve night scenes). `day` renders a bright
+   * sky with a crater-free sun disc and no stars; `dusk` renders the
+   * cratered moon with a thinned starfield; `night` is Milestone 14's
+   * original full treatment. Airless worlds (`kind: 'moon'`) are always
+   * authored `night` — with no atmosphere to scatter daylight their sky is
+   * black regardless of sun position (pinned by `bodies.test.ts`).
+   */
+  readonly daylight: 'day' | 'dusk' | 'night';
   readonly skyTopColor: number;
   readonly skyBottomColor: number;
-  /** The world's dominant celestial companion — sun or moon by fiction,
-   * one glowing cratered disc either way. */
+  /** The world's dominant celestial companion — a crater-free glowing sun
+   * disc at `daylight: 'day'`, a glowing cratered moon otherwise. */
   readonly moonColor: number;
   /** Base cloud paper color — present exactly when the world has a real
    * atmosphere (`atmosphereDensity > 0`), absent for airless worlds, which
@@ -38,6 +61,9 @@ interface SkyPalette {
   /** Base color of the parallax ridge silhouettes; the far ridge renders
    * this mixed toward `skyBottomColor` (atmospheric perspective). */
   readonly ridgeColor: number;
+  /** Unused at `daylight: 'day'` (no stars render against a lit sky) but
+   * still authored for every world — a palette stays a complete six-color
+   * identity whether or not today's renderer consumes every entry. */
   readonly starColor: number;
 }
 
@@ -65,6 +91,10 @@ export type Hazard = CorrosiveHazard | ColdHazard | null;
 export interface CelestialBody {
   readonly id: string;
   readonly name: string;
+  /** See `WorldKind` — drives mission focus (extraction on barren worlds,
+   * supply drops on moons) and where hostile encounters may live (lush
+   * only). */
+  readonly kind: WorldKind;
   readonly gravityAccel: number;
   /**
    * 0 for airless worlds. Passed as-is into `atmosphericDrag`'s

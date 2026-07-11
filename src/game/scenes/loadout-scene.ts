@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import {
+  EXTRACTION_MATERIALS_UNITS,
   GAME_HEIGHT,
   GAME_WIDTH,
   UI_BODY_FONT_SIZE_PX,
@@ -209,6 +210,12 @@ function relevantCargoTypesFor(definition: MissionDefinition): readonly CargoTyp
   }
   if (definition.flavor === 'establish-presence') {
     return ['troops'];
+  }
+  if (definition.flavor === 'extraction') {
+    // Milestone 15: the haul flows INBOUND (loaded at the pad on
+    // touchdown) — an outbound cargo stepper would only waste mass budget
+    // on a mission that can't use it.
+    return [];
   }
   return ['supplies'];
 }
@@ -935,9 +942,11 @@ function missionTitleText(definition: MissionDefinition): string {
   const flavorLabel =
     definition.flavor === 'establish-presence'
       ? 'ESTABLISH PRESENCE'
-      : definition.structure === 'multi-trip-same-base'
-        ? 'RESUPPLY (MULTI-TRIP)'
-        : 'RESUPPLY';
+      : definition.flavor === 'extraction'
+        ? 'EXTRACT MATERIALS'
+        : definition.structure === 'multi-trip-same-base'
+          ? 'RESUPPLY (MULTI-TRIP)'
+          : 'RESUPPLY';
   return `MISSION: ${flavorLabel} — ${originName}`;
 }
 
@@ -961,6 +970,10 @@ function requirementLineText(definition: MissionDefinition, existingState?: Miss
       return `DELIVERED: ${delivered.toString()}/${target.units.toString()} ${target.type.toUpperCase()}`;
     }
     return `TARGET: ${target.units.toString()} ${target.type.toUpperCase()}`;
+  }
+
+  if (definition.flavor === 'extraction') {
+    return `HAUL ON TOUCHDOWN: ${EXTRACTION_MATERIALS_UNITS.toString()} RAW MATERIALS`;
   }
 
   const parts: string[] = [];

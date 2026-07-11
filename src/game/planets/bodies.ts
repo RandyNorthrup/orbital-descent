@@ -31,6 +31,12 @@ import type { CelestialBody } from './celestial-body';
  *   present exactly when `atmosphereDensity > 0` (airless worlds render a
  *   companion moon and denser stars instead of clouds — pinned by
  *   `bodies.test.ts`).
+ * - `kind`/`skyPalette.daylight` (Milestone 15, Decision D22): the registry
+ *   spans 3 moons / 4 barren / 5 lush and 4 day / 4 dusk / 4 night scenes,
+ *   so the map reads as a varied system, not twelve night dioramas. Moons
+ *   are exactly the airless bodies and are always authored `night`
+ *   (`bodies.test.ts` pins both); hostile encounters live only on lush
+ *   worlds (`bases.test.ts` pins that against the base registry).
  *
  * Kessel's Reach's `gravityAccel` (18) and terrain palette colors are a
  * byte-for-byte match to this project's original Milestone 1/2 hardcoded
@@ -50,15 +56,17 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
   {
     id: 'kessels-reach',
     name: "Kessel's Reach",
+    kind: 'moon',
     gravityAccel: 18,
     atmosphereDensity: 0,
     hazard: null,
     distance: 0,
     terrainPalette: { fillTopColor: 0x8f8aa8, fillBottomColor: 0x4a4560, etchStyle: 'rock' },
-    // Home world: deep indigo night under a warm gold moon — the game's
+    // Home moon: deep indigo night under a warm gold moon — the game's
     // signature look. Airless, so no cloudColor: its sky gets a companion
     // moon and a denser starfield instead.
     skyPalette: {
+      daylight: 'night',
       skyTopColor: 0x191434,
       skyBottomColor: 0x4d3d78,
       moonColor: 0xf6d77c,
@@ -69,51 +77,62 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
   {
     id: 'verdalis',
     name: 'Verdalis',
+    kind: 'lush',
     gravityAccel: 14,
     atmosphereDensity: 0.01,
     hazard: null,
     distance: 42,
     terrainPalette: { fillTopColor: 0xd9c191, fillBottomColor: 0x9c8054, etchStyle: 'sand' },
-    // Golden prairie dusk: green-gold horizon over sand-colored plains.
+    // Lush prairie at full day: clear noon blue melting into a green-gold
+    // horizon, white clouds, sunlit grass-green hills — alive enough that
+    // the wasps nesting here (bases.ts's meridian-yard) feel at home.
     skyPalette: {
-      skyTopColor: 0x1c2618,
-      skyBottomColor: 0x5d7a43,
-      moonColor: 0xf8e8a8,
-      cloudColor: 0xa4bd7f,
-      ridgeColor: 0x66854e,
-      starColor: 0xf0ffd8,
+      daylight: 'day',
+      skyTopColor: 0x6db4e0,
+      skyBottomColor: 0xcfe8b4,
+      moonColor: 0xfff2b0,
+      cloudColor: 0xf6fbee,
+      ridgeColor: 0x7fa05a,
+      starColor: 0xffffff,
     },
   },
   {
     id: 'pyrrhine-expanse',
     name: 'Pyrrhine Expanse',
+    kind: 'barren',
     gravityAccel: 22,
     atmosphereDensity: 0.05,
     hazard: { type: 'corrosive', fuelDrainRate: 4 },
     distance: 95,
     terrainPalette: { fillTopColor: 0xa8b877, fillBottomColor: 0x5c6b3f, etchStyle: 'rock' },
-    // Corrosive world: a jaundiced acid-amber haze — the sky itself warns
-    // you about the fuel drain.
+    // Dead corrosive world at harsh noon: a jaundiced acid-amber haze with
+    // a white-hot sun smeared behind it — the sky itself warns you about
+    // the fuel drain. Barren: rustwell-landing's missions here lean on
+    // raw-material extraction, not life.
     skyPalette: {
-      skyTopColor: 0x27200e,
-      skyBottomColor: 0x7d6a28,
-      moonColor: 0xe0e070,
-      cloudColor: 0xa89f56,
-      ridgeColor: 0x6b6534,
+      daylight: 'day',
+      skyTopColor: 0xc3b264,
+      skyBottomColor: 0xe6da9c,
+      moonColor: 0xfffbd8,
+      cloudColor: 0xcfc47e,
+      ridgeColor: 0x8d8746,
       starColor: 0xf4eec2,
     },
   },
   {
     id: 'glacian-drift',
     name: 'Glacian Drift',
+    kind: 'lush',
     gravityAccel: 12,
     atmosphereDensity: 0.005,
     hazard: { type: 'cold', thrustEfficiency: 0.7 },
     distance: 210,
     terrainPalette: { fillTopColor: 0xd8ecf5, fillBottomColor: 0x8fb8c9, etchStyle: 'water' },
-    // Cold world: steel-blue polar night, an ice-white moon over glacier
-    // blues.
+    // Boreal world at polar dusk: steel-blue twilight, an ice-white moon
+    // over glacier blues. Lush despite the cold — a hardy boreal biosphere,
+    // which is why the Glacian Warden (bases.ts's frostgate) can live here.
     skyPalette: {
+      daylight: 'dusk',
       skyTopColor: 0x0e1a2e,
       skyBottomColor: 0x3c5c84,
       moonColor: 0xeaf6ff,
@@ -125,33 +144,39 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
   {
     id: 'thessaly-shoals',
     name: 'Thessaly Shoals',
+    kind: 'lush',
     gravityAccel: 16,
     atmosphereDensity: 0.02,
     hazard: null,
     distance: 15,
     terrainPalette: { fillTopColor: 0x8fd0c0, fillBottomColor: 0x3f7d6e, etchStyle: 'water' },
-    // Deep-blue sea night — royal-blue wave ridges under a bright gold
-    // moon (the classic moonlit-water diorama).
+    // Living sea at bright day: clear sky over sunlit royal-blue swells,
+    // white clouds, a warm sun — the postcard face of a water world teeming
+    // with life.
     skyPalette: {
-      skyTopColor: 0x0c1f3c,
-      skyBottomColor: 0x20497a,
-      moonColor: 0xffd76e,
-      cloudColor: 0x5f88c0,
-      ridgeColor: 0x2c5c94,
+      daylight: 'day',
+      skyTopColor: 0x4f9ed6,
+      skyBottomColor: 0xb4e0ea,
+      moonColor: 0xffefaf,
+      cloudColor: 0xffffff,
+      ridgeColor: 0x3f83ad,
       starColor: 0xd6ecff,
     },
   },
   {
     id: 'umbral-fen',
     name: 'Umbral Fen',
+    kind: 'lush',
     gravityAccel: 19,
     atmosphereDensity: 0.035,
     hazard: { type: 'corrosive', fuelDrainRate: 2 },
     distance: 60,
     terrainPalette: { fillTopColor: 0x6b8f5c, fillBottomColor: 0x35472c, etchStyle: 'foliage' },
-    // Corrosive swamp: murky violet dusk sinking into bog-green, lit by a
-    // sickly green moon.
+    // Corrosive swamp at night: murky violet dark sinking into bog-green,
+    // lit by a sickly green moon. Lush — the fen is thick with (hostile-
+    // capable) life; the corrosion is the bog's own doing.
     skyPalette: {
+      daylight: 'night',
       skyTopColor: 0x191126,
       skyBottomColor: 0x3c4c34,
       moonColor: 0xbce87e,
@@ -163,34 +188,39 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
   {
     id: 'kharun-wastes',
     name: 'Kharun Wastes',
+    kind: 'barren',
     gravityAccel: 20,
     atmosphereDensity: 0.015,
     hazard: null,
     distance: 30,
     terrainPalette: { fillTopColor: 0xc98a4b, fillBottomColor: 0x7a4f26, etchStyle: 'sand' },
-    // Desert night: plum sky cooling over sun-warmed rust dunes, big amber
-    // moon low on the horizon.
+    // Dead desert at blazing noon: heat-bleached amber sky over rust dunes,
+    // a white-gold sun overhead — nothing lives here, but the ground is
+    // full of ore.
     skyPalette: {
-      skyTopColor: 0x2c1826,
-      skyBottomColor: 0x8a4b34,
-      moonColor: 0xffc97a,
-      cloudColor: 0xc78d66,
-      ridgeColor: 0x8a5a44,
+      daylight: 'day',
+      skyTopColor: 0xe0a35c,
+      skyBottomColor: 0xf4dcae,
+      moonColor: 0xfff6d2,
+      cloudColor: 0xf0d2ac,
+      ridgeColor: 0xa9713f,
       starColor: 0xffe8c4,
     },
   },
   {
     id: 'solenne-vault',
     name: 'Solenne Vault',
+    kind: 'moon',
     gravityAccel: 26,
     atmosphereDensity: 0,
     hazard: null,
     distance: 75,
     terrainPalette: { fillTopColor: 0x6a6a76, fillBottomColor: 0x2e2e38, etchStyle: 'rock' },
-    // Highest gravity in the registry, airless: a stark near-black void
-    // with a harsh white moon — the sky itself feels heavy. No cloudColor;
-    // companion moon + dense stars instead.
+    // Highest gravity in the registry, airless moon: a stark near-black
+    // void with a harsh white moon — the sky itself feels heavy. No
+    // cloudColor; companion moon + dense stars instead.
     skyPalette: {
+      daylight: 'night',
       skyTopColor: 0x0b0b12,
       skyBottomColor: 0x2c2534,
       moonColor: 0xfff3d4,
@@ -201,13 +231,16 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
   {
     id: 'aurelic-marsh',
     name: 'Aurelic Marsh',
+    kind: 'lush',
     gravityAccel: 15,
     atmosphereDensity: 0.025,
     hazard: { type: 'cold', thrustEfficiency: 0.85 },
     distance: 130,
     terrainPalette: { fillTopColor: 0x9fc9a0, fillBottomColor: 0x547a58, etchStyle: 'foliage' },
-    // Cold marsh under an aurora-green sky — frost-pale moon, mint clouds.
+    // Cold living marsh at aurora dusk — frost-pale moon, mint clouds over
+    // a green wetland biosphere.
     skyPalette: {
+      daylight: 'dusk',
       skyTopColor: 0x122016,
       skyBottomColor: 0x3a6a58,
       moonColor: 0xdcf2b6,
@@ -219,6 +252,7 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
   {
     id: 'corvexa-shallows',
     name: 'Corvexa Shallows',
+    kind: 'barren',
     gravityAccel: 17,
     atmosphereDensity: 0.04,
     // 4, not the originally-tuned 5: at 5, passive drain alone (with zero
@@ -233,10 +267,11 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: { type: 'corrosive', fuelDrainRate: 4 },
     distance: 160,
     terrainPalette: { fillTopColor: 0x7fc9b0, fillBottomColor: 0x3a7f68, etchStyle: 'water' },
-    // Corrosive shallows: acid-teal lagoon glow, a pale phosphorescent
-    // moon — beautiful and visibly wrong, like still water you shouldn't
-    // touch.
+    // Corrosive shallows at dusk: acid-teal lagoon glow, a pale
+    // phosphorescent moon — beautiful and visibly wrong, like still water
+    // you shouldn't touch. Barren: the acid killed this sea long ago.
     skyPalette: {
+      daylight: 'dusk',
       skyTopColor: 0x0d211f,
       skyBottomColor: 0x2b6a5c,
       moonColor: 0xaaf0da,
@@ -248,15 +283,18 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
   {
     id: 'nimbus-scar',
     name: 'Nimbus Scar',
+    kind: 'barren',
     gravityAccel: 9,
     atmosphereDensity: 0.06,
     hazard: null,
     distance: 180,
     terrainPalette: { fillTopColor: 0xb0a8c0, fillBottomColor: 0x6a6078, etchStyle: 'rock' },
-    // Thickest atmosphere in the registry — THE cloud world: violet-to-
-    // magenta sky stacked with pink-lavender paper clouds around a bright
-    // gold moon.
+    // Thickest atmosphere in the registry — THE cloud world, at violet
+    // dusk: magenta sky stacked with pink-lavender paper clouds around a
+    // bright gold moon. Barren: permanent storm scouring bare rock; the
+    // beauty is all in the sky.
     skyPalette: {
+      daylight: 'dusk',
       skyTopColor: 0x231342,
       skyBottomColor: 0x7c3a8c,
       moonColor: 0xffd24a,
@@ -268,18 +306,22 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
   {
     id: 'thornreach-expanse',
     name: 'Thornreach Expanse',
+    kind: 'moon',
     gravityAccel: 21,
-    atmosphereDensity: 0.01,
+    atmosphereDensity: 0,
     hazard: { type: 'cold', thrustEfficiency: 0.6 },
     distance: 250,
     terrainPalette: { fillTopColor: 0xe0d8c0, fillBottomColor: 0x9c9480, etchStyle: 'sand' },
-    // Harshest cold in the registry: frozen salt flats under a dim violet
-    // dusk, a frostbitten blue-white moon.
+    // Harshest cold in the registry, an airless frozen moon: salt flats
+    // under a dim violet night, a frostbitten blue-white moon. Airless
+    // (Milestone 15 — was 0.01 before it was reclassified as a moon; no
+    // base flies here yet, so no certified flight feel changed), so no
+    // cloudColor: companion moon + dense stars instead.
     skyPalette: {
+      daylight: 'night',
       skyTopColor: 0x1b1426,
       skyBottomColor: 0x4c4a6e,
       moonColor: 0xd2e2f2,
-      cloudColor: 0x8e8ab2,
       ridgeColor: 0x5e5c84,
       starColor: 0xe8f0ff,
     },

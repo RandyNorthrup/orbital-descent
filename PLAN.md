@@ -48,6 +48,7 @@ milestones depend on understanding _why_, not just _what_.
 | D19 | World scrolling        | **Worlds/bases support side-scrolling**: a world wider than the 960×640 viewport, camera-follow, real parallax — implemented, Milestone 2.5                                                                                                                                                                                                                                                                                                                                                | Flagged during the D18 art-direction work: the old model had `wrapHorizontal` wrap at the _screen_ edge because world width == viewport width (Milestone 2). Real base layouts (§6b) squeezed onto one static screen limits puzzle/difficulty design space. Scoped as its own milestone (M2.5, not bundled into the D18 rendering change) since it touched certified M1/M2 physics-adjacent wiring. Resolved differently than originally planned: reviewing the interaction between wraparound and a zero-lerp follow camera found that wrapping the lander's position also instantly teleported the camera, cutting the whole visible world to an unrelated section with no panning — `wrapHorizontal` was removed entirely rather than merely retargeted to the world edge (see Milestone 2.5's amendment for the full reasoning). Horizontal position is now unbounded, symmetric with vertical.                                                                      |
 | D20 | Content scale & gating | **Minimum 12 unique fictional worlds/moons, each with 1-3 landing bases (puzzles); progression is gated by _both_ mission completions (M9.5's `unlocks` graph, D17) _and_ ship/equipment upgrade tier (per-base `requirements`, §6b.2's `evaluateBaseFit`), not either alone**                                                                                                                                                                                                             | Explicit content-scale instruction. Raises M5's starter-registry minimum from 4 to 12 worlds (see M5 below). The dual-gate model isn't new machinery — M9.5's `unlocks: string[]` graph (mission-gated) and §6b.2's `BaseRequirements` (`minTWR`/`handling`/`combat.*`, upgrade-gated) already exist independently; D20 makes explicit that a real base can, and at least some must, require _both_ at once (a story-gated base that's also mechanically out of reach without upgrades), so neither gate alone trivializes progression. **Storyline**: 12 worlds implies an actual narrative throughline ("why the player is going to each one"), not just a mechanical unlock graph — flagged as content to author during M5/M6 implementation, not fabricated speculatively in this planning pass; the existing named worked examples (Kessel's Reach, Verdalis, Pyrrhine Expanse, Glacian Drift, §9.5.7) remain valid as a subset, not a replacement for the full 12. |
 | D21 | Production art pass    | **"Papercraft Diorama"** (Milestone 14): every world gets its own six-color `skyPalette` (scalloped cloud banks + floating puffs on atmosphere worlds, cratered moons, companion moons + denser stars on airless worlds, 4-point sparkle stars, smooth rim-lit opaque ridges with a near-dark/far-pale value ladder); every ship/hostile gets its own multi-piece silhouette; the menu becomes a title diorama; the world map shows the full 12-world registry with per-world planet discs | User verdict on the M1-13 visuals: not up to the reference art's standard ("stunning, beautiful… Paper Mario", the same `temp/` papercraft dioramas D18 was originally judged against). D18's technique stack (gradient paper fills, grain, outline, hard shadow, baked canvas textures) was retained wholesale — D21 is a content/richness pass on top of it, not a second technique change. Tuned against real screenshots at every step: translucent ridges read as murky wash (→ opaque paper + color-fade depth), same-value adjacent ridges merged into one wall (→ explicit value ladder), the global 3px outline/6px shadow swallowed ship-scale fills (→ per-piece overrides).                                                                                                                                                                                                                                                                                  |
+| D22 | World taxonomy & time-of-day | **"Living Worlds"** (Milestone 15): every `CelestialBody` gets a `kind` (`moon` \| `barren` \| `lush`) and every `skyPalette` a `daylight` (`day` \| `dusk` \| `night`) — the registry spans 3 moons / 4 barren / 5 lush and 4 day / 4 dusk / 4 night scenes. Moons are exactly the airless bodies and are always authored night (no atmosphere → black sky regardless of sun); day worlds render a crater-free sun with a wide halo and no stars; dusk thins the starfield. Content follows the taxonomy as loose guidelines: hostile encounters live only on lush worlds (a biosphere to live in); barren worlds' established bases additionally offer a raw-material **Extraction** mission (new `MissionFlavor`, structurally an ordinary zero-cargo single-trip whose per-trip reward is a fixed materials haul paid on touchdown); moons stay supply-drop focused (their existing Resupply offers). The world map tags every row MOON/BARREN/LUSH under its planet disc. | User verdict on the M14 gallery: "these are all night scenes… there need to be a variety… moons, dead planets, lush planets with life, and the missions and progress should take this into account — lush → hostiles, dead → supply drops and raw material pickups, moons → supply drops (loose guidelines)." Implemented additively: nothing existing was removed or re-gated (Meridian Yard/Frostgate's encounters already sat on worlds classifiable as lush — Glacian Drift reads as a boreal biosphere; Thornreach Expanse went airless to become the third moon, safe because no base flies there yet), so every certified M1-14 flow is untouched and Extraction is a new offer, not a replacement. |
 
 ## 3. Open Questions
 
@@ -4652,6 +4653,90 @@ chromium/firefox/webkit — see certification checklist below; fresh
 0.97/0.99/0.98, Accessibility 1.00 on all 3 runs, Best Practices 0.96
 flat). Depends on D18's rendering stack (M1/2/2.5), M5's `CelestialBody`
 registry, M7's ship roster, and M11's combatants — all certified.
+
+### Milestone 15 — Living Worlds: taxonomy, time-of-day, extraction (Decision D22)
+
+**Status: CERTIFIED (2026-07-10)**
+
+**Goal**: the M14 gallery exposed that all twelve worlds were night
+scenes and nothing distinguished a moon from a dead planet from a living
+one. D22 fixes both halves at once: an authored world taxonomy
+(`kind: 'moon' | 'barren' | 'lush'`) with day/dusk/night sky variety, and
+mission/content focus that follows the taxonomy — hostiles on lush worlds
+only, raw-material Extraction missions on barren worlds, supply-drop
+focus on moons.
+
+**Scope shipped**:
+
+- `CelestialBody.kind` + `skyPalette.daylight`; the registry spans
+  3 moons (Kessel's Reach, Solenne Vault, Thornreach Expanse) / 4 barren
+  (Pyrrhine, Kharun, Corvexa, Nimbus Scar) / 5 lush (Verdalis, Glacian
+  Drift, Thessaly, Umbral Fen, Aurelic Marsh), and 4 day / 4 dusk /
+  4 night scenes. Thornreach went airless (0.01 → 0) to become the third
+  moon — no base flies there yet, so no certified flight feel changed.
+  Verdalis/Pyrrhine/Thessaly/Kharun got brand-new daylit palettes (clear
+  prairie noon, acid haze, bright sea day, blazing desert).
+- Rendering (`background.ts`): `daylight: 'day'` renders a crater-free
+  sun disc with a wider/stronger halo (`SUN_GLOW_RADIUS`/`SUN_GLOW_MAX_ALPHA`)
+  and skips the starfield; `'dusk'` keeps the cratered moon and thins
+  stars to `DUSK_STAR_COUNT_FRACTION` (0.35); `'night'` is M14 unchanged.
+  Airless worlds are always authored night (pinned) so the airless star
+  multiplier never fights the daylight gate.
+- HUD legibility: all three in-flight readouts (fuel/hull/pause hint) now
+  sit on the same dark chip MenuScene's stat line uses (slimmer
+  `HUD_CHIP_PADDING_X/Y` so stacked readouts keep their row rhythm) —
+  bare light text washed out over the new daylit skies, the same
+  screenshot-verified failure class M14 fixed on the menu.
+- Missions: new `'extraction'` `MissionFlavor` — structurally an ordinary
+  single-trip with an empty `minManifest` (a safe touchdown concludes it
+  `'success'` through the existing machinery, a crash `'failure'`; zero
+  new mission states). `reward.ts`'s new `perTripReward(flavor, …)` owns
+  the one flavor branch: extraction pays
+  `EXTRACTION_MATERIALS_UNITS (12) × EXTRACTION_MATERIAL_UNIT_VALUE (10)`
+  × riskBonus instead of (always-zero) delivered-cargo value; `GameScene`
+  calls it instead of bare `perTripCargoReward`. Offered by
+  `offersExtractionMission(kind, status)`: established bases on barren
+  worlds only — today exactly Rustwell Landing — additively next to the
+  base's ordinary Resupply offers. Concluding one pays credits but
+  deliberately neither establishes nor resupplies anything. Loadout
+  renders `MISSION: EXTRACT MATERIALS`, a `HAUL ON TOUCHDOWN` line, and
+  no outbound cargo stepper (the haul flows inbound).
+- World map: every row shows its world's kind (MOON/BARREN/LUSH) in a
+  small tag under the planet disc.
+
+**Deliberately not built**: no per-kind terrain decoration (flora on lush
+worlds, ore seams on barren ones) — visual-content follow-up, not
+taxonomy; no materials inventory/commodity economy (the haul is sold on
+completion — a stockpile/market would be its own milestone); no
+hostile encounters on the three baseless lush worlds (encounters are base
+content; those worlds have no bases yet); no daylight cycle (each world's
+time of day is a fixed part of its identity, like its palette).
+
+**Required tests**: `bodies.test.ts` +4 (moon ⇔ airless, moons always
+night, day ⇒ atmosphere, all kinds/daylights represented);
+`bases.test.ts` +1 (every base with encounters sits on a lush world);
+`mission-offers.test.ts` +3 (extraction gate truth table, exactly
+rustwell qualifies, builder shape); `reward.test.ts` +2 (perTripReward
+extraction haul/riskBonus + delegation, flavorMultiplier extraction) —
+595 unit tests total. e2e: new `extraction mission (Milestone 15)` spec
+in `missions.spec.ts` — a real zero-cargo launch from the EXTRACT
+MATERIALS offer and a real piloted autopilot touchdown at Rustwell
+(Scout + Corrosion Coating, the world's own designed hazard counter)
+concluding MISSION SUCCESS, crediting the haul, and leaving
+`resupplyCounts` untouched (with the relay spec's documented
+construct-the-state fallback if every real attempt crashes).
+
+**Required quality gates**: `pnpm quality` — 52 test files, 595 tests,
+coverage 99.88%/97.61%/100%/99.87%, format/lint/typecheck/build/knip/
+secretlint clean; complete e2e suite at `--workers=1` across
+chromium/firefox/webkit (114 tests); fresh `pnpm lighthouse` against the
+final build.
+
+**Certification checklist**: certified — all gates green (114/114 e2e at
+`--workers=1` across chromium/firefox/webkit; Lighthouse Performance
+0.96/0.97/0.98, Accessibility 1.00 on all 3 runs, Best Practices 0.96
+flat). Depends on M14's palette/background stack, M9.5's mission
+machinery, and M11's encounters — all certified.
 
 ## 7. Definition of Done (per milestone)
 

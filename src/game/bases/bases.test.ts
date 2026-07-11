@@ -55,6 +55,14 @@ describe('BASES', () => {
     }
   });
 
+  it('places every base with hostile encounters on a lush world (Milestone 15/D22 — hostiles live where a biosphere can sustain them)', () => {
+    for (const base of BASES) {
+      if (base.encounters.length > 0) {
+        expect(findBodyById(base.worldId).kind).toBe('lush');
+      }
+    }
+  });
+
   it('keeps every difficulty axis within the documented [0, 10] range', () => {
     for (const base of BASES) {
       expect(base.difficulty.axes.mechanical).toBeGreaterThanOrEqual(0);

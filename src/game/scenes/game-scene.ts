@@ -14,6 +14,8 @@ import {
   GAME_WIDTH,
   HIGH_SCORE_LIST_MAX_ENTRIES,
   HUD_LAYER_DEPTH,
+  HUD_CHIP_PADDING_X,
+  HUD_CHIP_PADDING_Y,
   HUD_MARGIN,
   LANDED_COLOR_BOTTOM,
   LANDED_COLOR_TOP,
@@ -63,6 +65,7 @@ import {
   THRUST_PARTICLE_SPEED_MAX_PX_PER_SEC,
   THRUST_PARTICLE_SPEED_MIN_PX_PER_SEC,
   UI_BODY_FONT_SIZE_PX,
+  UI_BUTTON_BG_COLOR,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
@@ -148,7 +151,7 @@ import {
   SCENE_KEY_WORLD_MAP,
 } from './scene-keys';
 import { cargoMass, EMPTY_MANIFEST, type CargoManifest } from '../missions/cargo';
-import { massUtilization, perTripCargoReward, riskBonus } from '../missions/reward';
+import { massUtilization, perTripReward, riskBonus } from '../missions/reward';
 import { resolveTripOutcome } from '../missions/mission-trip';
 import type { MissionState } from '../missions/mission';
 import {
@@ -621,11 +624,18 @@ export class GameScene extends Phaser.Scene {
     // The title/instructions block lives on MenuScene now (Milestone 3) —
     // in-flight HUD stays minimal: fuel, and a pause hint for the one
     // control this milestone actually adds.
+    // Every HUD readout sits on the same dark chip MenuScene's stat line
+    // uses — Milestone 15's daylit skies (e.g. Verdalis at noon) are bright
+    // enough that bare light text over them washes out, the same
+    // screenshot-verified legibility failure Milestone 14 fixed on the
+    // menu.
     this.fuelText = this.add
       .text(HUD_MARGIN, HUD_MARGIN, '', {
         fontFamily: 'monospace',
         fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_TEXT_COLOR),
+        backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+        padding: { x: HUD_CHIP_PADDING_X, y: HUD_CHIP_PADDING_Y },
       })
       .setDepth(HUD_LAYER_DEPTH)
       .setScrollFactor(0);
@@ -641,6 +651,8 @@ export class GameScene extends Phaser.Scene {
           fontFamily: 'monospace',
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
           color: hexToCss(UI_TEXT_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: HUD_CHIP_PADDING_X, y: HUD_CHIP_PADDING_Y },
         })
         .setDepth(HUD_LAYER_DEPTH)
         .setScrollFactor(0);
@@ -652,6 +664,8 @@ export class GameScene extends Phaser.Scene {
         fontFamily: 'monospace',
         fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_MUTED_TEXT_COLOR),
+        backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+        padding: { x: HUD_CHIP_PADDING_X, y: HUD_CHIP_PADDING_Y },
       })
       .setOrigin(1, 0)
       .setDepth(HUD_LAYER_DEPTH)
@@ -919,7 +933,11 @@ export class GameScene extends Phaser.Scene {
       );
     }
 
-    const cargoRewardThisTrip = perTripCargoReward(
+    // `perTripReward`, not bare `perTripCargoReward` — Milestone 15's
+    // extraction flavor pays its fixed materials haul instead of (always-
+    // zero) delivered-cargo value; the flavor branch lives in reward.ts.
+    const cargoRewardThisTrip = perTripReward(
+      missionState.definition.flavor,
       missionContext.manifestThisTrip,
       riskBonus(massUtilization(this.totalCarriedMassThisFlight, this.effectiveShip.massBudget)),
     );
