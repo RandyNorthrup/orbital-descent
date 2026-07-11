@@ -8,7 +8,14 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 16.5 (Signature Worlds — Decision D26)
+**Current status**: Milestone 16.6 (Reference Match — Decision D27)
+certified — the art's color construction matches the reference packs:
+terrain renders as stacked contrasting paper strata per world, ships
+wear authored multi-color schemes (gold-framed turquoise canopies, red
+fins on white hulls, yellow cargo boxes, three-layer flame plumes),
+planet discs are bigger and bolder, and every dialog surface is dark
+ink on cream paper cards. On top of: Milestone 16.5 (Signature Worlds —
+Decision D26)
 certified — every world now has its own signature terrain landform (12
 archetypes, no two shared: crater fields, dune seas, mesa country,
 ice-spike ridges, breaking-wave swells, marsh hummocks, rift canyons, a

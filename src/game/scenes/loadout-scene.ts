@@ -7,7 +7,11 @@ import {
   UI_BUTTON_FONT_SIZE_PX,
   UI_BUTTON_PADDING_Y,
   UI_FONT_FAMILY,
-  UI_MUTED_TEXT_COLOR,
+  UI_INK_COLOR,
+  UI_INK_MUTED_COLOR,
+  UI_BUTTON_BG_COLOR,
+  UI_TEXT_CHIP_PADDING_X,
+  UI_TEXT_CHIP_PADDING_Y,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
   OUTLINE_COLOR,
@@ -444,7 +448,9 @@ export class LoadoutScene extends Phaser.Scene {
           {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_TEXT_COLOR),
+            color: hexToCss(UI_INK_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           },
         )
         .setOrigin(ORIGIN_CENTER),
@@ -462,7 +468,9 @@ export class LoadoutScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, GAME_HEIGHT * UPGRADES_LINE_Y_FRACTION, upgradesLine, {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_MUTED_TEXT_COLOR),
+          color: hexToCss(UI_INK_MUTED_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -475,7 +483,9 @@ export class LoadoutScene extends Phaser.Scene {
         .text(weaponColumnX, headerY, 'WEAPONS', {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_TEXT_COLOR),
+          color: hexToCss(UI_INK_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -484,7 +494,9 @@ export class LoadoutScene extends Phaser.Scene {
         .text(utilityColumnX, headerY, 'UTILITY', {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_TEXT_COLOR),
+          color: hexToCss(UI_INK_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -564,7 +576,9 @@ export class LoadoutScene extends Phaser.Scene {
           .text(x, y, `${name} (LOCKED)`, {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -573,7 +587,9 @@ export class LoadoutScene extends Phaser.Scene {
           .text(x, y + TEXT_INFO_LINE_OFFSET_PX, equipmentLockedReasonText(item.acquisition), {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -597,7 +613,9 @@ export class LoadoutScene extends Phaser.Scene {
           .text(x, y + BUTTON_INFO_LINE_OFFSET_PX, statTag, {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -631,7 +649,9 @@ export class LoadoutScene extends Phaser.Scene {
           .text(x, y + BUTTON_INFO_LINE_OFFSET_PX, statTag, {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -644,7 +664,9 @@ export class LoadoutScene extends Phaser.Scene {
         .text(x, y, name, {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_MUTED_TEXT_COLOR),
+          color: hexToCss(UI_INK_MUTED_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -653,7 +675,9 @@ export class LoadoutScene extends Phaser.Scene {
         .text(x, y + TEXT_INFO_LINE_OFFSET_PX, noFitReasonText(wouldExceedSlots), {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_MUTED_TEXT_COLOR),
+          color: hexToCss(UI_INK_MUTED_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -714,7 +738,9 @@ export class LoadoutScene extends Phaser.Scene {
         .text(x, y, missionTitleText(definition), {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_TEXT_COLOR),
+          color: hexToCss(UI_INK_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -725,7 +751,9 @@ export class LoadoutScene extends Phaser.Scene {
         .text(x, y, requirementLineText(definition, existingState), {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_MUTED_TEXT_COLOR),
+          color: hexToCss(UI_INK_MUTED_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -745,7 +773,9 @@ export class LoadoutScene extends Phaser.Scene {
           {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           },
         )
         .setOrigin(ORIGIN_CENTER),
@@ -799,7 +829,9 @@ export class LoadoutScene extends Phaser.Scene {
           .text(x, y, `LAUNCH${reason}`, {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -830,7 +862,9 @@ export class LoadoutScene extends Phaser.Scene {
         .text(x, y, `${type.toUpperCase()}: ${amount.toString()}`, {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_TEXT_COLOR),
+          color: hexToCss(UI_INK_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -864,7 +898,9 @@ export class LoadoutScene extends Phaser.Scene {
           .text(minusX, buttonY, minusLabel, {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -889,7 +925,9 @@ export class LoadoutScene extends Phaser.Scene {
           .text(plusX, buttonY, plusLabel, {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );

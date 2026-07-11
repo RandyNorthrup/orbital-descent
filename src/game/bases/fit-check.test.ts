@@ -25,6 +25,9 @@ function makeShip(overrides: Partial<ShipClass> = {}): ShipClass {
     fuelPerDistanceUnit: 1.2,
     hullFillColorTop: 0xffffff,
     hullFillColorBottom: 0x888888,
+    accentColor: 0xd94040,
+    trimColor: 0xf2b64a,
+    detailColor: 0x2b5fb0,
     acquisition: { type: 'starter' },
     ...overrides,
   };
@@ -39,7 +42,12 @@ function makeBody(gravityAccel: number, hazard: Hazard = null): CelestialBody {
     gravityAccel,
     atmosphereDensity: 0,
     hazard,
-    terrainPalette: { fillTopColor: 0x000000, fillBottomColor: 0xffffff, etchStyle: 'rock' },
+    terrainPalette: {
+      fillTopColor: 0x000000,
+      fillBottomColor: 0xffffff,
+      strataColors: { upper: 0x6a6584, lower: 0x474155 },
+      etchStyle: 'rock',
+    },
     skyPalette: {
       daylight: 'night',
       skyTopColor: 0x000000,

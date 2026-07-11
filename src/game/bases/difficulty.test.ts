@@ -34,7 +34,12 @@ function makeBody(gravityAccel: number, hazard: Hazard): CelestialBody {
     gravityAccel,
     atmosphereDensity: 0,
     hazard,
-    terrainPalette: { fillTopColor: 0x000000, fillBottomColor: 0xffffff, etchStyle: 'rock' },
+    terrainPalette: {
+      fillTopColor: 0x000000,
+      fillBottomColor: 0xffffff,
+      strataColors: { upper: 0x6a6584, lower: 0x474155 },
+      etchStyle: 'rock',
+    },
     skyPalette: {
       daylight: 'night',
       skyTopColor: 0x000000,

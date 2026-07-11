@@ -23,6 +23,14 @@ export type WorldKind = 'moon' | 'barren' | 'lush';
 interface TerrainPalette {
   readonly fillTopColor: number;
   readonly fillBottomColor: number;
+  /**
+   * Milestone 16.6 (D27): the two deeper strata bands the ground stack
+   * renders below the surface layer — authored contrasting hues per the
+   * paper_mario_worlds references (the Mars scene's red-family stack, the
+   * ice scene's white-over-blue), not derivations of the fill colors.
+   * `bodies.test.ts` pins both authored and distinct from the surface.
+   */
+  readonly strataColors: { readonly upper: number; readonly lower: number };
   readonly etchStyle: EtchStyle;
 }
 

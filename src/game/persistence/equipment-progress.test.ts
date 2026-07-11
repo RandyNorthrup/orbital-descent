@@ -97,6 +97,9 @@ const SHIP: ShipClass = {
   fuelPerDistanceUnit: 1.2,
   hullFillColorTop: 0xffffff,
   hullFillColorBottom: 0x888888,
+  accentColor: 0xd94040,
+  trimColor: 0xf2b64a,
+  detailColor: 0x2b5fb0,
   acquisition: { type: 'starter' },
 };
 

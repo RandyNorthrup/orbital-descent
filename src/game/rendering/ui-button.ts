@@ -8,8 +8,6 @@ import {
   UI_BUTTON_PADDING_Y,
   UI_BUTTON_TEXT_COLOR,
   UI_FONT_FAMILY,
-  OUTLINE_COLOR,
-  UI_TEXT_SHADOW_OFFSET_PX,
 } from '../constants';
 import { hexToCss } from './canvas-texture-utils';
 
@@ -30,6 +28,9 @@ export function createUiButton(
   scene: Phaser.Scene,
   options: UiButtonOptions,
 ): Phaser.GameObjects.Text {
+  // Milestone 16.6 (D27): buttons are cream paper cards carrying dark ink
+  // — no glyph shadow (dark-on-dark smear on a pale card); the card itself
+  // IS the paper piece.
   const button = scene.add
     .text(options.x, options.y, options.label, {
       fontFamily: UI_FONT_FAMILY,
@@ -38,7 +39,6 @@ export function createUiButton(
       backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
       padding: { x: UI_BUTTON_PADDING_X, y: UI_BUTTON_PADDING_Y },
     })
-    .setShadow(UI_TEXT_SHADOW_OFFSET_PX, UI_TEXT_SHADOW_OFFSET_PX, hexToCss(OUTLINE_COLOR), 0)
     .setOrigin(ORIGIN_CENTER)
     .setInteractive({ useHandCursor: true });
 

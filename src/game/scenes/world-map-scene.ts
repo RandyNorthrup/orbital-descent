@@ -14,6 +14,10 @@ import {
   UI_BUTTON_PADDING_Y,
   UI_BUTTON_ROW_HEIGHT_PX,
   UI_FONT_FAMILY,
+  UI_INK_MUTED_COLOR,
+  UI_TEXT_CHIP_PADDING_X,
+  UI_TEXT_CHIP_PADDING_Y,
+  UI_INK_COLOR,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
@@ -526,7 +530,9 @@ export class WorldMapScene extends Phaser.Scene {
             .text(columnX, y, `${label} ${hasBases ? '(LOCKED)' : '(UNCHARTED)'}`, {
               fontFamily: UI_FONT_FAMILY,
               fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-              color: hexToCss(UI_MUTED_TEXT_COLOR),
+              color: hexToCss(UI_INK_MUTED_COLOR),
+              backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+              padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
             })
             .setOrigin(ORIGIN_CENTER),
         );
@@ -573,7 +579,9 @@ export class WorldMapScene extends Phaser.Scene {
             .text(GAME_WIDTH / 2, y, `${name} (LOCKED)`, {
               fontFamily: UI_FONT_FAMILY,
               fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-              color: hexToCss(UI_MUTED_TEXT_COLOR),
+              color: hexToCss(UI_INK_MUTED_COLOR),
+              backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+              padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
             })
             .setOrigin(ORIGIN_CENTER),
         );
@@ -596,7 +604,9 @@ export class WorldMapScene extends Phaser.Scene {
           .text(GAME_WIDTH / 2, y + BADGE_LINE_OFFSET_PX, formatDifficultyBadge(base.difficulty), {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -612,7 +622,9 @@ export class WorldMapScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, legendY, AXIS_LEGEND_TEXT, {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_MUTED_TEXT_COLOR),
+          color: hexToCss(UI_INK_MUTED_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -834,7 +846,9 @@ export class WorldMapScene extends Phaser.Scene {
           .text(x, y, row.label, {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -847,7 +861,9 @@ export class WorldMapScene extends Phaser.Scene {
           .text(x, lineY, line, {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -919,7 +935,9 @@ export class WorldMapScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, GAME_HEIGHT * MISSION_DETAIL_Y_FRACTION, detail, {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_MUTED_TEXT_COLOR),
+          color: hexToCss(UI_INK_MUTED_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER),
     );
@@ -987,7 +1005,9 @@ export class WorldMapScene extends Phaser.Scene {
           {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           },
         )
         .setOrigin(ORIGIN_CENTER),
@@ -1096,7 +1116,7 @@ export class WorldMapScene extends Phaser.Scene {
         {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_TEXT_COLOR),
+          color: hexToCss(UI_INK_COLOR),
           // Panel look faked via backgroundColor + padding on the Text
           // object itself -- this project's established way of doing this
           // without a separate graphics object (see createUiButton, whose

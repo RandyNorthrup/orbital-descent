@@ -5,7 +5,10 @@ import {
   UI_BODY_FONT_SIZE_PX,
   UI_BUTTON_ROW_HEIGHT_PX,
   UI_FONT_FAMILY,
-  UI_MUTED_TEXT_COLOR,
+  UI_INK_MUTED_COLOR,
+  UI_BUTTON_BG_COLOR,
+  UI_TEXT_CHIP_PADDING_X,
+  UI_TEXT_CHIP_PADDING_Y,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
   OUTLINE_COLOR,
@@ -250,7 +253,9 @@ export class ShipSelectScene extends Phaser.Scene {
           .text(nameColumnX, y, `${name} (LOCKED)`, {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -259,7 +264,9 @@ export class ShipSelectScene extends Phaser.Scene {
           .text(nameColumnX, y + REASON_LINE_OFFSET_PX, lockedReasonText(ship.acquisition), {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(ORIGIN_CENTER),
       );
@@ -268,7 +275,9 @@ export class ShipSelectScene extends Phaser.Scene {
           .text(statColumnX, y, shipStatTag(ship), {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_MUTED_TEXT_COLOR),
+            color: hexToCss(UI_INK_MUTED_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           })
           .setOrigin(0, ORIGIN_CENTER),
       );
@@ -291,7 +300,9 @@ export class ShipSelectScene extends Phaser.Scene {
         .text(statColumnX, y, shipStatTag(ship), {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_MUTED_TEXT_COLOR),
+          color: hexToCss(UI_INK_MUTED_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(0, ORIGIN_CENTER),
     );

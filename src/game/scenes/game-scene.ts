@@ -57,12 +57,15 @@ import {
   SCORE_TIME_PAR_MS,
   SHIP_BASE_HULL_POINTS,
   TERRAIN_ETCH_LINE_COUNT,
+  TERRAIN_STRATA_OFFSETS_PX,
+  TERRAIN_STRATA_OUTLINE_WIDTH,
   TERRAIN_MAX_HEIGHT_FRACTION,
   TERRAIN_MIN_HEIGHT_FRACTION,
   TERRAIN_MAX_STEP_FRACTION,
   TERRAIN_SEGMENTS,
   TERRAIN_SHADOW_LAYER_DEPTH,
   LANDING_PAD_SEGMENT_COUNT,
+  LANDING_PAD_SLAB_HEIGHT_PX,
   THRUST_PARTICLE_ALPHA_END,
   THRUST_PARTICLE_ALPHA_START,
   THRUST_PARTICLE_ANGLE_DOWNWARD_OFFSET_DEG,
@@ -77,7 +80,8 @@ import {
   UI_BODY_FONT_SIZE_PX,
   UI_BUTTON_BG_COLOR,
   UI_FONT_FAMILY,
-  UI_MUTED_TEXT_COLOR,
+  UI_INK_MUTED_COLOR,
+  UI_INK_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
   WEAPON_PROJECTILE_RANGE,
@@ -697,7 +701,7 @@ export class GameScene extends Phaser.Scene {
       .text(HUD_MARGIN, HUD_MARGIN, '', {
         fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-        color: hexToCss(UI_TEXT_COLOR),
+        color: hexToCss(UI_INK_COLOR),
         backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
         padding: { x: HUD_CHIP_PADDING_X, y: HUD_CHIP_PADDING_Y },
       })
@@ -714,7 +718,7 @@ export class GameScene extends Phaser.Scene {
         .text(HUD_MARGIN, HUD_MARGIN + HUD_ROW_HEIGHT_PX, '', {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_TEXT_COLOR),
+          color: hexToCss(UI_INK_COLOR),
           backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
           padding: { x: HUD_CHIP_PADDING_X, y: HUD_CHIP_PADDING_Y },
         })
@@ -727,7 +731,7 @@ export class GameScene extends Phaser.Scene {
       .text(GAME_WIDTH - HUD_MARGIN, HUD_MARGIN, 'ESC: pause', {
         fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
-        color: hexToCss(UI_MUTED_TEXT_COLOR),
+        color: hexToCss(UI_INK_MUTED_COLOR),
         backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
         padding: { x: HUD_CHIP_PADDING_X, y: HUD_CHIP_PADDING_Y },
       })
@@ -1055,12 +1059,49 @@ export class GameScene extends Phaser.Scene {
     });
     ground.container.setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
 
+    // Milestone 16.6 (D27): the ground is a stack of paper strata — two
+    // deeper bands in the world's own authored contrasting hues, their
+    // top edges following the terrain profile (the reference dioramas'
+    // layered cliff faces), drawn over the surface shape so the pale
+    // surface reads as a band between the sky cut and the first stratum.
+    const strata = this.add.graphics();
+    const strataLayers = [
+      { offset: TERRAIN_STRATA_OFFSETS_PX[0], color: this.body.terrainPalette.strataColors.upper },
+      { offset: TERRAIN_STRATA_OFFSETS_PX[1], color: this.body.terrainPalette.strataColors.lower },
+    ];
+    for (const { offset, color } of strataLayers) {
+      strata.fillStyle(color, 1);
+      strata.beginPath();
+      const first = this.terrain.points[0];
+      strata.moveTo(first?.x ?? 0, (first?.y ?? 0) + offset);
+      for (const point of this.terrain.points) {
+        strata.lineTo(point.x, point.y + offset);
+      }
+      strata.lineTo(WORLD_WIDTH, GAME_HEIGHT);
+      strata.lineTo(0, GAME_HEIGHT);
+      strata.closePath();
+      strata.fillPath();
+      strata.lineStyle(TERRAIN_STRATA_OUTLINE_WIDTH, OUTLINE_COLOR, 1);
+      strata.beginPath();
+      strata.moveTo(first?.x ?? 0, (first?.y ?? 0) + offset);
+      for (const point of this.terrain.points) {
+        strata.lineTo(point.x, point.y + offset);
+      }
+      strata.strokePath();
+    }
+    strata.setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
+
+    // Milestone 16.6 (D27): the pad is a landing PLATFORM slab sitting on
+    // the ground, not a full-height column — against the new layered
+    // strata the old to-the-bottom quad read as a giant green silo
+    // (screenshot-caught). Purely visual; landing checks are unchanged
+    // (x-range + pad.y in terrain/landing.ts).
     const { landingPad } = this.terrain;
     const padPoints = [
       { x: landingPad.xStart, y: landingPad.y },
       { x: landingPad.xEnd, y: landingPad.y },
-      { x: landingPad.xEnd, y: GAME_HEIGHT },
-      { x: landingPad.xStart, y: GAME_HEIGHT },
+      { x: landingPad.xEnd, y: landingPad.y + LANDING_PAD_SLAB_HEIGHT_PX },
+      { x: landingPad.xStart, y: landingPad.y + LANDING_PAD_SLAB_HEIGHT_PX },
     ];
     const pad = createPaperShape(this, {
       points: padPoints,

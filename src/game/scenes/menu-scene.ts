@@ -8,7 +8,7 @@ import {
   UI_BUTTON_PADDING_Y,
   UI_BUTTON_ROW_HEIGHT_PX,
   UI_FONT_FAMILY,
-  UI_MUTED_TEXT_COLOR,
+  UI_INK_MUTED_COLOR,
   UI_TEXT_COLOR,
   UI_TITLE_FONT_SIZE_PX,
   OUTLINE_COLOR,
@@ -112,7 +112,7 @@ export class MenuScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, GAME_HEIGHT * STAT_LINE_Y_FRACTION, statLine, {
         fontFamily: UI_FONT_FAMILY,
         fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
-        color: hexToCss(UI_MUTED_TEXT_COLOR),
+        color: hexToCss(UI_INK_MUTED_COLOR),
         backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
         padding: { x: UI_BUTTON_PADDING_X, y: UI_BUTTON_PADDING_Y },
       })

@@ -69,6 +69,17 @@ describe('SHIPS', () => {
     expect(pairs.size).toBe(SHIPS.length);
   });
 
+  it('gives every ship an authored contrast color pack — accent/trim/detail in range, accent never just the hull color (Milestone 16.6)', () => {
+    for (const ship of SHIPS) {
+      for (const color of [ship.accentColor, ship.trimColor, ship.detailColor]) {
+        expect(color).toBeGreaterThanOrEqual(0x000000);
+        expect(color).toBeLessThanOrEqual(0xffffff);
+      }
+      expect(ship.accentColor).not.toBe(ship.hullFillColorTop);
+      expect(ship.accentColor).not.toBe(ship.hullFillColorBottom);
+    }
+  });
+
   it('prices every purchase-type ship above zero', () => {
     for (const ship of SHIPS) {
       if (ship.acquisition.type === 'purchase') {

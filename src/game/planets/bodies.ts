@@ -62,7 +62,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0,
     hazard: null,
     distance: 0,
-    terrainPalette: { fillTopColor: 0x8f8aa8, fillBottomColor: 0x4a4560, etchStyle: 'rock' },
+    terrainPalette: {
+      fillTopColor: 0x8f8aa8,
+      fillBottomColor: 0x4a4560,
+      strataColors: { upper: 0x6a6584, lower: 0x474155 },
+      etchStyle: 'rock',
+    },
     // Home moon: deep indigo night under a warm gold moon — the game's
     // signature look. Airless, so no cloudColor: its sky gets a companion
     // moon and a denser starfield instead.
@@ -84,7 +89,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0.01,
     hazard: null,
     distance: 42,
-    terrainPalette: { fillTopColor: 0xd9c191, fillBottomColor: 0x9c8054, etchStyle: 'sand' },
+    terrainPalette: {
+      fillTopColor: 0xd9c191,
+      fillBottomColor: 0x9c8054,
+      strataColors: { upper: 0xc98a4b, lower: 0x8a5a30 },
+      etchStyle: 'sand',
+    },
     // Lush prairie at full day: clear noon blue melting into a green-gold
     // horizon, white clouds, sunlit grass-green hills — alive enough that
     // the wasps nesting here (bases.ts's meridian-yard) feel at home.
@@ -107,7 +117,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0.05,
     hazard: { type: 'corrosive', fuelDrainRate: 4 },
     distance: 95,
-    terrainPalette: { fillTopColor: 0xa8b877, fillBottomColor: 0x5c6b3f, etchStyle: 'rock' },
+    terrainPalette: {
+      fillTopColor: 0xa8b877,
+      fillBottomColor: 0x5c6b3f,
+      strataColors: { upper: 0x7d8a4f, lower: 0x565f38 },
+      etchStyle: 'rock',
+    },
     // Dead corrosive world at harsh noon: a jaundiced acid-amber haze with
     // a white-hot sun smeared behind it — the sky itself warns you about
     // the fuel drain. Barren: rustwell-landing's missions here lean on
@@ -131,7 +146,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0.005,
     hazard: { type: 'cold', thrustEfficiency: 0.7 },
     distance: 210,
-    terrainPalette: { fillTopColor: 0xd8ecf5, fillBottomColor: 0x8fb8c9, etchStyle: 'water' },
+    terrainPalette: {
+      fillTopColor: 0xd8ecf5,
+      fillBottomColor: 0x8fb8c9,
+      strataColors: { upper: 0x9fc6dd, lower: 0x5a7fa8 },
+      etchStyle: 'water',
+    },
     // Boreal world at polar dusk: steel-blue twilight, an ice-white moon
     // over glacier blues. Lush despite the cold — a hardy boreal biosphere,
     // which is why the Glacian Warden (bases.ts's frostgate) can live here.
@@ -154,7 +174,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0.02,
     hazard: null,
     distance: 15,
-    terrainPalette: { fillTopColor: 0x8fd0c0, fillBottomColor: 0x3f7d6e, etchStyle: 'water' },
+    terrainPalette: {
+      fillTopColor: 0x8fd0c0,
+      fillBottomColor: 0x3f7d6e,
+      strataColors: { upper: 0x549e8e, lower: 0x2e6b60 },
+      etchStyle: 'water',
+    },
     // Living sea at bright day: clear sky over sunlit royal-blue swells,
     // white clouds, a warm sun — the postcard face of a water world teeming
     // with life.
@@ -177,7 +202,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0.035,
     hazard: { type: 'corrosive', fuelDrainRate: 2 },
     distance: 60,
-    terrainPalette: { fillTopColor: 0x6b8f5c, fillBottomColor: 0x35472c, etchStyle: 'foliage' },
+    terrainPalette: {
+      fillTopColor: 0x6b8f5c,
+      fillBottomColor: 0x35472c,
+      strataColors: { upper: 0x4a6b3f, lower: 0x33472c },
+      etchStyle: 'foliage',
+    },
     // Corrosive swamp at night: murky violet dark sinking into bog-green,
     // lit by a sickly green moon. Lush — the fen is thick with (hostile-
     // capable) life; the corrosion is the bog's own doing.
@@ -200,7 +230,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0.015,
     hazard: null,
     distance: 30,
-    terrainPalette: { fillTopColor: 0xc98a4b, fillBottomColor: 0x7a4f26, etchStyle: 'sand' },
+    terrainPalette: {
+      fillTopColor: 0xc98a4b,
+      fillBottomColor: 0x7a4f26,
+      strataColors: { upper: 0x9c5f2e, lower: 0x6e3a1e },
+      etchStyle: 'sand',
+    },
     // Dead desert at blazing noon: heat-bleached amber sky over rust dunes,
     // a white-gold sun overhead — nothing lives here, but the ground is
     // full of ore.
@@ -223,7 +258,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0,
     hazard: null,
     distance: 75,
-    terrainPalette: { fillTopColor: 0x6a6a76, fillBottomColor: 0x2e2e38, etchStyle: 'rock' },
+    terrainPalette: {
+      fillTopColor: 0x6a6a76,
+      fillBottomColor: 0x2e2e38,
+      strataColors: { upper: 0x4c4c58, lower: 0x30303a },
+      etchStyle: 'rock',
+    },
     // Highest gravity in the registry, airless moon: a stark near-black
     // void with a harsh white moon — the sky itself feels heavy. No
     // cloudColor; companion moon + dense stars instead.
@@ -245,7 +285,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0.025,
     hazard: { type: 'cold', thrustEfficiency: 0.85 },
     distance: 130,
-    terrainPalette: { fillTopColor: 0x9fc9a0, fillBottomColor: 0x547a58, etchStyle: 'foliage' },
+    terrainPalette: {
+      fillTopColor: 0x9fc9a0,
+      fillBottomColor: 0x547a58,
+      strataColors: { upper: 0x6f9a72, lower: 0x4a6b50 },
+      etchStyle: 'foliage',
+    },
     // Cold living marsh at aurora dusk — frost-pale moon, mint clouds over
     // a green wetland biosphere.
     skyPalette: {
@@ -276,7 +321,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     // still meaningfully harsher than umbral-fen's introductory rate.
     hazard: { type: 'corrosive', fuelDrainRate: 4 },
     distance: 160,
-    terrainPalette: { fillTopColor: 0x7fc9b0, fillBottomColor: 0x3a7f68, etchStyle: 'water' },
+    terrainPalette: {
+      fillTopColor: 0x7fc9b0,
+      fillBottomColor: 0x3a7f68,
+      strataColors: { upper: 0x4f937e, lower: 0x2f5f50 },
+      etchStyle: 'water',
+    },
     // Corrosive shallows at dusk: acid-teal lagoon glow, a pale
     // phosphorescent moon — beautiful and visibly wrong, like still water
     // you shouldn't touch. Barren: the acid killed this sea long ago.
@@ -299,7 +349,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0.06,
     hazard: null,
     distance: 180,
-    terrainPalette: { fillTopColor: 0xb0a8c0, fillBottomColor: 0x6a6078, etchStyle: 'rock' },
+    terrainPalette: {
+      fillTopColor: 0xb0a8c0,
+      fillBottomColor: 0x6a6078,
+      strataColors: { upper: 0x7d6a88, lower: 0x5a3a48 },
+      etchStyle: 'rock',
+    },
     // Thickest atmosphere in the registry — THE cloud world, at violet
     // dusk: magenta sky stacked with pink-lavender paper clouds around a
     // bright gold moon. Barren: permanent storm scouring bare rock; the
@@ -323,7 +378,12 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     atmosphereDensity: 0,
     hazard: { type: 'cold', thrustEfficiency: 0.6 },
     distance: 250,
-    terrainPalette: { fillTopColor: 0xe0d8c0, fillBottomColor: 0x9c9480, etchStyle: 'sand' },
+    terrainPalette: {
+      fillTopColor: 0xe0d8c0,
+      fillBottomColor: 0x9c9480,
+      strataColors: { upper: 0xb0a488, lower: 0x7d7358 },
+      etchStyle: 'sand',
+    },
     // Harshest cold in the registry, an airless frozen moon: salt flats
     // under a dim violet night, a frostbitten blue-white moon. Airless
     // (Milestone 15 — was 0.01 before it was reclassified as a moon; no

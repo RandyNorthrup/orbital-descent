@@ -44,6 +44,12 @@ export const HUD_MARGIN = 16;
 export const HUD_CHIP_PADDING_X = 8;
 export const HUD_CHIP_PADDING_Y = 4;
 
+/** Milestone 16.6 (D27): every dialog/body text line sits on its own slim
+ * cream paper chip (dark ink on paper, per the reference packs) — slimmer
+ * than the HUD chips so dense list rows keep their existing rhythm. */
+export const UI_TEXT_CHIP_PADDING_X = 6;
+export const UI_TEXT_CHIP_PADDING_Y = 2;
+
 /* ---------------------------------------------------------------------- */
 /* Terrain generation (src/game/terrain/terrain-generator.ts)             */
 /* ---------------------------------------------------------------------- */
@@ -107,6 +113,10 @@ export const CRASHED_COLOR_BOTTOM = 0xb83f3f;
  * cue regardless of which body the player is on. */
 export const LANDING_PAD_FILL_COLOR_TOP = 0x7fe89a;
 export const LANDING_PAD_FILL_COLOR_BOTTOM = 0x3aa859;
+/** Milestone 16.6 (D27): the pad renders as a platform slab of this
+ * thickness sitting on the terrain — the pre-16.6 full-height column
+ * read as a green silo against the new layered strata. */
+export const LANDING_PAD_SLAB_HEIGHT_PX = 14;
 
 /** Milestone 10's static obstacle fill gradient — one universal rust-red
  * across every world, deliberately: a consistent "this will crash you"
@@ -292,16 +302,35 @@ export const DECOR_LAVA_CORE_COLOR = 0xffd94f;
 export const DECOR_ICE_LIGHTEN_FRACTION = 0.18;
 export const VOLCANO_SMOKE_PUFF_ALPHA = 0.85;
 
-/** Ship engine flame plume (Milestone 16.5, D26 — the spaceship pack's
- * layered paper flames): an outer tongue with a hotter inner core, one
- * per nacelle, shown while thrust is held in flight and always shown in
- * hangar/store previews. Same fire palette as the lava vents — one flame
- * color family across the game's paper world. */
-export const SHIP_FLAME_OUTER_COLOR = 0xff8c3a;
+/** Ship engine flame plume (Milestone 16.5, D26; 3-layer construction
+ * Milestone 16.6, D27 — every spaceship-pack flame is red outer / orange
+ * mid / yellow core). One per nacelle, shown while thrust is held in
+ * flight and always shown in hangar/store previews. */
+export const SHIP_FLAME_OUTER_COLOR = 0xe23f3a;
+export const SHIP_FLAME_MID_COLOR = 0xff8c3a;
 export const SHIP_FLAME_INNER_COLOR = 0xffd94f;
-export const SHIP_FLAME_OUTER_LENGTH_PX = 10;
+export const SHIP_FLAME_OUTER_LENGTH_PX = 12;
+export const SHIP_FLAME_MID_LENGTH_PX = 9;
 export const SHIP_FLAME_INNER_LENGTH_PX = 6;
 export const SHIP_FLAME_WIDTH_FRACTION = 1.15;
+
+/** Milestone 16.6 (D27) — the spaceship pack's universal glazing: nearly
+ * every reference craft wears turquoise glass in a gold frame, so glass
+ * is one shared color across the roster while frames/rims come from each
+ * ship's own trimColor. */
+export const SHIP_GLASS_COLOR = 0x35c8d4;
+
+/** Terrain strata rendering (Milestone 16.6, D27): the ground is a stack
+ * of paper layers — the existing surface shape, then two deeper strata
+ * bands (each world's own authored `strataColors`), their top edges cut
+ * at these depths below the terrain profile. */
+const TERRAIN_STRATA_UPPER_OFFSET_PX = 38;
+const TERRAIN_STRATA_LOWER_OFFSET_PX = 96;
+export const TERRAIN_STRATA_OFFSETS_PX = [
+  TERRAIN_STRATA_UPPER_OFFSET_PX,
+  TERRAIN_STRATA_LOWER_OFFSET_PX,
+] as const;
+export const TERRAIN_STRATA_OUTLINE_WIDTH = 2;
 
 /** Base structures & inhabitants (Milestone 16, D24). Friendly structures
  * are faction-colored (man-made cream paper + a shared warm trim), not
@@ -489,20 +518,29 @@ export const UI_FONT_FAMILY =
 export const UI_TEXT_SHADOW_OFFSET_PX = 2;
 
 /** Warm paper ink, not terminal white/blue-gray (Milestone 16): body text
- * is cream stock, muted text warm oatmeal, buttons dark cardboard. */
+ * is cream stock, muted text warm oatmeal. Milestone 16.6 (D27) flips
+ * every dialog surface to REAL paper: cream cards/chips/buttons carrying
+ * dark ink, per the reference packs' cut-paper text plates. Cream-on-dark
+ * remains only for titles floating on the scene background. */
 export const UI_TEXT_COLOR = 0xf6efdd;
 export const UI_MUTED_TEXT_COLOR = 0xb9ac93;
+const PAPER_CARD_COLOR = 0xf6efdd;
+const PAPER_CARD_HOVER_COLOR = 0xfff8e6;
+const PAPER_INK_COLOR = 0x3a3226;
+const PAPER_INK_HOVER_COLOR = 0x0f7a8a;
+export const UI_INK_COLOR = PAPER_INK_COLOR;
+export const UI_INK_MUTED_COLOR = 0x7a6a52;
 export const UI_TITLE_FONT_SIZE_PX = 40;
 export const UI_BODY_FONT_SIZE_PX = 16;
 
-/** Shared button look across every menu/result/settings scene. Hover colors
- * lean on the same cool cyan used for the lander's engine glow (D18), so
- * interactive UI reads as part of the same palette, not a bolted-on system. */
+/** Shared button look across every menu/result/settings scene (Milestone
+ * 16.6: cream paper cards with dark ink; hover deepens toward the pack's
+ * turquoise glazing so interactivity still reads in-palette). */
 export const UI_BUTTON_FONT_SIZE_PX = 22;
-export const UI_BUTTON_TEXT_COLOR = 0xf6efdd;
-export const UI_BUTTON_HOVER_TEXT_COLOR = 0x8fd8ff;
-export const UI_BUTTON_BG_COLOR = 0x3b3226;
-export const UI_BUTTON_BG_HOVER_COLOR = 0x54483a;
+export const UI_BUTTON_TEXT_COLOR = PAPER_INK_COLOR;
+export const UI_BUTTON_HOVER_TEXT_COLOR = PAPER_INK_HOVER_COLOR;
+export const UI_BUTTON_BG_COLOR = PAPER_CARD_COLOR;
+export const UI_BUTTON_BG_HOVER_COLOR = PAPER_CARD_HOVER_COLOR;
 export const UI_BUTTON_PADDING_X = 18;
 export const UI_BUTTON_PADDING_Y = 10;
 /** Not exported — only consumed below to compute UI_BUTTON_ROW_HEIGHT_PX;

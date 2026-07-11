@@ -7,7 +7,10 @@ import {
   UI_BUTTON_FONT_SIZE_PX,
   UI_BUTTON_ROW_HEIGHT_PX,
   UI_FONT_FAMILY,
-  UI_TEXT_COLOR,
+  UI_INK_COLOR,
+  UI_BUTTON_BG_COLOR,
+  UI_TEXT_CHIP_PADDING_X,
+  UI_TEXT_CHIP_PADDING_Y,
   UI_TITLE_FONT_SIZE_PX,
   OUTLINE_COLOR,
   UI_TEXT_SHADOW_OFFSET_PX,
@@ -91,7 +94,9 @@ export class ResultScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, GAME_HEIGHT * SCORE_Y_FRACTION, `SCORE: ${this.score.toString()}`, {
           fontFamily: UI_FONT_FAMILY,
           fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
-          color: hexToCss(UI_TEXT_COLOR),
+          color: hexToCss(UI_INK_COLOR),
+          backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+          padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
         })
         .setOrigin(ORIGIN_CENTER);
       this.add
@@ -102,7 +107,9 @@ export class ResultScene extends Phaser.Scene {
           {
             fontFamily: UI_FONT_FAMILY,
             fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
-            color: hexToCss(UI_TEXT_COLOR),
+            color: hexToCss(UI_INK_COLOR),
+            backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+            padding: { x: UI_TEXT_CHIP_PADDING_X, y: UI_TEXT_CHIP_PADDING_Y },
           },
         )
         .setOrigin(ORIGIN_CENTER);

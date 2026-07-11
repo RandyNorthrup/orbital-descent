@@ -49,6 +49,29 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Added
 
+- **Milestone 16.6 — Reference Match: layered color & paper dialog
+  (Decision D27, certified)**: the art's color construction now matches
+  the reference packs, closing the user's verdict that the world/ship/
+  planet art "don't match the stuff i added at all." The ground renders
+  as stacked paper strata — every world authored two deeper strata bands
+  in contrasting hues (`terrainPalette.strataColors`: Kharun's rust over
+  maroon like the Mars scene, Glacian's pale blue over deep blue like
+  the ice scene), their cut edges following the landform profile, so
+  terrain reads as layered cliff faces instead of one tonal mass. Every
+  ship gained an authored contrast color pack (`accentColor` fins +
+  nacelles, `trimColor` canopy frames + porthole rims — the pack's
+  near-universal gold, `detailColor` role attachments) plus the pack's
+  universal turquoise glass and three-layer red/orange/yellow flame
+  plumes: the Falcon flies white with red fins and royal-blue tanks, the
+  Scout purple with silver, the Hauler navy with yellow cargo boxes, the
+  Sentinel gray with dark-red fins and black barrels. Planet discs grew
+  (13→16px) with bolder feature contrast. And every dialog surface moved
+  onto real paper: cream cards with dark ink for all buttons, HUD chips,
+  and 39 body-text lines across ship-select/store/loadout/world-map/
+  result/settings/transit — dark cardboard chips and cream-on-dark body
+  text are gone (titles keep their cream cut-paper look on the scene
+  background).
+
 - **Milestone 16.5 — Signature Worlds: landforms & vessel detail
   (Decision D26, certified)**: every world's terrain SHAPE became its own
   signature landform, answering the user's verdict on M16 ("the terrain

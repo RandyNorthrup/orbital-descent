@@ -16,7 +16,7 @@ import { bakeCanvasTexture, hexToCss } from './canvas-texture-utils';
 /** Presentation-only geometry for the world map's planet discs (PLAN.md
  * Milestone 14; per-landform signatures Milestone 16.5, D26) — scoped to
  * this file per the constants convention. */
-const PLANET_DISC_RADIUS_PX = 13;
+const PLANET_DISC_RADIUS_PX = 16;
 const PLANET_DISC_CRATER_COUNT = 4;
 const PLANET_DISC_CRATER_MIN_RADIUS_FRACTION = 0.12;
 const PLANET_DISC_CRATER_MAX_RADIUS_FRACTION = 0.26;
@@ -63,7 +63,7 @@ function paintCraterField(args: FeatureArgs): void {
 /** Horizontal wavy dune bands. */
 function paintDuneSea(args: FeatureArgs): void {
   const { ctx, c, r, body } = args;
-  ctx.fillStyle = hexToCss(darken(body.terrainPalette.fillTopColor, 0.14));
+  ctx.fillStyle = hexToCss(darken(body.terrainPalette.fillTopColor, 0.22));
   for (const bandY of [-0.35, 0.1, 0.55]) {
     ctx.beginPath();
     ctx.moveTo(c - r, c + bandY * r);
@@ -82,7 +82,7 @@ function paintDuneSea(args: FeatureArgs): void {
 /** Angular flat-topped mesa patches. */
 function paintMesa(args: FeatureArgs): void {
   const { ctx, c, r, body } = args;
-  ctx.fillStyle = hexToCss(darken(body.terrainPalette.fillTopColor, 0.2));
+  ctx.fillStyle = hexToCss(darken(body.terrainPalette.fillTopColor, 0.3));
   const patches = [
     [-0.7, -0.25, 0.5, 0.3],
     [0.05, 0.15, 0.6, 0.35],
@@ -108,7 +108,7 @@ function paintSpikes(
 ): void {
   const { ctx, c, r, body } = args;
   const random = createSeededRandom(PLANET_DISC_CRATER_SEED + body.distance);
-  ctx.fillStyle = hexToCss(lighten(body.terrainPalette.fillTopColor, 0.22));
+  ctx.fillStyle = hexToCss(lighten(body.terrainPalette.fillTopColor, 0.35));
   ctx.strokeStyle = hexToCss(OUTLINE_COLOR);
   ctx.lineWidth = 1;
   for (let i = 0; i < count; i += 1) {
@@ -143,7 +143,7 @@ function paintWaveSwell(args: FeatureArgs): void {
   ctx.lineTo(c - r, c + r);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = hexToCss(lighten(body.terrainPalette.fillTopColor, 0.4));
+  ctx.fillStyle = hexToCss(lighten(body.terrainPalette.fillTopColor, 0.55));
   for (const [fx, fy] of [
     [-0.45, -0.18],
     [0.05, -0.3],
@@ -158,7 +158,7 @@ function paintWaveSwell(args: FeatureArgs): void {
 /** Small rounded mound bumps. */
 function paintHummocks(args: FeatureArgs): void {
   const { ctx, c, r, body } = args;
-  ctx.fillStyle = hexToCss(darken(body.terrainPalette.fillTopColor, 0.16));
+  ctx.fillStyle = hexToCss(darken(body.terrainPalette.fillTopColor, 0.26));
   for (const [hx, hy, hr] of [
     [-0.5, 0.3, 0.28],
     [0.1, -0.15, 0.34],
@@ -196,7 +196,7 @@ function paintBasin(args: FeatureArgs): void {
   const { ctx, c, r, body } = args;
   ctx.beginPath();
   ctx.arc(c + r * 0.15, c + r * 0.1, r * 0.55, 0, Math.PI * 2);
-  ctx.fillStyle = hexToCss(darken(body.terrainPalette.fillTopColor, 0.24));
+  ctx.fillStyle = hexToCss(darken(body.terrainPalette.fillTopColor, 0.34));
   ctx.fill();
   ctx.beginPath();
   ctx.arc(c + r * 0.15, c + r * 0.1, r * 0.55, 0, Math.PI * 2);

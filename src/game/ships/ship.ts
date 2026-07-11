@@ -86,5 +86,16 @@ export interface ShipClass {
   readonly hullFillColorTop: number;
   readonly hullFillColorBottom: number;
 
+  /** Milestone 16.6 (D27) — the reference packs build every craft from
+   * CONTRASTING authored colors, not tonal derivations of one hull color.
+   * `accentColor` paints fins + engine nacelles (the sport racer's red
+   * fins on white), `trimColor` frames the canopy and rims every porthole
+   * (the pack's near-universal gold), `detailColor` fills the role
+   * attachments (white cargo boxes, black gun barrels, teal cryo bands).
+   * `ships.test.ts` pins each authored and contrasting. */
+  readonly accentColor: number;
+  readonly trimColor: number;
+  readonly detailColor: number;
+
   readonly acquisition: ShipAcquisition;
 }

@@ -68,6 +68,19 @@ describe('BODIES', () => {
     expect(landforms.size).toBe(BODIES.length);
   });
 
+  it('gives every body two authored terrain strata colors, in color range and distinct from the surface fill (Milestone 16.6 — the ground is a layered stack, not one tonal mass)', () => {
+    const MAX_COLOR = 0xffffff;
+    for (const body of BODIES) {
+      const { strataColors, fillTopColor } = body.terrainPalette;
+      for (const color of [strataColors.upper, strataColors.lower]) {
+        expect(color).toBeGreaterThanOrEqual(0);
+        expect(color).toBeLessThanOrEqual(MAX_COLOR);
+        expect(color).not.toBe(fillTopColor);
+      }
+      expect(strataColors.upper).not.toBe(strataColors.lower);
+    }
+  });
+
   it('gives every sky palette in-range colors and a darker sky top than bottom (night-sky depth cue)', () => {
     const MAX_COLOR = 0xffffff;
     const channelAverage = (color: number): number => {

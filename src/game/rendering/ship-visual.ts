@@ -4,28 +4,29 @@ import {
   OUTLINE_COLOR,
   SHIP_FLAME_INNER_COLOR,
   SHIP_FLAME_INNER_LENGTH_PX,
+  SHIP_FLAME_MID_COLOR,
+  SHIP_FLAME_MID_LENGTH_PX,
   SHIP_FLAME_OUTER_COLOR,
   SHIP_FLAME_OUTER_LENGTH_PX,
   SHIP_FLAME_WIDTH_FRACTION,
+  SHIP_GLASS_COLOR,
 } from '../constants';
 import type { ShipClass } from '../ships/ship';
 import { SHIP_SILHOUETTES } from '../ships/silhouette';
 import { createPaperShape, type PaperShape } from './paper-shape';
 import { darken } from './color-mix';
 
-/** How much darker a ship's fins/pods render than its hull — one shared
- * fraction so every ship's accent pieces sit in the same lighting world
- * (same single-light-source rule the terrain gradients follow). */
-const FIN_DARKEN_FRACTION = 0.28;
+/** Each accent/detail piece still renders as a tiny gradient (its color
+ * to this fraction darker) so it keeps the paper-under-one-light look of
+ * every other cutout, but the HUE is the ship's own authored contrast
+ * color (Milestone 16.6, D27) — no more darkened-hull monochrome. */
+const PIECE_GRADIENT_DARKEN_FRACTION = 0.18;
 
-/** Nacelles and role attachments sit between the fin shade and the hull:
- * bolted-on hardware, same paper, one step darker than the hull skin. */
-const HARDWARE_DARKEN_FRACTION = 0.16;
+/** Flame layer widths relative to the outer tongue — the reference flames
+ * nest each hotter layer visibly inside the last. */
+const FLAME_MID_WIDTH_FRACTION = 0.72;
+const FLAME_CORE_WIDTH_FRACTION = 0.45;
 
-/** Porthole glass: one universal pale cockpit tint across the roster —
- * like the landing pad's universal green, "this is the window" reads the
- * same on every hull color. The canopy glass shares it (Milestone 16.5). */
-const WINDOW_COLOR = 0xdff2fc;
 const FULL_ALPHA = 1;
 
 /** Small-piece cut-edge treatment (see PaperShapeOptions.outlineWidth's
@@ -33,7 +34,10 @@ const FULL_ALPHA = 1;
  * swallow the fills, so every ship piece uses these instead. */
 const PIECE_OUTLINE_WIDTH = 2;
 const PIECE_SHADOW_OFFSET = 3;
-const WINDOW_OUTLINE_WIDTH = 2;
+const CANOPY_FRAME_WIDTH = 2.5;
+const CANOPY_EDGE_WIDTH = 1;
+const PORTHOLE_RIM_WIDTH = 2;
+const SMALL_PORTHOLE_RIM_WIDTH = 1.5;
 
 export interface ShipVisual {
   /** The whole craft (fins + hull + porthole) as one unit — position/rotate
@@ -60,43 +64,48 @@ export interface ShipVisualOptions {
 
 /**
  * Builds one ship as a papercraft mini-diorama (PLAN.md Milestone 14;
- * vessel-detail pass Milestone 16.5, D26): darkened fin/pod cutouts and
- * engine nacelles behind a gradient-shaded hull cutout (each piece its
- * own shadowed, outlined paper layer via `createPaperShape`), role
- * attachments riding the hull, topped with a framed cockpit canopy,
- * porthole(s), and toggleable per-nacelle flame plumes. The hull family
- * comes from the ship's archetype (`ships/silhouette.ts`); the colors
- * from the ship's own `hullFillColorTop`/`Bottom`.
+ * vessel detail Milestone 16.5; reference color construction Milestone
+ * 16.6, D27): accent-colored fin and nacelle cutouts behind a
+ * gradient-shaded hull, detail-colored role attachments riding it, a
+ * turquoise canopy in the ship's trim-color frame, trim-rimmed
+ * portholes, and three-layer red/orange/yellow flame plumes — the
+ * spaceship pack's own construction grammar.
  */
 export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions): ShipVisual {
   const silhouette = SHIP_SILHOUETTES[options.ship.archetype];
-  const finTop = darken(options.ship.hullFillColorTop, FIN_DARKEN_FRACTION);
-  const finBottom = darken(options.ship.hullFillColorBottom, FIN_DARKEN_FRACTION);
+  const { accentColor, trimColor, detailColor } = options.ship;
 
   // Flame plumes render first (bottom-most children) so every hull piece
-  // overlaps them — the exhaust comes from UNDER the craft.
+  // overlaps them — the exhaust comes from UNDER the craft. Three layered
+  // tongues per nacelle: red outer, orange mid, yellow core.
   const flames = scene.add.graphics();
   for (const nacelle of silhouette.nacelles) {
     const bottom = nacelle.y + nacelle.height;
     const outerHalf = nacelle.halfWidth * SHIP_FLAME_WIDTH_FRACTION;
-    flames.fillStyle(SHIP_FLAME_OUTER_COLOR, FULL_ALPHA);
-    flames.fillTriangle(
-      nacelle.x - outerHalf,
-      bottom,
-      nacelle.x + outerHalf,
-      bottom,
-      nacelle.x,
-      bottom + SHIP_FLAME_OUTER_LENGTH_PX,
-    );
-    flames.fillStyle(SHIP_FLAME_INNER_COLOR, FULL_ALPHA);
-    flames.fillTriangle(
-      nacelle.x - outerHalf / 2,
-      bottom,
-      nacelle.x + outerHalf / 2,
-      bottom,
-      nacelle.x,
-      bottom + SHIP_FLAME_INNER_LENGTH_PX,
-    );
+    const layers = [
+      { color: SHIP_FLAME_OUTER_COLOR, half: outerHalf, length: SHIP_FLAME_OUTER_LENGTH_PX },
+      {
+        color: SHIP_FLAME_MID_COLOR,
+        half: outerHalf * FLAME_MID_WIDTH_FRACTION,
+        length: SHIP_FLAME_MID_LENGTH_PX,
+      },
+      {
+        color: SHIP_FLAME_INNER_COLOR,
+        half: outerHalf * FLAME_CORE_WIDTH_FRACTION,
+        length: SHIP_FLAME_INNER_LENGTH_PX,
+      },
+    ];
+    for (const layer of layers) {
+      flames.fillStyle(layer.color, FULL_ALPHA);
+      flames.fillTriangle(
+        nacelle.x - layer.half,
+        bottom,
+        nacelle.x + layer.half,
+        bottom,
+        nacelle.x,
+        bottom + layer.length,
+      );
+    }
   }
   flames.setVisible(false);
 
@@ -104,8 +113,8 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
     createPaperShape(scene, {
       points,
       textureKey: `${options.textureKeyPrefix}-fin-${index.toString()}`,
-      fillTopColor: finTop,
-      fillBottomColor: finBottom,
+      fillTopColor: accentColor,
+      fillBottomColor: darken(accentColor, PIECE_GRADIENT_DARKEN_FRACTION),
       outlineWidth: PIECE_OUTLINE_WIDTH,
       shadowOffset: PIECE_SHADOW_OFFSET,
     }),
@@ -119,8 +128,8 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
         { x: nacelle.x - nacelle.halfWidth, y: nacelle.y + nacelle.height },
       ],
       textureKey: `${options.textureKeyPrefix}-nacelle-${index.toString()}`,
-      fillTopColor: darken(options.ship.hullFillColorTop, HARDWARE_DARKEN_FRACTION),
-      fillBottomColor: darken(options.ship.hullFillColorBottom, HARDWARE_DARKEN_FRACTION),
+      fillTopColor: accentColor,
+      fillBottomColor: darken(accentColor, PIECE_GRADIENT_DARKEN_FRACTION),
       outlineWidth: PIECE_OUTLINE_WIDTH,
       shadowOffset: PIECE_SHADOW_OFFSET,
     }),
@@ -140,16 +149,17 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
     createPaperShape(scene, {
       points,
       textureKey: `${options.textureKeyPrefix}-attachment-${index.toString()}`,
-      fillTopColor: darken(options.ship.hullFillColorTop, HARDWARE_DARKEN_FRACTION),
-      fillBottomColor: darken(options.ship.hullFillColorBottom, HARDWARE_DARKEN_FRACTION),
+      fillTopColor: detailColor,
+      fillBottomColor: darken(detailColor, PIECE_GRADIENT_DARKEN_FRACTION),
       outlineWidth: PIECE_OUTLINE_WIDTH,
       shadowOffset: PIECE_SHADOW_OFFSET,
     }),
   );
 
   const glass = scene.add.graphics();
-  // Framed cockpit canopy (D26) — glass fill with a heavy frame stroke.
-  glass.fillStyle(WINDOW_COLOR, FULL_ALPHA);
+  // Framed cockpit canopy — turquoise glass (the pack's universal
+  // glazing) in the ship's own trim-color frame with a fine dark edge.
+  glass.fillStyle(SHIP_GLASS_COLOR, FULL_ALPHA);
   glass.beginPath();
   for (const [index, point] of silhouette.canopy.entries()) {
     if (index === 0) {
@@ -160,17 +170,25 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
   }
   glass.closePath();
   glass.fillPath();
-  glass.lineStyle(WINDOW_OUTLINE_WIDTH, OUTLINE_COLOR, FULL_ALPHA);
+  glass.lineStyle(CANOPY_FRAME_WIDTH, trimColor, FULL_ALPHA);
   glass.strokePath();
-  // Signature porthole + the smaller porthole row.
-  glass.fillStyle(WINDOW_COLOR, FULL_ALPHA);
+  glass.lineStyle(CANOPY_EDGE_WIDTH, OUTLINE_COLOR, FULL_ALPHA);
+  glass.strokePath();
+  // Signature porthole + the smaller porthole row, all trim-rimmed.
+  glass.fillStyle(SHIP_GLASS_COLOR, FULL_ALPHA);
   glass.fillCircle(silhouette.window.x, silhouette.window.y, silhouette.window.radius);
-  glass.lineStyle(WINDOW_OUTLINE_WIDTH, OUTLINE_COLOR, FULL_ALPHA);
+  glass.lineStyle(PORTHOLE_RIM_WIDTH, trimColor, FULL_ALPHA);
   glass.strokeCircle(silhouette.window.x, silhouette.window.y, silhouette.window.radius);
+  glass.lineStyle(CANOPY_EDGE_WIDTH, OUTLINE_COLOR, FULL_ALPHA);
+  glass.strokeCircle(
+    silhouette.window.x,
+    silhouette.window.y,
+    silhouette.window.radius + PORTHOLE_RIM_WIDTH / 2,
+  );
   for (const porthole of silhouette.portholes) {
-    glass.fillStyle(WINDOW_COLOR, FULL_ALPHA);
+    glass.fillStyle(SHIP_GLASS_COLOR, FULL_ALPHA);
     glass.fillCircle(porthole.x, porthole.y, porthole.radius);
-    glass.lineStyle(1, OUTLINE_COLOR, FULL_ALPHA);
+    glass.lineStyle(SMALL_PORTHOLE_RIM_WIDTH, trimColor, FULL_ALPHA);
     glass.strokeCircle(porthole.x, porthole.y, porthole.radius);
   }
 
@@ -186,18 +204,11 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
   return {
     container,
     setFillColors: (topColor: number, bottomColor: number): void => {
+      // Outcome recolors (landed green / crashed red) tint the whole
+      // craft so the verdict reads at a glance — hull, accents, details.
       body.setFillColors(topColor, bottomColor);
-      for (const fin of fins) {
-        fin.setFillColors(
-          darken(topColor, FIN_DARKEN_FRACTION),
-          darken(bottomColor, FIN_DARKEN_FRACTION),
-        );
-      }
-      for (const hardware of [...nacelles, ...attachments]) {
-        hardware.setFillColors(
-          darken(topColor, HARDWARE_DARKEN_FRACTION),
-          darken(bottomColor, HARDWARE_DARKEN_FRACTION),
-        );
+      for (const piece of [...fins, ...nacelles, ...attachments]) {
+        piece.setFillColors(topColor, darken(bottomColor, PIECE_GRADIENT_DARKEN_FRACTION));
       }
     },
     setFlamesVisible: (visible: boolean): void => {
