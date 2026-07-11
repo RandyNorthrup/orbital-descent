@@ -104,9 +104,13 @@ export const OBSTACLE_FILL_COLOR_BOTTOM = 0x8f3b28;
 /** Milestone 11's living hostiles — a hostile violet, deliberately distinct
  * from every other palette color already in use (lander's cool blue-teal,
  * landed green, crashed/obstacle red-orange) so "this is alive and
- * attacking" reads as its own visual category. */
+ * attacking" reads as its own visual category. Milestone 14: each hostile
+ * type renders its own multi-piece silhouette (combat/
+ * combatant-silhouette.ts); wing/armor accent pieces darken this same
+ * violet by the fraction below (mirrors ship-visual.ts's fin treatment). */
 export const COMBATANT_FILL_COLOR_TOP = 0xc57ad9;
 export const COMBATANT_FILL_COLOR_BOTTOM = 0x6b3f8f;
+export const COMBATANT_ACCENT_DARKEN_FRACTION = 0.28;
 
 /** A fired projectile's small, bright "energy bolt" look — a plain filled
  * circle (`Phaser.GameObjects.Arc`), not a full paper-shape (shadow +
@@ -115,6 +119,11 @@ export const COMBATANT_FILL_COLOR_BOTTOM = 0x6b3f8f;
  * rather than texture, and cost far more to bake/rebake per shot. */
 export const PROJECTILE_COLOR = 0xf5e050;
 export const PROJECTILE_RADIUS = 4;
+/** Milestone 14: a soft radial glow behind each bolt so a shot reads as an
+ * energy bolt, not a flat dot — baked once (parameter-identical for every
+ * shot) and shared by reference. */
+export const PROJECTILE_GLOW_RADIUS = 10;
+export const PROJECTILE_GLOW_MAX_ALPHA = 0.6;
 
 /** Shared near-black outline/shadow color for every cutout shape. */
 export const OUTLINE_COLOR = 0x1a1410;
@@ -146,80 +155,153 @@ export const ENGINE_GLOW_RADIUS = 20;
 export const ENGINE_GLOW_MAX_ALPHA = 0.75;
 
 /* ---------------------------------------------------------------------- */
-/* Background: sky, moon, stars, far parallax ridge (rendering/background) */
-/* See PLAN.md §4 "Ship-Forward / Atmospheric Depth" for the approved      */
-/* art direction this implements.                                         */
+/* Background: sky, moon, clouds, stars, parallax ridges                  */
+/* (rendering/background.ts). See PLAN.md §4 "Ship-Forward / Atmospheric  */
+/* Depth" (D18) and Milestone 14's papercraft-diorama pass (D21). All     */
+/* per-world COLORS live in each CelestialBody's own skyPalette           */
+/* (planets/bodies.ts) — this section holds only the shared geometry,     */
+/* seeds, and the derivation fractions that turn a palette's six anchor   */
+/* colors into every rendered shade, so twelve worlds share one lighting  */
+/* logic.                                                                 */
 /* ---------------------------------------------------------------------- */
 
-export const SKY_TOP_COLOR = 0x141428;
-export const SKY_BOTTOM_COLOR = 0x3a3a5a;
+/** Shade derivation fractions (rendering/color-mix.ts) — one set for all
+ * worlds. Moon disc edge/crater darkening; cloud lit-top/shaded-bottom/
+ * paper-rim treatment; the lit rim along each ridge's top edge; and how
+ * far the far ridge fades toward the sky (atmospheric perspective). */
+export const MOON_SHADE_DARKEN_FRACTION = 0.16;
+export const MOON_CRATER_DARKEN_FRACTION = 0.26;
+export const CLOUD_LIT_LIGHTEN_FRACTION = 0.18;
+export const CLOUD_SHADE_DARKEN_FRACTION = 0.22;
+export const CLOUD_RIM_LIGHTEN_FRACTION = 0.4;
+export const RIDGE_RIM_LIGHTEN_FRACTION = 0.22;
+export const FAR_RIDGE_SKY_MIX_FRACTION = 0.55;
+/** The near (mid) ridge darkens off the same authored ridgeColor the far
+ * ridge lightens from — the reference dioramas' night-scene value ladder:
+ * the closer a paper layer, the darker its silhouette, so two adjacent
+ * ridge walls can't blend into one flat expanse (verified against real
+ * screenshots — same-value ridges read as a single wall). */
+export const MID_RIDGE_DARKEN_FRACTION = 0.24;
 
-export const MOON_COLOR = 0xf3dfa0;
-/** Slightly darker edge tone for the moon disc's own gradient shading. */
-export const MOON_SHADE_COLOR = 0xd8b878;
-export const MOON_GLOW_COLOR = 0xf3dfa0;
 export const MOON_GLOW_MAX_ALPHA = 0.55;
 export const MOON_RADIUS = 46;
 export const MOON_GLOW_RADIUS = 150;
 export const MOON_CENTER_X_FRACTION = 0.72;
 export const MOON_CENTER_Y_FRACTION = 0.18;
 
+/** Flat darker crater blobs baked into the moon disc (Milestone 14) — the
+ * reference art's moons are cratered paper cutouts, not plain gradients.
+ * Layout is seeded per world (base seed + the body's own distance, which
+ * is unique per world in BODIES) so every world's moon face is its own. */
+export const MOON_CRATER_COUNT = 6;
+export const MOON_CRATER_MIN_RADIUS_FRACTION = 0.09;
+export const MOON_CRATER_MAX_RADIUS_FRACTION = 0.2;
+export const MOON_CRATER_SEED = 4041;
+
+/** Airless worlds (atmosphereDensity 0) have no cloud layers — instead a
+ * small companion moon joins the sky (its color the world's own moon color
+ * faded toward the horizon sky) and the starfield densifies, so a bare sky
+ * still reads deliberate, not unfinished. */
+export const COMPANION_MOON_RADIUS = 15;
+export const COMPANION_MOON_CENTER_X_FRACTION = 0.18;
+export const COMPANION_MOON_CENTER_Y_FRACTION = 0.32;
+export const COMPANION_MOON_CRATER_COUNT = 3;
+export const COMPANION_MOON_SKY_MIX_FRACTION = 0.4;
+export const AIRLESS_STAR_COUNT_MULTIPLIER = 1.6;
+
 /** Crisp small dots, not soft/blurred bokeh — the star treatment explicitly
  * preferred over softer alternatives when the art direction was approved.
  * Count scales with WORLD_WIDTH_MULTIPLIER (Milestone 2.5) so density, not
- * just total count, stays constant across the wider world. */
-export const STAR_COLOR = 0xffffff;
+ * just total count, stays constant across the wider world. Milestone 14
+ * mixes in a small fraction of larger 4-point paper sparkles (the
+ * reference art's star treatment) among the dots. */
 const STAR_COUNT_PER_SCREEN = 90;
 export const STAR_COUNT = STAR_COUNT_PER_SCREEN * WORLD_WIDTH_MULTIPLIER;
 export const STAR_MAX_RADIUS = 1.4;
 export const STAR_MAX_ALPHA = 0.9;
+export const STAR_SPARKLE_FRACTION = 0.12;
+export const STAR_SPARKLE_RADIUS_MULTIPLIER = 2.6;
+/** Width of a sparkle's waist relative to its point-to-point radius — thin
+ * enough that the four points read as points, not a blob. */
+export const STAR_SPARKLE_WAIST_FRACTION = 0.32;
 /** Fixed (not per-restart) seed — the starfield reads as a stable distant
  * sky, unlike the gameplay terrain, which reseeds every attempt. */
 export const STARFIELD_SEED = 20260706;
 
-/** Distant parallax ridge: lower-contrast, desaturated, and blurred vs. the
- * crisp gameplay terrain in front of it — the atmospheric-perspective depth
- * cue the approved direction is named for. Deliberately lighter than the
- * sky gradient at the ridge's own height band (not just "a dark color at
- * partial alpha") — a low-contrast ridge nearly disappears into the sky
- * instead of reading as a silhouette. */
-export const FAR_RIDGE_COLOR = 0x5c5678;
-export const FAR_RIDGE_ALPHA = 0.75;
-export const FAR_RIDGE_MIN_HEIGHT_FRACTION = 0.28;
-export const FAR_RIDGE_MAX_HEIGHT_FRACTION = 0.4;
+/** Scalloped paper cloud band near the horizon plus floating cloud puffs
+ * in the flight band (Milestone 14) — only on worlds with an atmosphere
+ * (see each skyPalette's own cloudColor doc). Band geometry in px /
+ * fractions of GAME_HEIGHT; both layers are seeded per world the same
+ * base-seed + distance way the ridges are. */
+export const CLOUD_BAND_BASELINE_Y_FRACTION = 0.37;
+export const CLOUD_BAND_MIN_RADIUS_PX = 26;
+export const CLOUD_BAND_MAX_RADIUS_PX = 54;
+export const CLOUD_BAND_OVERLAP_FRACTION = 0.42;
+export const CLOUD_BAND_JITTER_Y_PX = 9;
+/** The band bakes two scallop rows: a shaded back row risen this far above
+ * the lit front row's baseline, so the edge reads as stacked paper. */
+export const CLOUD_BAND_BACK_ROW_RISE_PX = 16;
+/** Vertical offset of the band's main fill below its rim pass — the lit
+ * paper edge along every scallop top. */
+export const CLOUD_RIM_OFFSET_PX = 3;
+export const CLOUD_BAND_SEED = 9090;
+const CLOUD_PUFF_COUNT_PER_SCREEN = 2;
+export const CLOUD_PUFF_COUNT = CLOUD_PUFF_COUNT_PER_SCREEN * WORLD_WIDTH_MULTIPLIER;
+export const CLOUD_PUFF_CORE_RADIUS_PX = 32;
+export const CLOUD_PUFF_MIN_SCALE = 0.55;
+export const CLOUD_PUFF_MAX_SCALE = 1.25;
+export const CLOUD_PUFF_MIN_Y_FRACTION = 0.06;
+export const CLOUD_PUFF_MAX_Y_FRACTION = 0.42;
+export const CLOUD_PUFF_SEED = 9191;
+
+/** Distant parallax ridge. Milestone 14 reworked the atmospheric-
+ * perspective treatment to match the papercraft references: ridges are
+ * OPAQUE paper layers (alpha 1 — verified against real screenshots, the
+ * earlier translucent fills read as a murky wash, not stacked paper), and
+ * distance is conveyed by color instead — each world's skyPalette.ridgeColor
+ * mixed toward its horizon sky (FAR_RIDGE_SKY_MIX_FRACTION above) — plus a
+ * light residual blur on the far layer only. Both ridges render as smooth
+ * rolling curves with a lit paper-edge rim (RIDGE_RIM_WIDTH_PX). */
+export const FAR_RIDGE_ALPHA = 1;
+export const RIDGE_RIM_WIDTH_PX = 2;
+export const FAR_RIDGE_MIN_HEIGHT_FRACTION = 0.34;
+export const FAR_RIDGE_MAX_HEIGHT_FRACTION = 0.44;
 export const FAR_RIDGE_MAX_STEP_FRACTION = 0.03;
 const FAR_RIDGE_SEGMENTS_PER_SCREEN = 12;
 export const FAR_RIDGE_SEGMENTS = FAR_RIDGE_SEGMENTS_PER_SCREEN * WORLD_WIDTH_MULTIPLIER;
 /** Fixed seed, distinct from the gameplay terrain's and the starfield's —
  * a stable distant ridge, not reshuffled each restart. */
 export const FAR_RIDGE_SEED = 71;
-export const FAR_RIDGE_BLUR_PX = 5;
+export const FAR_RIDGE_BLUR_PX = 2;
 
 /** Midground parallax ridge (Milestone 2.5 — the layer added between the
  * far ridge and the gameplay terrain, closing the depth gap the D18
  * review flagged): closer, less blurred, more saturated than the far
  * ridge, but still visually behind the crisp foreground terrain. */
-export const MID_RIDGE_COLOR = 0x484264;
-export const MID_RIDGE_ALPHA = 0.85;
-export const MID_RIDGE_MIN_HEIGHT_FRACTION = 0.38;
-export const MID_RIDGE_MAX_HEIGHT_FRACTION = 0.48;
-export const MID_RIDGE_MAX_STEP_FRACTION = 0.04;
+export const MID_RIDGE_ALPHA = 1;
+export const MID_RIDGE_MIN_HEIGHT_FRACTION = 0.5;
+export const MID_RIDGE_MAX_HEIGHT_FRACTION = 0.62;
+export const MID_RIDGE_MAX_STEP_FRACTION = 0.05;
 const MID_RIDGE_SEGMENTS_PER_SCREEN = 16;
 export const MID_RIDGE_SEGMENTS = MID_RIDGE_SEGMENTS_PER_SCREEN * WORLD_WIDTH_MULTIPLIER;
 /** Fixed seed, distinct from the far ridge's — an independent silhouette,
  * not a scaled copy of the same profile. */
 export const MID_RIDGE_SEED = 137;
-export const MID_RIDGE_BLUR_PX = 2;
+export const MID_RIDGE_BLUR_PX = 0;
 
 /** Parallax scroll factors, one per depth plane, each strictly less than 1
  * and strictly greater than the plane behind it — real motion-parallax
  * (Milestone 2.5), not just the static layered/blurred depth D18 shipped.
- * Gameplay terrain/pad/lander deliberately have no named factor here: they
- * stay at Phaser's implicit default (`scrollFactor` 1, moves 1:1 with the
- * world), which needs no constant for "unmodified". */
+ * Milestone 14 adds two cloud planes (horizon scallop band behind the far
+ * ridge, floating puffs in front of the mid ridge — atmosphere worlds
+ * only). Gameplay terrain/pad/lander deliberately have no named factor
+ * here: they stay at Phaser's implicit default (`scrollFactor` 1, moves
+ * 1:1 with the world), which needs no constant for "unmodified". */
 export const SKY_SCROLL_FACTOR = 0.05;
+export const CLOUD_BAND_SCROLL_FACTOR = 0.12;
 export const FAR_RIDGE_SCROLL_FACTOR = 0.2;
 export const MID_RIDGE_SCROLL_FACTOR = 0.5;
+export const CLOUD_PUFF_SCROLL_FACTOR = 0.7;
 
 /** Side length, in px, of the procedurally generated paper-grain texture
  * tile (small and repeated as a Canvas2D pattern — `ctx.createPattern`,
@@ -239,9 +321,11 @@ export const PAPER_GRAIN_SPECKLE_MAX_RADIUS = 1.5;
 /* file can't silently collide with or invert an existing one — depth is  */
 /* a cross-file contract, not a value scoped to a single file.            */
 /* ---------------------------------------------------------------------- */
-export const SKY_LAYER_DEPTH = -3;
-export const FAR_RIDGE_LAYER_DEPTH = -2;
-export const MID_RIDGE_LAYER_DEPTH = -1;
+export const SKY_LAYER_DEPTH = -5;
+export const CLOUD_BAND_LAYER_DEPTH = -4;
+export const FAR_RIDGE_LAYER_DEPTH = -3;
+export const MID_RIDGE_LAYER_DEPTH = -2;
+export const CLOUD_PUFF_LAYER_DEPTH = -1;
 export const TERRAIN_SHADOW_LAYER_DEPTH = 0;
 export const LANDER_LAYER_DEPTH = 1;
 export const HUD_LAYER_DEPTH = 2;

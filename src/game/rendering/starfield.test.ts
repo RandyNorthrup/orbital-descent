@@ -8,6 +8,8 @@ const BASE_OPTIONS: GenerateStarfieldOptions = {
   count: 50,
   maxRadius: 1.4,
   maxAlpha: 0.9,
+  sparkleFraction: 0.15,
+  sparkleRadiusMultiplier: 2.5,
 };
 
 describe('generateStarfield', () => {
@@ -25,7 +27,7 @@ describe('generateStarfield', () => {
     expect(generateStarfield(BASE_OPTIONS)).toHaveLength(BASE_OPTIONS.count);
   });
 
-  it('keeps every star within the configured bounds', () => {
+  it('keeps every star within the configured bounds (sparkles allowed up to the multiplied radius)', () => {
     const stars = generateStarfield(BASE_OPTIONS);
     for (const star of stars) {
       expect(star.x).toBeGreaterThanOrEqual(0);
@@ -33,9 +35,27 @@ describe('generateStarfield', () => {
       expect(star.y).toBeGreaterThanOrEqual(0);
       expect(star.y).toBeLessThanOrEqual(BASE_OPTIONS.height);
       expect(star.radius).toBeGreaterThanOrEqual(0);
-      expect(star.radius).toBeLessThanOrEqual(BASE_OPTIONS.maxRadius);
+      expect(star.radius).toBeLessThanOrEqual(
+        star.sparkle
+          ? BASE_OPTIONS.maxRadius * BASE_OPTIONS.sparkleRadiusMultiplier
+          : BASE_OPTIONS.maxRadius,
+      );
       expect(star.alpha).toBeGreaterThanOrEqual(0);
       expect(star.alpha).toBeLessThanOrEqual(BASE_OPTIONS.maxAlpha);
     }
+  });
+
+  it('produces a mix of sparkles and dots at a nonzero sparkle fraction', () => {
+    const stars = generateStarfield({ ...BASE_OPTIONS, count: 200 });
+    const sparkles = stars.filter((star) => star.sparkle).length;
+    expect(sparkles).toBeGreaterThan(0);
+    expect(sparkles).toBeLessThan(stars.length);
+  });
+
+  it('produces no sparkles at fraction 0 and only sparkles at fraction 1', () => {
+    const none = generateStarfield({ ...BASE_OPTIONS, sparkleFraction: 0 });
+    const all = generateStarfield({ ...BASE_OPTIONS, sparkleFraction: 1 });
+    expect(none.every((star) => !star.sparkle)).toBe(true);
+    expect(all.every((star) => star.sparkle)).toBe(true);
   });
 });

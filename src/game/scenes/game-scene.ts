@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import {
+  COMBATANT_ACCENT_DARKEN_FRACTION,
   COMBATANT_COLLISION_RADIUS,
   COMBATANT_FILL_COLOR_BOTTOM,
   COMBATANT_FILL_COLOR_TOP,
@@ -16,7 +17,6 @@ import {
   HUD_MARGIN,
   LANDED_COLOR_BOTTOM,
   LANDED_COLOR_TOP,
-  LANDER_ETCH_LINE_COUNT,
   LANDER_LAYER_DEPTH,
   LANDER_RADIUS,
   LANDER_START_X,
@@ -34,6 +34,8 @@ import {
   PARTICLE_DOT_MAX_ALPHA,
   PARTICLE_DOT_RADIUS_PX,
   PROJECTILE_COLOR,
+  PROJECTILE_GLOW_MAX_ALPHA,
+  PROJECTILE_GLOW_RADIUS,
   PROJECTILE_RADIUS,
   RESULT_TRANSITION_DELAY_MS,
   SCORE_BASE_LANDING_BONUS,
@@ -134,6 +136,9 @@ import {
 } from '../terrain/terrain-generator';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createPaperShape, type PaperShape } from '../rendering/paper-shape';
+import { createShipVisual, type ShipVisual } from '../rendering/ship-visual';
+import { darken } from '../rendering/color-mix';
+import { findCombatantSilhouette } from '../combat/combatant-silhouette';
 import { createRadialGlowImage, bakeRadialGlowTexture } from '../rendering/radial-glow';
 import { buildBackground } from '../rendering/background';
 import {
@@ -166,6 +171,7 @@ const LANDER_TEXTURE_KEY = 'paper-fill-lander';
 const TERRAIN_TEXTURE_KEY = 'paper-fill-terrain';
 const LANDING_PAD_TEXTURE_KEY = 'paper-fill-landing-pad';
 const ENGINE_GLOW_TEXTURE_KEY = 'lander-engine-glow';
+const PROJECTILE_GLOW_TEXTURE_KEY = 'projectile-glow';
 const OBSTACLE_TEXTURE_KEY_PREFIX = 'paper-fill-obstacle-';
 /** Fewer etched strokes than the full terrain ground (`TERRAIN_ETCH_LINE_COUNT`)
  * — an obstacle's silhouette is much smaller, so the same density would
@@ -184,6 +190,11 @@ const OBSTACLE_ETCH_LINE_COUNT = 5;
  * all up front. */
 const COMBATANT_TEXTURE_KEY_PREFIX = 'paper-fill-combatant-';
 const COMBATANT_ETCH_LINE_COUNT = 3;
+/** Small-piece cut-edge treatment for combatant pieces — same reasoning
+ * as ship-visual.ts's PIECE_OUTLINE_WIDTH/PIECE_SHADOW_OFFSET (the global
+ * outline/shadow proportions swallow fills at this scale). */
+const COMBATANT_PIECE_OUTLINE_WIDTH = 2;
+const COMBATANT_PIECE_SHADOW_OFFSET = 3;
 /** Milestone 13's particle-dot textures — one baked color per emitter (see
  * `PARTICLE_DOT_RADIUS_PX`'s own doc comment in constants.ts for why baking
  * beats Phaser's runtime tint). `combatantHit`/`combatantDefeated` share
@@ -199,10 +210,13 @@ type GameOutcome = 'flying' | FlightOutcome;
 
 /** One live projectile in flight plus the Phaser display object tracking it
  * — `state` is reassigned each tick (immutable data, mutable box), matching
- * this scene's existing `equipmentProgress`-style plain-field convention. */
+ * this scene's existing `equipmentProgress`-style plain-field convention.
+ * The visual is a container since Milestone 14: a soft radial glow behind
+ * the bolt circle, so a shot reads as an energy bolt, not a flat dot —
+ * destroying the container destroys both pieces. */
 interface LiveProjectile {
   state: Projectile;
-  readonly visual: Phaser.GameObjects.Arc;
+  readonly visual: Phaser.GameObjects.Container;
 }
 
 /** One live combatant plus its paper-shape visual — same mutable-box
@@ -297,7 +311,7 @@ export class GameScene extends Phaser.Scene {
   private thrustBoostBonusAccel = 0;
   private flightState!: FlightState;
   private terrain!: Terrain;
-  private lander!: PaperShape;
+  private lander!: ShipVisual;
   private outcome: GameOutcome = 'flying';
   /** Real flight duration so far, in ms — one of calculateScore's three
    * factors. Only accumulates while this scene's update() actually runs,
@@ -516,7 +530,7 @@ export class GameScene extends Phaser.Scene {
     // base with real encounters.
     this.hullText = null;
 
-    buildBackground(this);
+    buildBackground(this, this.body);
 
     // A curated base's own terrainOptions generate a fixed, repeatable
     // layout (the puzzle this specific base authors); free flight (no
@@ -563,16 +577,13 @@ export class GameScene extends Phaser.Scene {
       hazard: this.effectiveHazard,
     });
 
-    this.lander = createPaperShape(this, {
-      points: [
-        { x: 0, y: -LANDER_RADIUS },
-        { x: -LANDER_RADIUS, y: LANDER_RADIUS },
-        { x: LANDER_RADIUS, y: LANDER_RADIUS },
-      ],
-      textureKey: LANDER_TEXTURE_KEY,
-      fillTopColor: this.ship.hullFillColorTop,
-      fillBottomColor: this.ship.hullFillColorBottom,
-      etchLineCount: LANDER_ETCH_LINE_COUNT,
+    // Milestone 14: the ship renders as its archetype's own multi-piece
+    // papercraft silhouette (ships/silhouette.ts + rendering/ship-visual.ts)
+    // in its own hull colors — collision stays the fixed LANDER_RADIUS
+    // circle, unchanged; only artwork changed.
+    this.lander = createShipVisual(this, {
+      ship: this.ship,
+      textureKeyPrefix: LANDER_TEXTURE_KEY,
     });
     this.lander.container.setPosition(LANDER_START_X, LANDER_START_Y);
     this.lander.container.setDepth(LANDER_LAYER_DEPTH);
@@ -580,12 +591,9 @@ export class GameScene extends Phaser.Scene {
     // A static glow accent at the engine base — part of the ship's own
     // artwork per the approved art direction, always present regardless of
     // whether thrust is actually held. `buildParticleEmitters()` below adds
-    // this milestone's own thrust-*reactive* particle exhaust on top of
-    // this same static halo, not instead of it.
-    // createPaperShape builds the container as [shadow, fill, outline];
-    // addAt(engineGlow, 1) below inserts it directly above the opaque hard
-    // shadow but below the hull fill/outline, so the halo reads around the
-    // hull instead of being crushed underneath the shadow silhouette.
+    // Milestone 13's thrust-*reactive* particle exhaust on top of this same
+    // static halo, not instead of it. addAt(0) keeps the halo behind every
+    // paper piece of the craft, so it reads as glow *around* the hull base.
     const engineGlow = createRadialGlowImage(
       this,
       ENGINE_GLOW_TEXTURE_KEY,
@@ -595,7 +603,7 @@ export class GameScene extends Phaser.Scene {
       ENGINE_GLOW_COLOR,
       ENGINE_GLOW_MAX_ALPHA,
     );
-    this.lander.container.addAt(engineGlow, 1);
+    this.lander.container.addAt(engineGlow, 0);
 
     this.buildParticleEmitters();
 
@@ -1023,22 +1031,47 @@ export class GameScene extends Phaser.Scene {
    * after). Depth matches the lander's own layer — a combatant is airborne,
    * not part of the ground plane. */
   private buildCombatantVisual(state: CombatantState): PaperShape {
-    const shape = createPaperShape(this, {
-      points: [
-        { x: 0, y: -COMBATANT_COLLISION_RADIUS },
-        { x: COMBATANT_COLLISION_RADIUS, y: 0 },
-        { x: 0, y: COMBATANT_COLLISION_RADIUS },
-        { x: -COMBATANT_COLLISION_RADIUS, y: 0 },
-      ],
-      textureKey: `${COMBATANT_TEXTURE_KEY_PREFIX}${(this.combatantSpawnCounter++).toString()}`,
+    // Milestone 14: each hostile type renders as its own multi-piece
+    // papercraft silhouette (combat/combatant-silhouette.ts) — wing/armor
+    // accents in a darkened hostile violet behind the body — instead of
+    // the one shared diamond. Per-instance unique texture keys, unchanged
+    // (Milestone 11's shared-texture-key lesson).
+    const silhouette = findCombatantSilhouette(state.definition.id);
+    const keyBase = `${COMBATANT_TEXTURE_KEY_PREFIX}${(this.combatantSpawnCounter++).toString()}`;
+    const accentTop = darken(COMBATANT_FILL_COLOR_TOP, COMBATANT_ACCENT_DARKEN_FRACTION);
+    const accentBottom = darken(COMBATANT_FILL_COLOR_BOTTOM, COMBATANT_ACCENT_DARKEN_FRACTION);
+
+    const accents = silhouette.accentPolygons.map((points, index) =>
+      createPaperShape(this, {
+        points,
+        textureKey: `${keyBase}-accent-${index.toString()}`,
+        fillTopColor: accentTop,
+        fillBottomColor: accentBottom,
+        outlineWidth: COMBATANT_PIECE_OUTLINE_WIDTH,
+        shadowOffset: COMBATANT_PIECE_SHADOW_OFFSET,
+      }),
+    );
+    const body = createPaperShape(this, {
+      points: silhouette.bodyPoints,
+      textureKey: `${keyBase}-body`,
       fillTopColor: COMBATANT_FILL_COLOR_TOP,
       fillBottomColor: COMBATANT_FILL_COLOR_BOTTOM,
       etchLineCount: COMBATANT_ETCH_LINE_COUNT,
       etchStyle: 'rock',
+      outlineWidth: COMBATANT_PIECE_OUTLINE_WIDTH,
+      shadowOffset: COMBATANT_PIECE_SHADOW_OFFSET,
     });
-    shape.container.setPosition(state.position.x, state.position.y);
-    shape.container.setDepth(LANDER_LAYER_DEPTH);
-    return shape;
+
+    const container = this.add.container(state.position.x, state.position.y, [
+      ...accents.map((accent) => accent.container),
+      body.container,
+    ]);
+    container.setDepth(LANDER_LAYER_DEPTH);
+
+    // Same {container, setFillColors} contract every call site already
+    // uses — a recolor (none exists for combatants today) would recolor
+    // the body; accents keep their fixed darkened shade.
+    return { container, setFillColors: body.setFillColors };
   }
 
   /**
@@ -1417,12 +1450,25 @@ export class GameScene extends Phaser.Scene {
       WEAPON_PROJECTILE_SPEED,
       item.damage,
     );
-    const visual = this.add.circle(
-      projectile.position.x,
-      projectile.position.y,
-      PROJECTILE_RADIUS,
-      PROJECTILE_COLOR,
-    );
+    // Milestone 14: a soft glow halo behind the bolt. The glow texture is
+    // parameter-identical for every shot, so it's baked at most ONCE and
+    // then only referenced — never rebaked while earlier shots' live
+    // images still hold the old texture (the shared/rebaked-texture-key
+    // defect class Milestones 11 and 13 each hit once already; a
+    // rebake-per-shot here would destroy every in-flight bolt's glow).
+    if (!this.textures.exists(PROJECTILE_GLOW_TEXTURE_KEY)) {
+      bakeRadialGlowTexture(
+        this,
+        PROJECTILE_GLOW_TEXTURE_KEY,
+        PROJECTILE_GLOW_RADIUS,
+        PROJECTILE_COLOR,
+        PROJECTILE_GLOW_MAX_ALPHA,
+      );
+    }
+    const glow = this.add.image(0, 0, PROJECTILE_GLOW_TEXTURE_KEY);
+    const bolt = this.add.circle(0, 0, PROJECTILE_RADIUS, PROJECTILE_COLOR);
+    const visual = this.add.container(projectile.position.x, projectile.position.y, [glow, bolt]);
+    visual.setDepth(LANDER_LAYER_DEPTH);
     this.liveProjectiles.push({ state: projectile, visual });
     this.weaponCooldownRemainingMs = item.cooldownMs;
     this.data.set('lastTriggeredWeaponId', weaponId);

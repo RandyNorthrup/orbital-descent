@@ -8,11 +8,22 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 13 (Audio, Juice & Accessibility Pass)
-certified — see `PLAN.md`'s Milestone 13 section for the full
-certification writeup. Every visual in this game is generated
+**Current status**: Milestone 14 (Production Art Pass, "Papercraft
+Diorama" — Decision D21) certified — see `PLAN.md`'s Milestone 14 section
+for the full certification writeup. Every one of the 12 fictional worlds
+now has its own hand-authored sky identity (scalloped paper cloud banks
+and floating cloud puffs on atmosphere worlds, cratered glowing moons, a
+companion moon and denser starfield on airless worlds, 4-point sparkle
+stars, smooth rim-lit parallax ridges), every ship flies as its own
+multi-piece papercraft craft (distinct hull per archetype, darkened fins,
+porthole) shown per-row on SHIP SELECT, each hostile type has its own
+silhouette, projectiles glow, the menu is a title diorama, and the WORLD
+MAP shows the full 12-world registry with per-world planet discs
+(worlds without a surveyed base yet appear as "(UNCHARTED)"). On top of:
+Milestone 13 (Audio, Juice & Accessibility Pass,
+certified). Every visual in this game is generated
 procedurally at runtime (no external asset pipeline — see the
-Architecture section below); as of this milestone, audio follows the same
+Architecture section below); audio follows the same
 convention: five sound cues (thrust, landing, crash, weapon fire,
 achievement unlock) are synthesized live via the Web Audio API, not
 loaded from `.mp3`/`.wav`/`.ogg` files. Thruster exhaust, obstacle/

@@ -38,6 +38,13 @@ function makeBody(gravityAccel: number, hazard: Hazard = null): CelestialBody {
     atmosphereDensity: 0,
     hazard,
     terrainPalette: { fillTopColor: 0x000000, fillBottomColor: 0xffffff, etchStyle: 'rock' },
+    skyPalette: {
+      skyTopColor: 0x000000,
+      skyBottomColor: 0xffffff,
+      moonColor: 0xffffff,
+      ridgeColor: 0x888888,
+      starColor: 0xffffff,
+    },
     distance: 0,
   };
 }

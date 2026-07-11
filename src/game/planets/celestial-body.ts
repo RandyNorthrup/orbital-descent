@@ -11,6 +11,36 @@ interface TerrainPalette {
   readonly etchStyle: EtchStyle;
 }
 
+/**
+ * A world's full sky/background identity (PLAN.md Milestone 14, the
+ * papercraft-diorama art pass) — six hand-authored anchor colors per world.
+ * Every derived shade (cloud rims/undersides, moon craters/glow, the
+ * atmospheric far-ridge fade) comes from these via `rendering/color-mix.ts`
+ * with shared, named fractions, so twelve worlds stay twelve *palettes*
+ * sharing one lighting logic — not twelve independently-invented looks.
+ *
+ * Not exported — consumers only ever name it as `CelestialBody.skyPalette`,
+ * same convention as `TerrainPalette` above.
+ */
+interface SkyPalette {
+  readonly skyTopColor: number;
+  readonly skyBottomColor: number;
+  /** The world's dominant celestial companion — sun or moon by fiction,
+   * one glowing cratered disc either way. */
+  readonly moonColor: number;
+  /** Base cloud paper color — present exactly when the world has a real
+   * atmosphere (`atmosphereDensity > 0`), absent for airless worlds, which
+   * get a companion moon and a denser starfield instead (see
+   * `rendering/background.ts`). Present-iff-atmosphere is pinned by
+   * `bodies.test.ts`, so a palette can't silently promise clouds a world's
+   * own physics says it can't have. */
+  readonly cloudColor?: number;
+  /** Base color of the parallax ridge silhouettes; the far ridge renders
+   * this mixed toward `skyBottomColor` (atmospheric perspective). */
+  readonly ridgeColor: number;
+  readonly starColor: number;
+}
+
 /** Not exported — a consumer narrows `Hazard` by `type`, it never needs to
  * name this member on its own. */
 interface CorrosiveHazard {
@@ -46,6 +76,7 @@ export interface CelestialBody {
   readonly atmosphereDensity: number;
   readonly hazard: Hazard;
   readonly terrainPalette: TerrainPalette;
+  readonly skyPalette: SkyPalette;
   /**
    * Fictional "Transit Units" (TU) — a loose narrative/visual distance
    * for Milestone 6's world map today, and, from Milestone 9.5, the

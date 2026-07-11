@@ -17,6 +17,8 @@ import {
 } from '../constants';
 import type { Base, BaseDifficultyProfile, BaseProgress } from '../bases/base';
 import { BASES, findBodyById } from '../bases/bases';
+import { BODIES } from '../planets/bodies';
+import { createPlanetDiscImage } from '../rendering/planet-disc';
 import {
   establishBase,
   initialBaseProgress,
@@ -94,6 +96,19 @@ const MISSION_CONTINUE_BUTTON_Y_FRACTION = 0.45;
 /** One list entry's worth of vertical space, matching every other scene's
  * stacked-button rhythm (see `UI_BUTTON_ROW_HEIGHT_PX`'s own doc comment). */
 const ROW_HEIGHT_PX = UI_BUTTON_ROW_HEIGHT_PX;
+
+/** Milestone 14's two-column, full-registry world list: 12 worlds split
+ * 6/6 around the center line. Column centers sit ±this offset from
+ * GAME_WIDTH/2 — wide enough that the longest world label ("THORNREACH
+ * EXPANSE (UNCHARTED)" at UI_BODY_FONT_SIZE) stays clear of both the
+ * screen edge and the opposite column; each row's planet disc sits this
+ * far left of its own column center, clear of the widest button label. */
+const WORLD_LIST_ROWS_PER_COLUMN = 6;
+const WORLD_LIST_COLUMN_OFFSET_PX = 235;
+const WORLD_DISC_OFFSET_PX = 165;
+/** Locked/uncharted worlds dim their disc to match their muted text (same
+ * convention as ship-select's locked preview). */
+const WORLD_DISC_LOCKED_ALPHA = 0.45;
 
 /** Extra vertical room below each base's own name/button for its
  * difficulty-badge line, shown separately underneath rather than appended
@@ -421,21 +436,36 @@ export class WorldMapScene extends Phaser.Scene {
         .setOrigin(ORIGIN_CENTER),
     );
 
-    // BASES is already grouped by world in authoring order (Kessel's Reach's
-    // two bases adjacent, etc.) -- a Set over that order preserves each
-    // world's first-appearance position without a separate sort key.
-    const worldIds = [...new Set(BASES.map((base) => base.worldId))];
+    // Milestone 14: the map shows the ENTIRE 12-world registry (BODIES, in
+    // its own authored order — the four base-carrying worlds happen to be
+    // first), each with its own cratered planet-disc art, in two columns of
+    // six. Worlds with authored bases keep their exact previous behavior
+    // (reachable button / "(LOCKED)" text); worlds with no bases yet show
+    // as "(UNCHARTED)" — visible, honest about having nowhere to land, and
+    // non-interactive, so the full system roster finally exists somewhere a
+    // player can actually see it.
     const listStartY = GAME_HEIGHT * LIST_START_Y_FRACTION;
 
-    worldIds.forEach((worldId, index) => {
-      const body = findBodyById(worldId);
-      const y = listStartY + index * ROW_HEIGHT_PX;
+    BODIES.forEach((body, index) => {
+      const worldId = body.id;
+      const columnX =
+        index < WORLD_LIST_ROWS_PER_COLUMN
+          ? GAME_WIDTH / 2 - WORLD_LIST_COLUMN_OFFSET_PX
+          : GAME_WIDTH / 2 + WORLD_LIST_COLUMN_OFFSET_PX;
+      const y = listStartY + (index % WORLD_LIST_ROWS_PER_COLUMN) * ROW_HEIGHT_PX;
       const label = body.name.toUpperCase();
+      const hasBases = this.basesInWorld(worldId).length > 0;
 
-      if (this.worldIsReachable(worldId)) {
+      const disc = createPlanetDiscImage(this, body, columnX - WORLD_DISC_OFFSET_PX, y);
+      if (!hasBases || !this.worldIsReachable(worldId)) {
+        disc.setAlpha(WORLD_DISC_LOCKED_ALPHA);
+      }
+      this.track(disc);
+
+      if (hasBases && this.worldIsReachable(worldId)) {
         this.track(
           createUiButton(this, {
-            x: GAME_WIDTH / 2,
+            x: columnX,
             y,
             label,
             onClick: () => {
@@ -460,7 +490,7 @@ export class WorldMapScene extends Phaser.Scene {
       } else {
         this.track(
           this.add
-            .text(GAME_WIDTH / 2, y, `${label} (LOCKED)`, {
+            .text(columnX, y, `${label} ${hasBases ? '(LOCKED)' : '(UNCHARTED)'}`, {
               fontFamily: 'monospace',
               fontSize: `${UI_BODY_FONT_SIZE_PX.toString()}px`,
               color: hexToCss(UI_MUTED_TEXT_COLOR),

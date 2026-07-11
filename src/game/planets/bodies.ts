@@ -24,6 +24,13 @@ import type { CelestialBody } from './celestial-body';
  *   `cold`) roughly evenly.
  * - `etchStyle` covers all four materials (`rock`, `sand`, `water`,
  *   `foliage`) at least twice each.
+ * - `skyPalette` (Milestone 14, papercraft-diorama art pass): each world's
+ *   six hand-authored sky anchor colors, designed to harmonize with its own
+ *   `terrainPalette` and to *communicate* its hazard — corrosive worlds get
+ *   jaundiced/acid skies, cold worlds frost-blue ones. `cloudColor` is
+ *   present exactly when `atmosphereDensity > 0` (airless worlds render a
+ *   companion moon and denser stars instead of clouds — pinned by
+ *   `bodies.test.ts`).
  *
  * Kessel's Reach's `gravityAccel` (18) and terrain palette colors are a
  * byte-for-byte match to this project's original Milestone 1/2 hardcoded
@@ -48,6 +55,16 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: null,
     distance: 0,
     terrainPalette: { fillTopColor: 0x8f8aa8, fillBottomColor: 0x4a4560, etchStyle: 'rock' },
+    // Home world: deep indigo night under a warm gold moon — the game's
+    // signature look. Airless, so no cloudColor: its sky gets a companion
+    // moon and a denser starfield instead.
+    skyPalette: {
+      skyTopColor: 0x191434,
+      skyBottomColor: 0x4d3d78,
+      moonColor: 0xf6d77c,
+      ridgeColor: 0x5c5288,
+      starColor: 0xfff2d0,
+    },
   },
   {
     id: 'verdalis',
@@ -57,6 +74,15 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: null,
     distance: 42,
     terrainPalette: { fillTopColor: 0xd9c191, fillBottomColor: 0x9c8054, etchStyle: 'sand' },
+    // Golden prairie dusk: green-gold horizon over sand-colored plains.
+    skyPalette: {
+      skyTopColor: 0x1c2618,
+      skyBottomColor: 0x5d7a43,
+      moonColor: 0xf8e8a8,
+      cloudColor: 0xa4bd7f,
+      ridgeColor: 0x66854e,
+      starColor: 0xf0ffd8,
+    },
   },
   {
     id: 'pyrrhine-expanse',
@@ -66,6 +92,16 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: { type: 'corrosive', fuelDrainRate: 4 },
     distance: 95,
     terrainPalette: { fillTopColor: 0xa8b877, fillBottomColor: 0x5c6b3f, etchStyle: 'rock' },
+    // Corrosive world: a jaundiced acid-amber haze — the sky itself warns
+    // you about the fuel drain.
+    skyPalette: {
+      skyTopColor: 0x27200e,
+      skyBottomColor: 0x7d6a28,
+      moonColor: 0xe0e070,
+      cloudColor: 0xa89f56,
+      ridgeColor: 0x6b6534,
+      starColor: 0xf4eec2,
+    },
   },
   {
     id: 'glacian-drift',
@@ -75,6 +111,16 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: { type: 'cold', thrustEfficiency: 0.7 },
     distance: 210,
     terrainPalette: { fillTopColor: 0xd8ecf5, fillBottomColor: 0x8fb8c9, etchStyle: 'water' },
+    // Cold world: steel-blue polar night, an ice-white moon over glacier
+    // blues.
+    skyPalette: {
+      skyTopColor: 0x0e1a2e,
+      skyBottomColor: 0x3c5c84,
+      moonColor: 0xeaf6ff,
+      cloudColor: 0x8cb6da,
+      ridgeColor: 0x4a7098,
+      starColor: 0xffffff,
+    },
   },
   {
     id: 'thessaly-shoals',
@@ -84,6 +130,16 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: null,
     distance: 15,
     terrainPalette: { fillTopColor: 0x8fd0c0, fillBottomColor: 0x3f7d6e, etchStyle: 'water' },
+    // Deep-blue sea night — royal-blue wave ridges under a bright gold
+    // moon (the classic moonlit-water diorama).
+    skyPalette: {
+      skyTopColor: 0x0c1f3c,
+      skyBottomColor: 0x20497a,
+      moonColor: 0xffd76e,
+      cloudColor: 0x5f88c0,
+      ridgeColor: 0x2c5c94,
+      starColor: 0xd6ecff,
+    },
   },
   {
     id: 'umbral-fen',
@@ -93,6 +149,16 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: { type: 'corrosive', fuelDrainRate: 2 },
     distance: 60,
     terrainPalette: { fillTopColor: 0x6b8f5c, fillBottomColor: 0x35472c, etchStyle: 'foliage' },
+    // Corrosive swamp: murky violet dusk sinking into bog-green, lit by a
+    // sickly green moon.
+    skyPalette: {
+      skyTopColor: 0x191126,
+      skyBottomColor: 0x3c4c34,
+      moonColor: 0xbce87e,
+      cloudColor: 0x5e7a56,
+      ridgeColor: 0x3d5038,
+      starColor: 0xd8f0c4,
+    },
   },
   {
     id: 'kharun-wastes',
@@ -102,6 +168,16 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: null,
     distance: 30,
     terrainPalette: { fillTopColor: 0xc98a4b, fillBottomColor: 0x7a4f26, etchStyle: 'sand' },
+    // Desert night: plum sky cooling over sun-warmed rust dunes, big amber
+    // moon low on the horizon.
+    skyPalette: {
+      skyTopColor: 0x2c1826,
+      skyBottomColor: 0x8a4b34,
+      moonColor: 0xffc97a,
+      cloudColor: 0xc78d66,
+      ridgeColor: 0x8a5a44,
+      starColor: 0xffe8c4,
+    },
   },
   {
     id: 'solenne-vault',
@@ -111,6 +187,16 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: null,
     distance: 75,
     terrainPalette: { fillTopColor: 0x6a6a76, fillBottomColor: 0x2e2e38, etchStyle: 'rock' },
+    // Highest gravity in the registry, airless: a stark near-black void
+    // with a harsh white moon — the sky itself feels heavy. No cloudColor;
+    // companion moon + dense stars instead.
+    skyPalette: {
+      skyTopColor: 0x0b0b12,
+      skyBottomColor: 0x2c2534,
+      moonColor: 0xfff3d4,
+      ridgeColor: 0x453e52,
+      starColor: 0xffffff,
+    },
   },
   {
     id: 'aurelic-marsh',
@@ -120,6 +206,15 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: { type: 'cold', thrustEfficiency: 0.85 },
     distance: 130,
     terrainPalette: { fillTopColor: 0x9fc9a0, fillBottomColor: 0x547a58, etchStyle: 'foliage' },
+    // Cold marsh under an aurora-green sky — frost-pale moon, mint clouds.
+    skyPalette: {
+      skyTopColor: 0x122016,
+      skyBottomColor: 0x3a6a58,
+      moonColor: 0xdcf2b6,
+      cloudColor: 0x7cb892,
+      ridgeColor: 0x4c7a64,
+      starColor: 0xc8ffd8,
+    },
   },
   {
     id: 'corvexa-shallows',
@@ -138,6 +233,17 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: { type: 'corrosive', fuelDrainRate: 4 },
     distance: 160,
     terrainPalette: { fillTopColor: 0x7fc9b0, fillBottomColor: 0x3a7f68, etchStyle: 'water' },
+    // Corrosive shallows: acid-teal lagoon glow, a pale phosphorescent
+    // moon — beautiful and visibly wrong, like still water you shouldn't
+    // touch.
+    skyPalette: {
+      skyTopColor: 0x0d211f,
+      skyBottomColor: 0x2b6a5c,
+      moonColor: 0xaaf0da,
+      cloudColor: 0x5aa892,
+      ridgeColor: 0x2f7263,
+      starColor: 0xc0fff0,
+    },
   },
   {
     id: 'nimbus-scar',
@@ -147,6 +253,17 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: null,
     distance: 180,
     terrainPalette: { fillTopColor: 0xb0a8c0, fillBottomColor: 0x6a6078, etchStyle: 'rock' },
+    // Thickest atmosphere in the registry — THE cloud world: violet-to-
+    // magenta sky stacked with pink-lavender paper clouds around a bright
+    // gold moon.
+    skyPalette: {
+      skyTopColor: 0x231342,
+      skyBottomColor: 0x7c3a8c,
+      moonColor: 0xffd24a,
+      cloudColor: 0xd9bce8,
+      ridgeColor: 0x6a4a8c,
+      starColor: 0xffe4ff,
+    },
   },
   {
     id: 'thornreach-expanse',
@@ -156,5 +273,15 @@ export const BODIES: readonly [CelestialBody, ...CelestialBody[]] = [
     hazard: { type: 'cold', thrustEfficiency: 0.6 },
     distance: 250,
     terrainPalette: { fillTopColor: 0xe0d8c0, fillBottomColor: 0x9c9480, etchStyle: 'sand' },
+    // Harshest cold in the registry: frozen salt flats under a dim violet
+    // dusk, a frostbitten blue-white moon.
+    skyPalette: {
+      skyTopColor: 0x1b1426,
+      skyBottomColor: 0x4c4a6e,
+      moonColor: 0xd2e2f2,
+      cloudColor: 0x8e8ab2,
+      ridgeColor: 0x5e5c84,
+      starColor: 0xe8f0ff,
+    },
   },
 ];

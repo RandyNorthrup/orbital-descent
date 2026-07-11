@@ -5,6 +5,10 @@ export interface Star {
   readonly y: number;
   readonly radius: number;
   readonly alpha: number;
+  /** A small fraction of stars render as 4-point paper sparkles instead of
+   * plain dots (Milestone 14, matching the reference art's star treatment);
+   * sparkles use a larger radius range so the points actually read. */
+  readonly sparkle: boolean;
 }
 
 export interface GenerateStarfieldOptions {
@@ -14,6 +18,11 @@ export interface GenerateStarfieldOptions {
   readonly count: number;
   readonly maxRadius: number;
   readonly maxAlpha: number;
+  /** 0-1 fraction of stars that are 4-point sparkles rather than dots. */
+  readonly sparkleFraction: number;
+  /** Radius multiplier applied to sparkle stars only — a 4-point shape at
+   * dot size would just read as a slightly blurry dot. */
+  readonly sparkleRadiusMultiplier: number;
 }
 
 /**
@@ -25,11 +34,17 @@ export function generateStarfield(options: GenerateStarfieldOptions): Star[] {
   const random = createSeededRandom(options.seed);
   const stars: Star[] = [];
   for (let i = 0; i < options.count; i += 1) {
+    const x = random() * options.width;
+    const y = random() * options.height;
+    const baseRadius = random() * options.maxRadius;
+    const alpha = random() * options.maxAlpha;
+    const sparkle = random() < options.sparkleFraction;
     stars.push({
-      x: random() * options.width,
-      y: random() * options.height,
-      radius: random() * options.maxRadius,
-      alpha: random() * options.maxAlpha,
+      x,
+      y,
+      radius: sparkle ? baseRadius * options.sparkleRadiusMultiplier : baseRadius,
+      alpha,
+      sparkle,
     });
   }
   return stars;

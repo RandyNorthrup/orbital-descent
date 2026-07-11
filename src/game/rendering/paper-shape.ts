@@ -64,6 +64,15 @@ export interface PaperShapeOptions {
    * `etchLineCount` is also set. Defaults to `'rock'` (today's fully-random
    * scribble look) when omitted. */
   readonly etchStyle?: EtchStyle;
+  /** Outline stroke width override (defaults to the global OUTLINE_WIDTH).
+   * Milestone 14: small multi-piece craft (ship hulls ~14px wide, fins
+   * smaller) need a thinner cut edge — at their size the global 3px stroke
+   * swallows most of the fill (verified against real screenshots: a
+   * white-hulled ship rendered nearly black). */
+  readonly outlineWidth?: number;
+  /** Drop-shadow offset override (defaults to the global SHADOW_OFFSET) —
+   * same small-piece reasoning as `outlineWidth`. */
+  readonly shadowOffset?: number;
 }
 
 export interface PaperShape {
@@ -136,10 +145,13 @@ export function createPaperShape(scene: Phaser.Scene, options: PaperShapeOptions
   const height = bounds.maxY - bounds.minY;
   const localPoints = options.points.map((p) => ({ x: p.x - bounds.minX, y: p.y - bounds.minY }));
 
+  const outlineWidth = options.outlineWidth ?? OUTLINE_WIDTH;
+  const shadowOffset = options.shadowOffset ?? SHADOW_OFFSET;
+
   const shadow = scene.add.graphics();
   shadow.fillStyle(OUTLINE_COLOR, FULL_ALPHA);
   shadow.fillPoints(vector2Points, true);
-  shadow.setPosition(SHADOW_OFFSET, SHADOW_OFFSET);
+  shadow.setPosition(shadowOffset, shadowOffset);
 
   const bakeFill = (topColor: number, bottomColor: number): void => {
     bakeCanvasTexture(scene, options.textureKey, width, height, (ctx) => {
@@ -190,7 +202,7 @@ export function createPaperShape(scene: Phaser.Scene, options: PaperShapeOptions
   );
 
   const outline = scene.add.graphics();
-  outline.lineStyle(OUTLINE_WIDTH, OUTLINE_COLOR, FULL_ALPHA);
+  outline.lineStyle(outlineWidth, OUTLINE_COLOR, FULL_ALPHA);
   outline.strokePoints(vector2Points, true);
 
   const container = scene.add.container(0, 0, [shadow, fillImage, outline]);

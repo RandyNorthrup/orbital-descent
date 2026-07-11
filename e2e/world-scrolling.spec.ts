@@ -14,13 +14,21 @@ const BOOT_TIMEOUT_MS = 10000;
 // GAME_HEIGHT, rather than importing src/game/constants into an e2e spec.
 const GAME_WIDTH = 960;
 const WORLD_WIDTH = 2880;
-const SKY_LAYER_DEPTH = -3;
-const FAR_RIDGE_LAYER_DEPTH = -2;
-const MID_RIDGE_LAYER_DEPTH = -1;
+// Milestone 14 renumbered the depth planes to make room for the two cloud
+// layers (band behind the far ridge, puffs in front of the mid ridge).
+// The cloud planes themselves only exist on worlds with an atmosphere —
+// this spec's free flight runs on the airless default world, so only the
+// always-present planes are asserted non-empty below; the cloud factors
+// still participate in the monotonicity chain.
+const SKY_LAYER_DEPTH = -5;
+const FAR_RIDGE_LAYER_DEPTH = -3;
+const MID_RIDGE_LAYER_DEPTH = -2;
 const HUD_LAYER_DEPTH = 2;
 const SKY_SCROLL_FACTOR = 0.05;
+const CLOUD_BAND_SCROLL_FACTOR = 0.12;
 const FAR_RIDGE_SCROLL_FACTOR = 0.2;
 const MID_RIDGE_SCROLL_FACTOR = 0.5;
+const CLOUD_PUFF_SCROLL_FACTOR = 0.7;
 const DEFAULT_SCROLL_FACTOR = 1;
 
 async function bootGame(page: Page): Promise<void> {
@@ -128,10 +136,14 @@ test('every background parallax layer scrolls at its configured depth-plane spee
   }
   // Each plane's factor must actually increase with proximity — catches a
   // copy/paste slip swapping two layers' scroll-factor constants even if
-  // each individually matched some *other* real constant.
-  expect(SKY_SCROLL_FACTOR).toBeLessThan(FAR_RIDGE_SCROLL_FACTOR);
+  // each individually matched some *other* real constant. The cloud
+  // planes' factors join the chain here even though this airless-world
+  // flight renders no cloud objects to sample.
+  expect(SKY_SCROLL_FACTOR).toBeLessThan(CLOUD_BAND_SCROLL_FACTOR);
+  expect(CLOUD_BAND_SCROLL_FACTOR).toBeLessThan(FAR_RIDGE_SCROLL_FACTOR);
   expect(FAR_RIDGE_SCROLL_FACTOR).toBeLessThan(MID_RIDGE_SCROLL_FACTOR);
-  expect(MID_RIDGE_SCROLL_FACTOR).toBeLessThan(DEFAULT_SCROLL_FACTOR);
+  expect(MID_RIDGE_SCROLL_FACTOR).toBeLessThan(CLOUD_PUFF_SCROLL_FACTOR);
+  expect(CLOUD_PUFF_SCROLL_FACTOR).toBeLessThan(DEFAULT_SCROLL_FACTOR);
 });
 
 test('HUD stays screen-fixed regardless of camera position (Milestone 2.5)', async ({ page }) => {

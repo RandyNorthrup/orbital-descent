@@ -8,6 +8,37 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Added
 
+- **Milestone 14 — Production Art Pass, "Papercraft Diorama" (Decision
+  D21, certified)**: the full-game visual overhaul to the reference-art
+  standard, on top of D18's unchanged technique stack (gradient paper
+  fills, grain, outlines, hard shadows, everything baked at runtime —
+  still zero external assets). Every world now has its own hand-authored
+  six-color `skyPalette` (all 12 bodies, palette-communicates-hazard:
+  corrosive = acid skies, cold = frost blues), rendered as scalloped
+  horizon cloud banks + floating paper cloud puffs (atmosphere worlds),
+  cratered glowing moons, a companion moon + denser starfield on airless
+  worlds, 4-point sparkle stars, and smooth rim-lit opaque parallax
+  ridges on a near-dark/far-pale value ladder — every layout seeded
+  per-world, every derived shade computed by the new pure
+  `rendering/color-mix.ts` through shared named fractions. Every ship
+  now flies as its archetype's own multi-piece papercraft craft
+  (`ships/silhouette.ts` + `rendering/ship-visual.ts`: darkened fins,
+  gradient hull, outlined porthole — 7 distinct hull families), shown
+  per-row on SHIP SELECT; each hostile type has its own silhouette
+  (`combat/combatant-silhouette.ts`: winged wasp vs. armored warden);
+  projectiles gained a bake-once glow halo; the menu is now a title
+  diorama over the home world's sky; and the WORLD MAP shows the entire
+  12-world registry (two columns, per-world cratered planet discs,
+  baseless worlds as dimmed non-interactive "(UNCHARTED)" rows). Tuned
+  against real screenshots at every step — four corrections came from
+  looking at rendered pixels rather than code (opaque ridges instead of
+  translucent wash, an explicit ridge value ladder, per-piece
+  outline/shadow overrides so small hulls aren't swallowed by the global
+  stroke, a dark chip behind the menu stat line). 8 new/extended
+  unit-test files (585 tests total); `world-scrolling.spec.ts` updated
+  for the two new cloud depth planes. See `PLAN.md`'s Milestone 14
+  section for the full writeup.
+
 - **Milestone 13 — Audio, Juice & Accessibility Pass (certified)**:
   procedurally-synthesized sound cues, matching this
   project's existing "everything generated at runtime, nothing loaded from

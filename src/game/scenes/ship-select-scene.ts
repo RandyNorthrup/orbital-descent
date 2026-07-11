@@ -26,6 +26,7 @@ import {
 } from '../persistence/ship-progress';
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
 import { hexToCss } from '../rendering/canvas-texture-utils';
+import { createShipVisual } from '../rendering/ship-visual';
 import { createUiButton } from '../rendering/ui-button';
 import { SCENE_KEY_MENU, SCENE_KEY_SHIP_SELECT } from './scene-keys';
 import { ArmedKeyGuard, requireKeyboard } from './scene-utils';
@@ -70,6 +71,18 @@ const BACK_BUTTON_GAP_PX = 24;
  * "no automated collision detection, hand-verified margin" convention as
  * `BACK_BUTTON_GAP_PX` above. */
 const NAME_COLUMN_OFFSET_PX = 190;
+
+/** Where each row's papercraft ship preview (Milestone 14) sits — left of
+ * the name column with real clearance: the widest name text ("COURIER
+ * (SELECTED)", centered at x=290) reaches to ~x=175, and a preview's art
+ * extent is ±18px around this center (silhouette.test.ts pins that bound),
+ * so 120 keeps ~35px of daylight between icon and text. */
+const SHIP_PREVIEW_X_PX = 120;
+
+/** A locked ship's preview renders dimmed to match its muted text — still
+ * visibly its own hull family (that's part of what a price is buying), but
+ * clearly not flyable yet. */
+const LOCKED_PREVIEW_ALPHA = 0.45;
 
 /** Where each row's stat tag starts, right of center -- left-anchored (not
  * centered) so its start position doesn't shift with the tag's own text
@@ -207,6 +220,22 @@ export class ShipSelectScene extends Phaser.Scene {
     const name = ship.name.toUpperCase();
     const nameColumnX = GAME_WIDTH / 2 - NAME_COLUMN_OFFSET_PX;
     const statColumnX = GAME_WIDTH / 2 + STAT_COLUMN_OFFSET_PX;
+
+    // Milestone 14: each row shows its ship's actual papercraft hull, in
+    // its own colors — the roster finally looks like a hangar, not a text
+    // list. Texture keys are per-ship-id (never shared across live
+    // previews — Milestone 11's texture-key lesson), and renderView()
+    // destroys the previous roster before this rebake, so each key has
+    // exactly one live owner at any moment.
+    const preview = createShipVisual(this, {
+      ship,
+      textureKeyPrefix: `ship-preview-${ship.id}`,
+    });
+    preview.container.setPosition(SHIP_PREVIEW_X_PX, y);
+    if (!available) {
+      preview.container.setAlpha(LOCKED_PREVIEW_ALPHA);
+    }
+    this.track(preview.container);
 
     if (!available) {
       this.track(

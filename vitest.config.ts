@@ -68,6 +68,11 @@ export default defineConfig({
         'src/game/effects/**/*.ts',
         'src/game/rendering/starfield.ts',
         'src/game/rendering/ridgeline.ts',
+        // Milestone 14's pure papercraft-layout/color generators — same
+        // seeded-pure-function shape as starfield/ridgeline above.
+        'src/game/rendering/color-mix.ts',
+        'src/game/rendering/cloud-bank.ts',
+        'src/game/rendering/moon-craters.ts',
       ],
       exclude: ['src/**/*.test.ts', 'src/**/*.integration.test.ts'],
       thresholds: {

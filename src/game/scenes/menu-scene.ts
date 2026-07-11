@@ -2,7 +2,10 @@ import Phaser from 'phaser';
 import {
   GAME_HEIGHT,
   GAME_WIDTH,
+  UI_BUTTON_BG_COLOR,
   UI_BUTTON_FONT_SIZE_PX,
+  UI_BUTTON_PADDING_X,
+  UI_BUTTON_PADDING_Y,
   UI_BUTTON_ROW_HEIGHT_PX,
   UI_MUTED_TEXT_COLOR,
   UI_TEXT_COLOR,
@@ -11,6 +14,8 @@ import {
 import { loadHighScores } from '../persistence/high-scores';
 import { initialCurrencyState, loadCurrencyState } from '../persistence/currency-progress';
 import { getSafeLocalStorage } from '../persistence/safe-local-storage';
+import { BODIES } from '../planets/bodies';
+import { buildBackground } from '../rendering/background';
 import { hexToCss } from '../rendering/canvas-texture-utils';
 import { createUiButton } from '../rendering/ui-button';
 import {
@@ -61,6 +66,11 @@ export class MenuScene extends Phaser.Scene {
     this.keyEnter = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.startGuard = new ArmedKeyGuard(this.keyEnter);
 
+    // Title diorama (Milestone 14): the home world's own papercraft sky
+    // behind the menu, replacing the flat page-background color — the
+    // first thing a player ever sees now shows the game's actual art.
+    buildBackground(this, BODIES[0]);
+
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT * TITLE_Y_FRACTION, 'ORBITAL DESCENT', {
         fontFamily: 'monospace',
@@ -90,11 +100,17 @@ export class MenuScene extends Phaser.Scene {
       bestScore === undefined
         ? `BALANCE: ${balance.toString()} CREDITS`
         : `BEST: ${bestScore.toString()} · BALANCE: ${balance.toString()} CREDITS`;
+    // Same dark chip the buttons use — over the Milestone 14 diorama
+    // backdrop, bare muted text lands on the mid-tone ridge band and
+    // becomes illegible without a backing (verified against a real
+    // screenshot).
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT * STAT_LINE_Y_FRACTION, statLine, {
         fontFamily: 'monospace',
         fontSize: `${UI_BUTTON_FONT_SIZE_PX.toString()}px`,
         color: hexToCss(UI_MUTED_TEXT_COLOR),
+        backgroundColor: hexToCss(UI_BUTTON_BG_COLOR),
+        padding: { x: UI_BUTTON_PADDING_X, y: UI_BUTTON_PADDING_Y },
       })
       .setOrigin(ORIGIN_CENTER);
 

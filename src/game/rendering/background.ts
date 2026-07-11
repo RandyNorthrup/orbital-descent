@@ -1,8 +1,35 @@
 import Phaser from 'phaser';
 import {
+  AIRLESS_STAR_COUNT_MULTIPLIER,
+  CLOUD_BAND_BACK_ROW_RISE_PX,
+  CLOUD_BAND_BASELINE_Y_FRACTION,
+  CLOUD_BAND_JITTER_Y_PX,
+  CLOUD_BAND_LAYER_DEPTH,
+  CLOUD_BAND_MAX_RADIUS_PX,
+  CLOUD_BAND_MIN_RADIUS_PX,
+  CLOUD_BAND_OVERLAP_FRACTION,
+  CLOUD_BAND_SCROLL_FACTOR,
+  CLOUD_BAND_SEED,
+  CLOUD_LIT_LIGHTEN_FRACTION,
+  CLOUD_PUFF_CORE_RADIUS_PX,
+  CLOUD_PUFF_COUNT,
+  CLOUD_PUFF_LAYER_DEPTH,
+  CLOUD_PUFF_MAX_SCALE,
+  CLOUD_PUFF_MAX_Y_FRACTION,
+  CLOUD_PUFF_MIN_SCALE,
+  CLOUD_PUFF_MIN_Y_FRACTION,
+  CLOUD_PUFF_SCROLL_FACTOR,
+  CLOUD_PUFF_SEED,
+  CLOUD_RIM_LIGHTEN_FRACTION,
+  CLOUD_RIM_OFFSET_PX,
+  CLOUD_SHADE_DARKEN_FRACTION,
+  COMPANION_MOON_CENTER_X_FRACTION,
+  COMPANION_MOON_CENTER_Y_FRACTION,
+  COMPANION_MOON_CRATER_COUNT,
+  COMPANION_MOON_RADIUS,
+  COMPANION_MOON_SKY_MIX_FRACTION,
   FAR_RIDGE_ALPHA,
   FAR_RIDGE_BLUR_PX,
-  FAR_RIDGE_COLOR,
   FAR_RIDGE_LAYER_DEPTH,
   FAR_RIDGE_MAX_HEIGHT_FRACTION,
   FAR_RIDGE_MAX_STEP_FRACTION,
@@ -10,11 +37,12 @@ import {
   FAR_RIDGE_SCROLL_FACTOR,
   FAR_RIDGE_SEED,
   FAR_RIDGE_SEGMENTS,
+  FAR_RIDGE_SKY_MIX_FRACTION,
   GAME_HEIGHT,
   GAME_WIDTH,
   MID_RIDGE_ALPHA,
   MID_RIDGE_BLUR_PX,
-  MID_RIDGE_COLOR,
+  MID_RIDGE_DARKEN_FRACTION,
   MID_RIDGE_LAYER_DEPTH,
   MID_RIDGE_MAX_HEIGHT_FRACTION,
   MID_RIDGE_MAX_STEP_FRACTION,
@@ -24,25 +52,34 @@ import {
   MID_RIDGE_SEGMENTS,
   MOON_CENTER_X_FRACTION,
   MOON_CENTER_Y_FRACTION,
-  MOON_COLOR,
-  MOON_GLOW_COLOR,
+  MOON_CRATER_COUNT,
+  MOON_CRATER_DARKEN_FRACTION,
+  MOON_CRATER_MAX_RADIUS_FRACTION,
+  MOON_CRATER_MIN_RADIUS_FRACTION,
+  MOON_CRATER_SEED,
   MOON_GLOW_MAX_ALPHA,
   MOON_GLOW_RADIUS,
   MOON_RADIUS,
-  MOON_SHADE_COLOR,
-  SKY_BOTTOM_COLOR,
+  MOON_SHADE_DARKEN_FRACTION,
+  RIDGE_RIM_LIGHTEN_FRACTION,
+  RIDGE_RIM_WIDTH_PX,
   SKY_LAYER_DEPTH,
   SKY_SCROLL_FACTOR,
-  SKY_TOP_COLOR,
-  STAR_COLOR,
   STAR_COUNT,
   STAR_MAX_ALPHA,
   STAR_MAX_RADIUS,
+  STAR_SPARKLE_FRACTION,
+  STAR_SPARKLE_RADIUS_MULTIPLIER,
+  STAR_SPARKLE_WAIST_FRACTION,
   STARFIELD_SEED,
   WORLD_WIDTH,
 } from '../constants';
+import type { CelestialBody } from '../planets/celestial-body';
 import { generateStarfield } from './starfield';
-import { generateRidgeline } from './ridgeline';
+import { generateRidgeline, type RidgePoint } from './ridgeline';
+import { generateCloudBank, generateCloudPuff, generatePuffPlacements } from './cloud-bank';
+import { generateMoonCraters } from './moon-craters';
+import { darken, lighten, mixColors } from './color-mix';
 import { createRadialGlowImage } from './radial-glow';
 import { bakeCanvasTexture, hexToCss, hexToRgba } from './canvas-texture-utils';
 
@@ -51,18 +88,64 @@ const FAR_RIDGE_TEXTURE_KEY = 'background-far-ridge';
 const MID_RIDGE_TEXTURE_KEY = 'background-mid-ridge';
 const MOON_GLOW_TEXTURE_KEY = 'background-moon-glow';
 const MOON_DISC_TEXTURE_KEY = 'background-moon-disc';
+const COMPANION_MOON_TEXTURE_KEY = 'background-companion-moon';
+const CLOUD_BAND_TEXTURE_KEY = 'background-cloud-band';
+const CLOUD_PUFF_TEXTURE_KEY = 'background-cloud-puff';
 
 /**
- * The moon and starfield are positioned relative to GAME_WIDTH (the
- * viewport), not WORLD_WIDTH — they're singular/scattered distant features
- * meant to sit in view from the start and drift only slightly as the very
- * low SKY_SCROLL_FACTOR interacts with camera movement, the same way a
- * real moon barely appears to move as you travel. The sky and both ridge
- * silhouettes, by contrast, are baked WORLD_WIDTH-wide and positioned at
- * world x=0, since they must visually span the entire scrollable world
- * with no gap at either end regardless of their own (low) scroll factor.
+ * Draws one cratered paper-moon disc into a fresh canvas texture: a radial
+ * gradient from the face color to a derived darker edge, flat darker
+ * crater blobs (seeded), clipped to the disc.
  */
-function buildMoon(scene: Phaser.Scene): void {
+function bakeMoonDisc(
+  scene: Phaser.Scene,
+  textureKey: string,
+  radius: number,
+  faceColor: number,
+  craterCount: number,
+  craterSeed: number,
+): void {
+  const diameter = radius * 2;
+  const shadeColor = darken(faceColor, MOON_SHADE_DARKEN_FRACTION);
+  const craterColor = darken(faceColor, MOON_CRATER_DARKEN_FRACTION);
+  const craters = generateMoonCraters({
+    seed: craterSeed,
+    moonRadius: radius,
+    count: craterCount,
+    minRadiusFraction: MOON_CRATER_MIN_RADIUS_FRACTION,
+    maxRadiusFraction: MOON_CRATER_MAX_RADIUS_FRACTION,
+  });
+
+  bakeCanvasTexture(scene, textureKey, diameter, diameter, (ctx) => {
+    ctx.beginPath();
+    ctx.arc(radius, radius, radius, 0, Math.PI * 2);
+    ctx.clip();
+
+    const gradient = ctx.createRadialGradient(radius, radius, 0, radius, radius, radius);
+    gradient.addColorStop(0, hexToCss(faceColor));
+    gradient.addColorStop(1, hexToCss(shadeColor));
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, diameter, diameter);
+
+    ctx.fillStyle = hexToCss(craterColor);
+    for (const crater of craters) {
+      ctx.beginPath();
+      ctx.arc(radius + crater.x, radius + crater.y, crater.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+
+/** Per-world seed offset: `distance` is unique across BODIES (pinned by its
+ * registry tests being distance-keyed), so every world gets its own stable
+ * moon face, cloud row, ridge silhouette, and star layout without needing
+ * a second hand-maintained seed table. */
+function worldSeed(baseSeed: number, body: CelestialBody): number {
+  return baseSeed + body.distance;
+}
+
+function buildMoons(scene: Phaser.Scene, body: CelestialBody): void {
+  const palette = body.skyPalette;
   const moonX = GAME_WIDTH * MOON_CENTER_X_FRACTION;
   const moonY = GAME_HEIGHT * MOON_CENTER_Y_FRACTION;
 
@@ -72,49 +155,105 @@ function buildMoon(scene: Phaser.Scene): void {
     moonX,
     moonY,
     MOON_GLOW_RADIUS,
-    MOON_GLOW_COLOR,
+    palette.moonColor,
     MOON_GLOW_MAX_ALPHA,
   );
   moonGlow.setDepth(SKY_LAYER_DEPTH).setScrollFactor(SKY_SCROLL_FACTOR);
 
-  const moonDiameter = MOON_RADIUS * 2;
-  bakeCanvasTexture(scene, MOON_DISC_TEXTURE_KEY, moonDiameter, moonDiameter, (ctx) => {
-    const gradient = ctx.createRadialGradient(
-      MOON_RADIUS,
-      MOON_RADIUS,
-      0,
-      MOON_RADIUS,
-      MOON_RADIUS,
-      MOON_RADIUS,
-    );
-    gradient.addColorStop(0, hexToCss(MOON_COLOR));
-    gradient.addColorStop(1, hexToCss(MOON_SHADE_COLOR));
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(MOON_RADIUS, MOON_RADIUS, MOON_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
-  });
+  bakeMoonDisc(
+    scene,
+    MOON_DISC_TEXTURE_KEY,
+    MOON_RADIUS,
+    palette.moonColor,
+    MOON_CRATER_COUNT,
+    worldSeed(MOON_CRATER_SEED, body),
+  );
   scene.add
     .image(moonX, moonY, MOON_DISC_TEXTURE_KEY)
     .setDepth(SKY_LAYER_DEPTH)
     .setScrollFactor(SKY_SCROLL_FACTOR);
+
+  // Airless worlds trade their cloud layers for a second, smaller moon —
+  // its face faded toward the horizon sky so it reads farther away than
+  // the primary.
+  if (body.atmosphereDensity === 0) {
+    const companionColor = mixColors(
+      palette.moonColor,
+      palette.skyBottomColor,
+      COMPANION_MOON_SKY_MIX_FRACTION,
+    );
+    bakeMoonDisc(
+      scene,
+      COMPANION_MOON_TEXTURE_KEY,
+      COMPANION_MOON_RADIUS,
+      companionColor,
+      COMPANION_MOON_CRATER_COUNT,
+      worldSeed(MOON_CRATER_SEED, body) + 1,
+    );
+    scene.add
+      .image(
+        GAME_WIDTH * COMPANION_MOON_CENTER_X_FRACTION,
+        GAME_HEIGHT * COMPANION_MOON_CENTER_Y_FRACTION,
+        COMPANION_MOON_TEXTURE_KEY,
+      )
+      .setDepth(SKY_LAYER_DEPTH)
+      .setScrollFactor(SKY_SCROLL_FACTOR);
+  }
 }
 
-function buildStars(scene: Phaser.Scene): void {
+/** One 4-point paper sparkle: two thin crossed rhombi. */
+function fillSparkle(
+  graphics: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  radius: number,
+): void {
+  const waist = radius * STAR_SPARKLE_WAIST_FRACTION;
+  graphics.fillPoints(
+    [
+      new Phaser.Math.Vector2(x, y - radius),
+      new Phaser.Math.Vector2(x + waist, y),
+      new Phaser.Math.Vector2(x, y + radius),
+      new Phaser.Math.Vector2(x - waist, y),
+    ],
+    true,
+  );
+  graphics.fillPoints(
+    [
+      new Phaser.Math.Vector2(x - radius, y),
+      new Phaser.Math.Vector2(x, y - waist),
+      new Phaser.Math.Vector2(x + radius, y),
+      new Phaser.Math.Vector2(x, y + waist),
+    ],
+    true,
+  );
+}
+
+function buildStars(scene: Phaser.Scene, body: CelestialBody): void {
+  const count =
+    body.atmosphereDensity === 0
+      ? Math.round(STAR_COUNT * AIRLESS_STAR_COUNT_MULTIPLIER)
+      : STAR_COUNT;
   const stars = generateStarfield({
-    seed: STARFIELD_SEED,
+    seed: worldSeed(STARFIELD_SEED, body),
     width: WORLD_WIDTH,
     height: GAME_HEIGHT,
-    count: STAR_COUNT,
+    count,
     maxRadius: STAR_MAX_RADIUS,
     maxAlpha: STAR_MAX_ALPHA,
+    sparkleFraction: STAR_SPARKLE_FRACTION,
+    sparkleRadiusMultiplier: STAR_SPARKLE_RADIUS_MULTIPLIER,
   });
 
   const starGraphics = scene.add.graphics();
   starGraphics.setDepth(SKY_LAYER_DEPTH).setScrollFactor(SKY_SCROLL_FACTOR);
   for (const star of stars) {
-    starGraphics.fillStyle(STAR_COLOR, star.alpha);
-    starGraphics.fillCircle(star.x, star.y, star.radius);
+    starGraphics.fillStyle(body.skyPalette.starColor, star.alpha);
+    if (star.sparkle) {
+      fillSparkle(starGraphics, star.x, star.y, star.radius);
+    } else {
+      starGraphics.fillCircle(star.x, star.y, star.radius);
+    }
   }
 }
 
@@ -132,10 +271,34 @@ interface RidgeLayerOptions {
   readonly scrollFactor: number;
 }
 
+/** Traces the ridge skyline as a smooth rolling curve (quadratic segments
+ * through successive midpoints) rather than jagged straight lines — the
+ * rounded paper-hill silhouette every reference diorama uses. */
+function traceSmoothSkyline(ctx: CanvasRenderingContext2D, points: readonly RidgePoint[]): void {
+  const first = points[0];
+  if (!first) {
+    return;
+  }
+  ctx.moveTo(first.x, first.y);
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const current = points[i];
+    const next = points[i + 1];
+    if (!current || !next) {
+      break;
+    }
+    ctx.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2);
+  }
+  const last = points.at(-1);
+  if (last) {
+    ctx.lineTo(last.x, last.y);
+  }
+}
+
 /**
- * One parallax ridge silhouette, baked WORLD_WIDTH-wide. Shared by the far
- * and mid ridge layers — same construction (blurred/reduced-alpha fill of a
- * seeded skyline), different depth/color/blur/scroll-speed per layer.
+ * One parallax ridge silhouette, baked WORLD_WIDTH-wide: a smooth rolling
+ * skyline with a lit paper-edge rim along its top, blurred/faded for
+ * atmospheric depth. Shared by the far and mid layers — same construction,
+ * different color/blur/scroll-speed per layer.
  */
 function buildRidgeLayer(scene: Phaser.Scene, options: RidgeLayerOptions): void {
   const ridge = generateRidgeline({
@@ -147,24 +310,29 @@ function buildRidgeLayer(scene: Phaser.Scene, options: RidgeLayerOptions): void 
     maxHeightFraction: options.maxHeightFraction,
     maxStepFraction: options.maxStepFraction,
   });
-  const ridgePoints = [...ridge, { x: WORLD_WIDTH, y: GAME_HEIGHT }, { x: 0, y: GAME_HEIGHT }];
+  const rimColor = lighten(options.color, RIDGE_RIM_LIGHTEN_FRACTION);
 
   bakeCanvasTexture(scene, options.textureKey, WORLD_WIDTH, GAME_HEIGHT, (ctx) => {
     // Blurred + reduced-alpha vs. the crisp, fully-saturated gameplay
     // terrain in front of it — the atmospheric-perspective depth cue the
     // "Ship-Forward / Atmospheric Depth" direction is named for.
     ctx.filter = `blur(${options.blurPx.toString()}px)`;
-    ctx.fillStyle = hexToRgba(options.color, options.alpha);
+
     ctx.beginPath();
-    ridgePoints.forEach((point, index) => {
-      if (index === 0) {
-        ctx.moveTo(point.x, point.y);
-      } else {
-        ctx.lineTo(point.x, point.y);
-      }
-    });
+    traceSmoothSkyline(ctx, ridge);
+    ctx.lineTo(WORLD_WIDTH, GAME_HEIGHT);
+    ctx.lineTo(0, GAME_HEIGHT);
     ctx.closePath();
+    ctx.fillStyle = hexToRgba(options.color, options.alpha);
     ctx.fill();
+
+    // Lit paper edge along the skyline — stroked after the fill so half
+    // the rim reads inside the silhouette's top edge.
+    ctx.beginPath();
+    traceSmoothSkyline(ctx, ridge);
+    ctx.strokeStyle = hexToRgba(rimColor, options.alpha);
+    ctx.lineWidth = RIDGE_RIM_WIDTH_PX * 2;
+    ctx.stroke();
   });
 
   scene.add
@@ -174,15 +342,153 @@ function buildRidgeLayer(scene: Phaser.Scene, options: RidgeLayerOptions): void 
     .setScrollFactor(options.scrollFactor);
 }
 
+/** Fills one scallop row (circles + the solid band below the baseline). */
+function fillScallopRow(
+  ctx: CanvasRenderingContext2D,
+  circles: readonly { x: number; y: number; radius: number }[],
+  bandBottomY: number,
+  offsetY: number,
+): void {
+  ctx.beginPath();
+  for (const circle of circles) {
+    ctx.moveTo(circle.x + circle.radius, circle.y + offsetY);
+    ctx.arc(circle.x, circle.y + offsetY, circle.radius, 0, Math.PI * 2);
+  }
+  const baselineY =
+    circles.length > 0 ? Math.max(...circles.map((circle) => circle.y + offsetY)) : bandBottomY;
+  ctx.rect(0, baselineY, WORLD_WIDTH, Math.max(0, bandBottomY - baselineY));
+  ctx.fill();
+}
+
 /**
- * Builds the static background behind the gameplay terrain: a sky gradient,
- * a glowing moon, a starfield, and two blurred/desaturated parallax ridges
- * (far and mid) — the "Ship-Forward / Atmospheric Depth" art direction
- * (PLAN.md §4) applied to everything the player isn't actively flying over,
- * each layer scrolling at its own speed (Milestone 2.5) for real motion
- * parallax rather than just a static layered look.
+ * The horizon cloud band: two stacked scalloped paper rows baked into one
+ * WORLD_WIDTH-wide texture — a shaded back row peeking above a lit front
+ * row, each front scallop carrying a lighter rim along its top edge
+ * (papercraft's "every layer catches the light" signature).
  */
-export function buildBackground(scene: Phaser.Scene): void {
+function buildCloudBand(scene: Phaser.Scene, body: CelestialBody, cloudColor: number): void {
+  const baselineY = GAME_HEIGHT * CLOUD_BAND_BASELINE_Y_FRACTION;
+  const litColor = lighten(cloudColor, CLOUD_LIT_LIGHTEN_FRACTION);
+  const shadeColor = darken(cloudColor, CLOUD_SHADE_DARKEN_FRACTION);
+  const rimColor = lighten(cloudColor, CLOUD_RIM_LIGHTEN_FRACTION);
+
+  const seed = worldSeed(CLOUD_BAND_SEED, body);
+  const backRow = generateCloudBank({
+    seed,
+    width: WORLD_WIDTH,
+    baselineY: baselineY - CLOUD_BAND_BACK_ROW_RISE_PX,
+    minRadius: CLOUD_BAND_MIN_RADIUS_PX,
+    maxRadius: CLOUD_BAND_MAX_RADIUS_PX,
+    overlapFraction: CLOUD_BAND_OVERLAP_FRACTION,
+    jitterY: CLOUD_BAND_JITTER_Y_PX,
+  });
+  const frontRow = generateCloudBank({
+    seed: seed + 1,
+    width: WORLD_WIDTH,
+    baselineY,
+    minRadius: CLOUD_BAND_MIN_RADIUS_PX,
+    maxRadius: CLOUD_BAND_MAX_RADIUS_PX,
+    overlapFraction: CLOUD_BAND_OVERLAP_FRACTION,
+    jitterY: CLOUD_BAND_JITTER_Y_PX,
+  });
+
+  bakeCanvasTexture(scene, CLOUD_BAND_TEXTURE_KEY, WORLD_WIDTH, GAME_HEIGHT, (ctx) => {
+    // Shaded back row first, then the front row's lit rim, then the front
+    // row's main gradient offset just below the rim pass.
+    ctx.fillStyle = hexToCss(shadeColor);
+    fillScallopRow(ctx, backRow, GAME_HEIGHT, 0);
+
+    ctx.fillStyle = hexToCss(rimColor);
+    fillScallopRow(ctx, frontRow, GAME_HEIGHT, 0);
+
+    const gradient = ctx.createLinearGradient(
+      0,
+      baselineY - CLOUD_BAND_MAX_RADIUS_PX,
+      0,
+      GAME_HEIGHT,
+    );
+    gradient.addColorStop(0, hexToCss(litColor));
+    gradient.addColorStop(1, hexToCss(shadeColor));
+    ctx.fillStyle = gradient;
+    fillScallopRow(ctx, frontRow, GAME_HEIGHT, CLOUD_RIM_OFFSET_PX);
+  });
+
+  scene.add
+    .image(0, 0, CLOUD_BAND_TEXTURE_KEY)
+    .setOrigin(0, 0)
+    .setDepth(CLOUD_BAND_LAYER_DEPTH)
+    .setScrollFactor(CLOUD_BAND_SCROLL_FACTOR);
+}
+
+/**
+ * Floating paper cloud puffs scattered through the flight band, in front
+ * of both ridges — the layer the ship actually flies past, giving close
+ * parallax the reference dioramas' hanging clouds provide.
+ */
+function buildCloudPuffs(scene: Phaser.Scene, body: CelestialBody, cloudColor: number): void {
+  const litColor = lighten(cloudColor, CLOUD_LIT_LIGHTEN_FRACTION);
+  const shadeColor = darken(cloudColor, CLOUD_SHADE_DARKEN_FRACTION);
+  const rimColor = lighten(cloudColor, CLOUD_RIM_LIGHTEN_FRACTION);
+
+  const seed = worldSeed(CLOUD_PUFF_SEED, body);
+  const lobes = generateCloudPuff({ seed, coreRadius: CLOUD_PUFF_CORE_RADIUS_PX });
+  const minX = Math.min(...lobes.map((lobe) => lobe.x - lobe.radius));
+  const maxX = Math.max(...lobes.map((lobe) => lobe.x + lobe.radius));
+  const minY = Math.min(...lobes.map((lobe) => lobe.y - lobe.radius));
+  const maxY = Math.max(...lobes.map((lobe) => lobe.y + lobe.radius));
+  const width = maxX - minX + CLOUD_RIM_OFFSET_PX;
+  const height = maxY - minY + CLOUD_RIM_OFFSET_PX;
+
+  bakeCanvasTexture(scene, CLOUD_PUFF_TEXTURE_KEY, width, height, (ctx) => {
+    const drawLobes = (offsetY: number): void => {
+      ctx.beginPath();
+      for (const lobe of lobes) {
+        ctx.moveTo(lobe.x - minX + lobe.radius, lobe.y - minY + offsetY);
+        ctx.arc(lobe.x - minX, lobe.y - minY + offsetY, lobe.radius, 0, Math.PI * 2);
+      }
+      ctx.fill();
+    };
+
+    ctx.fillStyle = hexToCss(rimColor);
+    drawLobes(0);
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, hexToCss(litColor));
+    gradient.addColorStop(1, hexToCss(shadeColor));
+    ctx.fillStyle = gradient;
+    drawLobes(CLOUD_RIM_OFFSET_PX);
+  });
+
+  const placements = generatePuffPlacements({
+    seed: seed + 1,
+    width: WORLD_WIDTH,
+    minY: GAME_HEIGHT * CLOUD_PUFF_MIN_Y_FRACTION,
+    maxY: GAME_HEIGHT * CLOUD_PUFF_MAX_Y_FRACTION,
+    count: CLOUD_PUFF_COUNT,
+    minScale: CLOUD_PUFF_MIN_SCALE,
+    maxScale: CLOUD_PUFF_MAX_SCALE,
+  });
+  for (const placement of placements) {
+    scene.add
+      .image(placement.x, placement.y, CLOUD_PUFF_TEXTURE_KEY)
+      .setScale(placement.scale)
+      .setDepth(CLOUD_PUFF_LAYER_DEPTH)
+      .setScrollFactor(CLOUD_PUFF_SCROLL_FACTOR);
+  }
+}
+
+/**
+ * Builds the world-specific papercraft background behind the gameplay
+ * terrain (PLAN.md Milestone 14): a sky gradient, a glowing cratered moon
+ * (plus a companion moon and denser stars on airless worlds), a starfield
+ * with 4-point sparkles, scalloped cloud layers on atmosphere worlds, and
+ * two smooth, rim-lit parallax ridges — every color drawn from `body`'s
+ * own `skyPalette`, every layout seeded per world, each layer scrolling at
+ * its own depth-plane speed (Milestone 2.5).
+ */
+export function buildBackground(scene: Phaser.Scene, body: CelestialBody): void {
+  const palette = body.skyPalette;
+
   // Baked via Canvas2D's own createLinearGradient, not
   // Graphics#fillGradientStyle: that API is WebGL-only in Phaser 4.2.0 —
   // GraphicsCanvasRenderer's Canvas fallback path silently skips the
@@ -192,8 +498,8 @@ export function buildBackground(scene: Phaser.Scene): void {
   // fallback. A baked texture works identically under both renderers.
   bakeCanvasTexture(scene, SKY_TEXTURE_KEY, WORLD_WIDTH, GAME_HEIGHT, (ctx) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-    gradient.addColorStop(0, hexToCss(SKY_TOP_COLOR));
-    gradient.addColorStop(1, hexToCss(SKY_BOTTOM_COLOR));
+    gradient.addColorStop(0, hexToCss(palette.skyTopColor));
+    gradient.addColorStop(1, hexToCss(palette.skyBottomColor));
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, WORLD_WIDTH, GAME_HEIGHT);
   });
@@ -203,16 +509,22 @@ export function buildBackground(scene: Phaser.Scene): void {
     .setDepth(SKY_LAYER_DEPTH)
     .setScrollFactor(SKY_SCROLL_FACTOR);
 
-  buildMoon(scene);
-  buildStars(scene);
+  buildMoons(scene, body);
+  buildStars(scene, body);
+
+  const cloudColor = palette.cloudColor;
+  if (cloudColor !== undefined) {
+    buildCloudBand(scene, body, cloudColor);
+  }
+
   buildRidgeLayer(scene, {
     textureKey: FAR_RIDGE_TEXTURE_KEY,
-    seed: FAR_RIDGE_SEED,
+    seed: worldSeed(FAR_RIDGE_SEED, body),
     segments: FAR_RIDGE_SEGMENTS,
     minHeightFraction: FAR_RIDGE_MIN_HEIGHT_FRACTION,
     maxHeightFraction: FAR_RIDGE_MAX_HEIGHT_FRACTION,
     maxStepFraction: FAR_RIDGE_MAX_STEP_FRACTION,
-    color: FAR_RIDGE_COLOR,
+    color: mixColors(palette.ridgeColor, palette.skyBottomColor, FAR_RIDGE_SKY_MIX_FRACTION),
     alpha: FAR_RIDGE_ALPHA,
     blurPx: FAR_RIDGE_BLUR_PX,
     depth: FAR_RIDGE_LAYER_DEPTH,
@@ -220,15 +532,19 @@ export function buildBackground(scene: Phaser.Scene): void {
   });
   buildRidgeLayer(scene, {
     textureKey: MID_RIDGE_TEXTURE_KEY,
-    seed: MID_RIDGE_SEED,
+    seed: worldSeed(MID_RIDGE_SEED, body),
     segments: MID_RIDGE_SEGMENTS,
     minHeightFraction: MID_RIDGE_MIN_HEIGHT_FRACTION,
     maxHeightFraction: MID_RIDGE_MAX_HEIGHT_FRACTION,
     maxStepFraction: MID_RIDGE_MAX_STEP_FRACTION,
-    color: MID_RIDGE_COLOR,
+    color: darken(palette.ridgeColor, MID_RIDGE_DARKEN_FRACTION),
     alpha: MID_RIDGE_ALPHA,
     blurPx: MID_RIDGE_BLUR_PX,
     depth: MID_RIDGE_LAYER_DEPTH,
     scrollFactor: MID_RIDGE_SCROLL_FACTOR,
   });
+
+  if (cloudColor !== undefined) {
+    buildCloudPuffs(scene, body, cloudColor);
+  }
 }

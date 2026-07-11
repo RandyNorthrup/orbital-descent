@@ -58,6 +58,54 @@ describe('BODIES', () => {
     }
   });
 
+  it('gives every body a distinct sky palette (no two worlds sharing a full set of sky colors)', () => {
+    const signatures = new Set(BODIES.map((body) => JSON.stringify(body.skyPalette)));
+    expect(signatures.size).toBe(BODIES.length);
+  });
+
+  it('gives every sky palette in-range colors and a darker sky top than bottom (night-sky depth cue)', () => {
+    const MAX_COLOR = 0xffffff;
+    const channelAverage = (color: number): number => {
+      const BYTE = 0xff;
+      const RED_SHIFT = 16;
+      const GREEN_SHIFT = 8;
+      const CHANNELS = 3;
+      return (
+        (((color >> RED_SHIFT) & BYTE) + ((color >> GREEN_SHIFT) & BYTE) + (color & BYTE)) /
+        CHANNELS
+      );
+    };
+    for (const body of BODIES) {
+      const palette = body.skyPalette;
+      for (const color of [
+        palette.skyTopColor,
+        palette.skyBottomColor,
+        palette.moonColor,
+        palette.ridgeColor,
+        palette.starColor,
+        ...(palette.cloudColor === undefined ? [] : [palette.cloudColor]),
+      ]) {
+        expect(color).toBeGreaterThanOrEqual(0x000000);
+        expect(color).toBeLessThanOrEqual(MAX_COLOR);
+      }
+      // Every palette is a night sky lit from the horizon: top darker than
+      // bottom, so the moon/stars read against the darkest band.
+      expect(channelAverage(palette.skyTopColor)).toBeLessThan(
+        channelAverage(palette.skyBottomColor),
+      );
+    }
+  });
+
+  it('has a cloud color exactly when the world has an atmosphere (airless worlds render a companion moon instead)', () => {
+    for (const body of BODIES) {
+      if (body.atmosphereDensity > 0) {
+        expect(body.skyPalette.cloudColor).toBeDefined();
+      } else {
+        expect(body.skyPalette.cloudColor).toBeUndefined();
+      }
+    }
+  });
+
   // Pin test: a later milestone's worked examples in PLAN.md do exact
   // fuel/distance arithmetic against these four specific bodies (Kessel's
   // Reach, Verdalis, Pyrrhine Expanse, Glacian Drift), so a casual future
