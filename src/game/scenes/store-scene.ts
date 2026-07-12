@@ -197,7 +197,7 @@ const LISTING_ART_MIN_X_PX = 18;
 /** Half the scaled icon + a sliver, keeping the icon within
  * UI_BUTTON_PADDING_X so it never covers label glyphs. */
 const LISTING_ART_BUTTON_INSET_PX = 10;
-const STORE_SHIP_PREVIEW_SCALE = 0.55;
+const STORE_SHIP_PREVIEW_SCALE = 0.85;
 const SHIPS_COLUMN_X_FRACTION = 0.1;
 const UPGRADES_COLUMN_X_FRACTION = 0.35;
 const EQUIPMENT_WEAPON_COLUMN_X_FRACTION = 0.61;

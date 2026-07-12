@@ -43,6 +43,7 @@ import {
   PARTICLE_BURST_ANGLE_MAX_DEG,
   PARTICLE_BURST_ANGLE_MIN_DEG,
   OUTLINE_COLOR,
+  PAPER_SHADOW_ALPHA,
   PARTICLE_DOT_MAX_ALPHA,
   PARTICLE_DOT_RADIUS_PX,
   PROJECTILE_GLOW_MAX_ALPHA,
@@ -58,7 +59,7 @@ import {
   SHIP_BASE_HULL_POINTS,
   TERRAIN_ETCH_LINE_COUNT,
   TERRAIN_STRATA_OFFSETS_PX,
-  TERRAIN_STRATA_OUTLINE_WIDTH,
+  TERRAIN_STRATA_SHADOW_PX,
   TERRAIN_MAX_HEIGHT_FRACTION,
   TERRAIN_MIN_HEIGHT_FRACTION,
   TERRAIN_MAX_STEP_FRACTION,
@@ -1081,13 +1082,19 @@ export class GameScene extends Phaser.Scene {
       strata.lineTo(0, GAME_HEIGHT);
       strata.closePath();
       strata.fillPath();
-      strata.lineStyle(TERRAIN_STRATA_OUTLINE_WIDTH, OUTLINE_COLOR, 1);
+      // D28: a translucent shadow line under each stratum's cut edge —
+      // the reference layers' separation, no ink.
+      strata.fillStyle(OUTLINE_COLOR, PAPER_SHADOW_ALPHA);
       strata.beginPath();
       strata.moveTo(first?.x ?? 0, (first?.y ?? 0) + offset);
       for (const point of this.terrain.points) {
         strata.lineTo(point.x, point.y + offset);
       }
-      strata.strokePath();
+      for (const point of [...this.terrain.points].reverse()) {
+        strata.lineTo(point.x, point.y + offset + TERRAIN_STRATA_SHADOW_PX);
+      }
+      strata.closePath();
+      strata.fillPath();
     }
     strata.setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
 

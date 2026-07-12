@@ -53,6 +53,7 @@ milestones depend on understanding _why_, not just _what_.
 | D25 | Storyline & campaign arc            | **"Reconnect the Frontier"** (Milestone 17, queued behind M16): the game gets an authored narrative throughline and a visible progression arc on top of the existing (unchanged) unlock graph. Fiction: the player is the sole contract pilot of the Frontier Reconnection Initiative, reopening a collapsed trade corridor across the 12-world system one base at a time; the fauna (wasps, warden) are native life that moved into the corridor's ruins; barren-world extraction funds the effort; the campaign's end-state is the existing every-critical-path-base achievement, promoted to a real epilogue. Surfaces: a skippable, persisted-once intro brief; authored per-world lore lines and per-base mission briefings (new `lore`/`briefing` authored fields rendered in world map/mission select); a campaign progress readout on the world map (critical-path bases reconnected, act framing); an epilogue screen when the final critical-path base is established. Mechanics unchanged — story rides the certified unlock graph, missions, and achievements.                                                                                                                                                                                                              | User directive (2026-07-11): "this game needs to have a coherent storyline and progression arc." D20 had already flagged this exact gap ("12 worlds implies an actual narrative throughline… flagged as content to author during M5/M6") and no milestone ever authored it. Scoped as its own milestone AFTER M16 — M16 is mid-build and already spans set-dressing/structures/NPCs/item art/paper UI; story is content+UI authoring with different verification (text/flow, not screenshots of art), so bundling would blur both milestones' certification.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | D26 | Signature landforms & vessel detail | **"Signature Worlds"** (Milestone 16.5, inserted before M17): every world's terrain SHAPE becomes its own signature landform. The heightmap generator gains an authored shaping pass — `CelestialBody.landform` (12 archetypes, one per world, no two worlds share one, pinned by test): crater-field (Kessel's Reach), dune-sea (Verdalis), mesa country (Pyrrhine Expanse), ice-spike ridges (Glacian Drift), breaking-wave swells (Thessaly Shoals), hummock marsh (Umbral Fen), rift canyon (Kharun Wastes), walled basin (Solenne Vault), stepped terraces (Aurelic Marsh), cracked flats (Corvexa Shallows), dead volcano cone (Nimbus Scar), needle spires (Thornreach Expanse). Applied deterministically from a SEPARATE seeded stream so the existing walk + pad draws are untouched (pad positions identical); authored `terrainOverrides` and pad flattening still run after it and remain the last word. Companion surfaces: world-map planet discs gain per-world signature features matching their landform (punched craters, spikes, storm swirls, banded strata, rift cracks), and the 7 ships get a vessel-detail pass from the spaceship pack (framed cockpit canopies, engine nacelles with paper flame plumes shown while thrusting, portholes, role attachments). | User verdict on the certified M16 art (2026-07-11): "the terrain is still too similar everything is shaped the same," delivered with two new reference packs in temp/ (planet_pack: 20 papercraft planets, each a DIFFERENT physical identity — an erupting volcano with lava rivers, a shattered ice sphere with spike ridges, mesa-and-canyon desert, deep punched craters, curling ocean waves, crystal facets, banded strata; spaceship_pack: 20 papercraft vessels — framed canopies, nacelles with visible flame plumes, portholes, cargo boxes/drill arms per role). Root cause: all 12 worlds share one bounded-random-walk height profile differing only in seed and amplitude — M14-16 changed palettes, skies, and set-dressing but the GROUND SILHOUETTE itself never changed shape.                                                                                                                                                                                                                                                                                                                                          |
 | D27 | Reference-match art: layered color  | **"Reference Match"** (Milestone 16.6, immediately after 16.5): the art's COLOR CONSTRUCTION changes to match the reference packs. (1) Terrain renders as stacked paper strata — the surface silhouette plus two authored deeper strata bands, each its own contrasting color with its own cut edge (the desert reference's cream-top/orange/brown stack, the ice reference's white/pale-blue/deep-blue), replacing the single tonal gradient mass; `terrainPalette` gains authored `strataColors`. (2) Every ship gets a multi-color scheme — contrasting `accentColor` (fins/nacelles), `trimColor` (canopy frame + porthole rims, the reference's yellow), `detailColor` (role attachments, the reference's white cargo boxes) — replacing darkened-hull-derived accents. (3) Planet discs grow and their landform features use bold authored colors. (4) All dialog/text surfaces move onto cream paper cards with dark ink and hard shadows — paper panels behind every text block, cream paper buttons (labels unchanged for e2e).                                                                                                                                                                                                                                                | User verdict on the M16.5 gallery: "this world art and the ships and the planets dont match the stuff i added at all and all of the dialog should be on paper buttons/backdrops." Root cause: every in-world color derives tonally from one world palette (darken/lighten of the same anchors), so worlds/ships read as monochrome families — while every reference object is built from CONTRASTING authored colors and visible stacked layers. The silhouettes (M16.5's landforms, vessel geometry) match the references; the color construction does not.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| D28 | Paper engine refactor               | **"True Paper"** (Milestone 16.7, full art-engine refactor): the render language itself changes to match the packs. (1) NO ink outlines on environment paper — every reference separates layers purely by color contrast + hard drop shadows; outlines remain ONLY on character standees (crew/wasps/warden — the Duck Detective language), item-icon UI glyphs, and the projectile bolt (gameplay legibility, documented exception). Paper-shape's outline layer is removed (option retained solely for combatant standees), shadows become translucent (alpha 0.35). (2) Value structure re-authored on all 12 worlds: GROUND IS LIGHT (pale surface fill like the packs' white floes/cream mesa tops/pale crater plates), strata saturated mid-to-deep, ridges saturated-dark — the light-sky/dark-ridge/light-ground sandwich every reference scene uses; skies brighten toward the packs' vivid register. (3) Feature scale: decorations bake supersampled and plant 2-3x bigger and denser; hangar/store ship previews scale up.                                                                                                                                                                                                                                                  | User verdict on M16.6: "you are fully missing the mark with the art thats why i added the examples you need to fully refactor." Honest side-by-side of the game against temp/paper_mario_worlds/05_ice_world: the game outlines every shape in near-black ink (references have ZERO outlines — separation is shadow + contrast), values are murky mid-dark everywhere (references: light ground, dark saturated ridges, vivid skies), and features are 40px trinkets (references: frame-dominating chunks). Three consecutive misses came from tuning within the wrong render language instead of changing it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ## 3. Open Questions
 
@@ -5036,6 +5037,77 @@ map, and every text screen on paper.
   set (pause/landed/crashed/results/transit/toast) reshot after the
   pad-slab fix so every gallery card reflects the shipped look.
   Published to the approval artifact (label `m166-final`).
+
+### Milestone 16.7 — True Paper: render-language refactor (Decision D28)
+
+**Status: CERTIFIED (2026-07-11)**
+
+**Goal**: three consecutive art passes tuned colors/shapes inside the
+wrong render language. The references' construction is: NO ink outlines
+(layers separate by shadow + contrast), light ground under saturated
+dark ridges under vivid sky, and frame-dominating features. This
+milestone changes the language itself.
+
+**Scope**:
+
+1. **Outline-free environment paper** — `createPaperShape` loses its
+   outline layer for environment pieces (terrain, strata, pad,
+   obstacles, clouds, ridges, ships, structures, decorations, discs);
+   its `outlineWidth` option survives solely for combatant/crew/wasp
+   STANDEES (Duck Detective's thick-outline character language) —
+   0/omitted now means none. Shadows become translucent
+   (`SHADOW_ALPHA` 0.35) and carry the separation. Canvas-glyph modules
+   (decorations, structures) drop their ink strokes the same way;
+   item icons (UI ink-on-paper glyphs) and the projectile bolt
+   (day-sky legibility, the M16 completeness-pass lesson) keep theirs
+   as documented exceptions.
+2. **Light-ground value structure** — all 12 worlds' terrain + sky
+   palettes re-authored from their pack analogs: pale surface fills
+   (white floes, cream mesa tops, pale crater plates — even on night
+   worlds, per the cratered-moon reference's white plates under a black
+   sky), saturated mid/deep strata, saturated-dark ridges, brighter
+   skies.
+3. **Feature scale** — decoration glyphs bake 3x supersampled and plant
+   at 1.6-3.2x former scale with higher counts; hangar preview 1.8x,
+   store ship art up.
+
+**Explicitly unchanged**: landforms, silhouette geometry, ship color
+packs, paper dialog UI (all D26/D27 — the shapes and colors were right;
+the linework and values were not), physics, labels.
+
+**Required tests/gates**: bodies palette pins updated to the new
+register (light ground: fillTop lighter than both strata, pinned);
+existing suites green; full `pnpm quality`, complete e2e, Lighthouse;
+prototype-first screenshot iteration on Glacian/Kharun/Kessel's
+against the actual reference images before sweeping every surface.
+
+**Certification checklist** (all measured 2026-07-11):
+
+- Process incident, recorded honestly: the first palette re-author pass
+  SILENTLY NO-OP'd — its per-entry edit span ended at each body's
+  `distance:` field (which sits before the palettes), and its "12
+  palettes re-authored" success message counted loop iterations, not
+  applied substitutions. Caught because the reshoot screenshots still
+  showed the old sky and a direct read of the entry proved it; redone
+  with per-substitution `re.subn` count assertions. Lesson (extends the
+  existing multi-occurrence-replace lesson): a scripted edit must
+  assert each substitution APPLIED, not that its loop ran.
+- Prototype-first: Glacian/Kharun/Kessel's rendered and compared
+  against the actual reference images (not memory) before the sweep;
+  the light-ground/vivid-sky correction round was caught this way.
+- `pnpm quality` fully green. Unit tests: 620 across 55 files (new pin:
+  ground surface strictly lighter than upper stratum, upper lighter
+  than lower, on every world).
+- Full e2e at `--workers=1`, all three browsers: **114/114 first pass**
+  (20.8m) — outline removal, palette re-author, supersampled
+  decorations, and preview scaling changed nothing the suite depends
+  on.
+- Lighthouse (3 runs): performance 98/98/97, accessibility 100,
+  best-practices 96, SEO 100.
+- Screenshot verification: all 12 worlds, all 7 ships, hangar at 1.8x
+  previews, world map with de-inked discs, both enemy camps, full
+  screen set, weapon fire — every card in the approval gallery is a
+  fresh capture of this pass (label `m167-true-paper`).
 
 ### Milestone 17 — Reconnect the Frontier: storyline & campaign arc (Decision D25)
 

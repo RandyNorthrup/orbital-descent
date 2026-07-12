@@ -49,6 +49,25 @@ already-made changes are recorded — planned work lives in `PLAN.md`, not here.
 
 ### Added
 
+- **Milestone 16.7 — True Paper: render-language refactor (Decision
+  D28, certified)**: the render language itself now matches the
+  reference packs, closing the user's verdict "you are fully missing
+  the mark with the art… you need to fully refactor." Ink outlines are
+  GONE from all environment paper — terrain, strata, pad, obstacles,
+  ships, structures, decorations, clouds, planet discs separate by
+  translucent hard-offset shadows and color contrast, exactly like the
+  packs' cut paper; thick outlines survive only on character standees
+  (crew and live combatants — the Duck Detective language), item-icon
+  UI glyphs, and the projectile bolt (day-sky legibility). All 12
+  worlds' palettes were re-authored to the packs' value structure —
+  LIGHT ground (white ice floes, pale peach flats, pale crater plates
+  even under night skies), saturated mid/deep strata, saturated-dark
+  ridges, vivid skies (Glacian now flies under bright turquoise like
+  the ice scene) — pinned by a new light-ground brightness test.
+  Decorations bake 3x supersampled and plant at 1.6–3.2x with higher
+  counts, so shard clusters, trees, and rocks read as chunky
+  frame-scale features; hangar previews render at 1.8x.
+
 - **Milestone 16.6 — Reference Match: layered color & paper dialog
   (Decision D27, certified)**: the art's color construction now matches
   the reference packs, closing the user's verdict that the world/ship/

@@ -8,7 +8,13 @@ Full project plan, decisions, architecture rationale, and per-milestone
 certification status: [`PLAN.md`](./PLAN.md). Change history:
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-**Current status**: Milestone 16.6 (Reference Match — Decision D27)
+**Current status**: Milestone 16.7 (True Paper — Decision D28)
+certified — the render language now matches the reference packs: no ink
+outlines on environment paper (layers separate by translucent shadows
+and color contrast), light-ground value structure on all 12 worlds
+(white/pale surfaces over saturated strata under vivid skies), and
+frame-scale supersampled features. On top of: Milestone 16.6 (Reference
+Match — Decision D27)
 certified — the art's color construction matches the reference packs:
 terrain renders as stacked contrasting paper strata per world, ships
 wear authored multi-color schemes (gold-framed turquoise canopies, red

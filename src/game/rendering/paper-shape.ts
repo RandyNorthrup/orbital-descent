@@ -4,7 +4,7 @@ import {
   ETCH_LINE_MAX_LENGTH_FRACTION,
   ETCH_LINE_WIDTH_PX,
   OUTLINE_COLOR,
-  OUTLINE_WIDTH,
+  PAPER_SHADOW_ALPHA,
   SHADOW_OFFSET,
 } from '../constants';
 import type { Vector2 } from '../physics/lander-physics';
@@ -64,11 +64,11 @@ export interface PaperShapeOptions {
    * `etchLineCount` is also set. Defaults to `'rock'` (today's fully-random
    * scribble look) when omitted. */
   readonly etchStyle?: EtchStyle;
-  /** Outline stroke width override (defaults to the global OUTLINE_WIDTH).
-   * Milestone 14: small multi-piece craft (ship hulls ~14px wide, fins
-   * smaller) need a thinner cut edge — at their size the global 3px stroke
-   * swallows most of the fill (verified against real screenshots: a
-   * white-hulled ship rendered nearly black). */
+  /** Ink outline stroke width — omitted/0 draws NO outline (Milestone
+   * 16.7, D28: the reference packs' environment paper has no ink lines;
+   * separation is shadow + color contrast). Passed ONLY by character
+   * standees (combatants — Duck Detective's thick-outline character
+   * language); every environment piece omits it. */
   readonly outlineWidth?: number;
   /** Drop-shadow offset override (defaults to the global SHADOW_OFFSET) —
    * same small-piece reasoning as `outlineWidth`. */
@@ -145,11 +145,12 @@ export function createPaperShape(scene: Phaser.Scene, options: PaperShapeOptions
   const height = bounds.maxY - bounds.minY;
   const localPoints = options.points.map((p) => ({ x: p.x - bounds.minX, y: p.y - bounds.minY }));
 
-  const outlineWidth = options.outlineWidth ?? OUTLINE_WIDTH;
   const shadowOffset = options.shadowOffset ?? SHADOW_OFFSET;
 
+  // Translucent hard-offset shadow (D28) — the reference dioramas'
+  // layer separation, in place of the removed ink outlines.
   const shadow = scene.add.graphics();
-  shadow.fillStyle(OUTLINE_COLOR, FULL_ALPHA);
+  shadow.fillStyle(OUTLINE_COLOR, PAPER_SHADOW_ALPHA);
   shadow.fillPoints(vector2Points, true);
   shadow.setPosition(shadowOffset, shadowOffset);
 
@@ -201,11 +202,14 @@ export function createPaperShape(scene: Phaser.Scene, options: PaperShapeOptions
     options.textureKey,
   );
 
-  const outline = scene.add.graphics();
-  outline.lineStyle(outlineWidth, OUTLINE_COLOR, FULL_ALPHA);
-  outline.strokePoints(vector2Points, true);
-
-  const container = scene.add.container(0, 0, [shadow, fillImage, outline]);
+  const children: Phaser.GameObjects.GameObject[] = [shadow, fillImage];
+  if (options.outlineWidth !== undefined && options.outlineWidth > 0) {
+    const outline = scene.add.graphics();
+    outline.lineStyle(options.outlineWidth, OUTLINE_COLOR, FULL_ALPHA);
+    outline.strokePoints(vector2Points, true);
+    children.push(outline);
+  }
+  const container = scene.add.container(0, 0, children);
 
   return {
     container,

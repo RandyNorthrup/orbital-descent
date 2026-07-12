@@ -90,6 +90,10 @@ const SHIP_PREVIEW_X_PX = 120;
  * clearly not flyable yet. */
 const LOCKED_PREVIEW_ALPHA = 0.45;
 
+/** D28: the reference vessels are bold objects, not specks — hangar
+ * previews render well above flight scale so the craft detail reads. */
+const SHIP_PREVIEW_SCALE = 1.8;
+
 /** Where each row's stat tag starts, right of center -- left-anchored (not
  * centered) so its start position doesn't shift with the tag's own text
  * length. Checked against the longest possible tag (an `'unlock'`/
@@ -239,6 +243,7 @@ export class ShipSelectScene extends Phaser.Scene {
       textureKeyPrefix: `ship-preview-${ship.id}`,
     });
     preview.container.setPosition(SHIP_PREVIEW_X_PX, y);
+    preview.container.setScale(SHIP_PREVIEW_SCALE);
     // Hangar previews always show their engine flames (Milestone 16.5,
     // D26) — the craft reads the way the spaceship-pack references do.
     preview.setFlamesVisible(true);

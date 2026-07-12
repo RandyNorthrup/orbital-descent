@@ -47,6 +47,19 @@ import { bakeCanvasTexture, hexToCss } from './canvas-texture-utils';
 
 type Ctx = CanvasRenderingContext2D;
 
+/** D28 (True Paper): STRUCTURES are cut paper — fill only, shadow-pass
+ * separation, no ink. Character STANDEES (the crew; live combatants get
+ * the same treatment via their own outlined paper pieces) keep
+ * `outlined` below: the Duck Detective standee language is bold shapes
+ * WITH a thick outline, and that distinction is authored, not legacy. */
+function cut(ctx: Ctx, fill: number, path: () => void): void {
+  ctx.beginPath();
+  path();
+  ctx.closePath();
+  ctx.fillStyle = hexToCss(fill);
+  ctx.fill();
+}
+
 function outlined(ctx: Ctx, fill: number, path: () => void): void {
   ctx.beginPath();
   path();
@@ -87,7 +100,7 @@ function bakeDome(scene: Phaser.Scene): string {
     const cx = DOME.width / 2;
     const baseY = DOME.height - DECORATION_SHADOW_OFFSET_PX;
     const fill = shadowPass ? OUTLINE_COLOR : FRIENDLY_STRUCTURE_COLOR;
-    outlined(ctx, fill, () => {
+    cut(ctx, fill, () => {
       ctx.moveTo(cx - DOME.radius, baseY);
       ctx.arc(cx, baseY, DOME.radius, Math.PI, 0);
     });
@@ -102,7 +115,7 @@ function bakeDome(scene: Phaser.Scene): string {
       );
       ctx.fillStyle = hexToCss(FRIENDLY_STRUCTURE_TRIM_COLOR);
       ctx.fill();
-      outlined(ctx, CREW_VISOR_COLOR, () => {
+      cut(ctx, CREW_VISOR_COLOR, () => {
         ctx.arc(cx, baseY - DOME.radius / 2, DOME.portholeRadius, 0, Math.PI * 2);
       });
     }
@@ -119,14 +132,14 @@ function bakeTower(scene: Phaser.Scene): string {
     const baseY = TOWER.height - DECORATION_SHADOW_OFFSET_PX;
     const mastTop = DECORATION_SHADOW_OFFSET_PX + TOWER.dishRadius;
     const fill = shadowPass ? OUTLINE_COLOR : FRIENDLY_STRUCTURE_COLOR;
-    outlined(ctx, fill, () => {
+    cut(ctx, fill, () => {
       ctx.moveTo(cx - TOWER.mastHalfWidth * 2, baseY);
       ctx.lineTo(cx - TOWER.mastHalfWidth, mastTop);
       ctx.lineTo(cx + TOWER.mastHalfWidth, mastTop);
       ctx.lineTo(cx + TOWER.mastHalfWidth * 2, baseY);
     });
     const dishFill = shadowPass ? OUTLINE_COLOR : FRIENDLY_STRUCTURE_TRIM_COLOR;
-    outlined(ctx, dishFill, () => {
+    cut(ctx, dishFill, () => {
       ctx.arc(cx, mastTop, TOWER.dishRadius, Math.PI * 0.75, Math.PI * 0.25, true);
     });
   });
@@ -180,7 +193,7 @@ function bakeHive(scene: Phaser.Scene): string {
     const cx = HIVE.width / 2;
     const baseY = HIVE.height - DECORATION_SHADOW_OFFSET_PX;
     const fill = shadowPass ? OUTLINE_COLOR : ENEMY_HIVE_COLOR;
-    outlined(ctx, fill, () => {
+    cut(ctx, fill, () => {
       for (const lobe of HIVE_LOBES) {
         ctx.moveTo(cx + lobe.dx + lobe.r, baseY + lobe.dy);
         ctx.arc(cx + lobe.dx, baseY + lobe.dy, lobe.r, 0, Math.PI * 2);
@@ -203,7 +216,7 @@ function bakeHive(scene: Phaser.Scene): string {
       }
       ctx.fillStyle = hexToCss(lighten(ENEMY_HIVE_COLOR, DECORATION_SHADOW_ALPHA));
       ctx.fill();
-      outlined(ctx, ENEMY_HIVE_ENTRANCE_COLOR, () => {
+      cut(ctx, ENEMY_HIVE_ENTRANCE_COLOR, () => {
         ctx.ellipse(
           cx,
           baseY + HIVE_ENTRANCE.dy,
@@ -251,7 +264,7 @@ function bakeSkiff(scene: Phaser.Scene): string {
     SKIFF.height + DECORATION_SHADOW_OFFSET_PX * 2,
     (ctx, shadowPass) => {
       const drawPoly = (points: readonly { x: number; y: number }[], fill: number): void => {
-        outlined(ctx, fill, () => {
+        cut(ctx, fill, () => {
           const first = points[0];
           if (!first) {
             return;
@@ -288,7 +301,7 @@ function bakeCrate(scene: Phaser.Scene): string {
       const fill = shadowPass
         ? OUTLINE_COLOR
         : darken(RAIDER_ACCENT_COLOR, DECORATION_SHADOW_ALPHA);
-      outlined(ctx, fill, () => {
+      cut(ctx, fill, () => {
         ctx.rect(
           DECORATION_SHADOW_OFFSET_PX / 2,
           DECORATION_SHADOW_OFFSET_PX / 2,

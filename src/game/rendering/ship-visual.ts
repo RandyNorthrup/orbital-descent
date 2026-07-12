@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import {
   LANDER_ETCH_LINE_COUNT,
-  OUTLINE_COLOR,
   SHIP_FLAME_INNER_COLOR,
   SHIP_FLAME_INNER_LENGTH_PX,
   SHIP_FLAME_MID_COLOR,
@@ -32,10 +31,8 @@ const FULL_ALPHA = 1;
 /** Small-piece cut-edge treatment (see PaperShapeOptions.outlineWidth's
  * own doc comment): at hull scale the global outline/shadow proportions
  * swallow the fills, so every ship piece uses these instead. */
-const PIECE_OUTLINE_WIDTH = 2;
 const PIECE_SHADOW_OFFSET = 3;
 const CANOPY_FRAME_WIDTH = 2.5;
-const CANOPY_EDGE_WIDTH = 1;
 const PORTHOLE_RIM_WIDTH = 2;
 const SMALL_PORTHOLE_RIM_WIDTH = 1.5;
 
@@ -115,7 +112,6 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
       textureKey: `${options.textureKeyPrefix}-fin-${index.toString()}`,
       fillTopColor: accentColor,
       fillBottomColor: darken(accentColor, PIECE_GRADIENT_DARKEN_FRACTION),
-      outlineWidth: PIECE_OUTLINE_WIDTH,
       shadowOffset: PIECE_SHADOW_OFFSET,
     }),
   );
@@ -130,7 +126,6 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
       textureKey: `${options.textureKeyPrefix}-nacelle-${index.toString()}`,
       fillTopColor: accentColor,
       fillBottomColor: darken(accentColor, PIECE_GRADIENT_DARKEN_FRACTION),
-      outlineWidth: PIECE_OUTLINE_WIDTH,
       shadowOffset: PIECE_SHADOW_OFFSET,
     }),
   );
@@ -142,7 +137,6 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
     // The fin cutouts are far too small for etching to read as anything
     // but noise — only the hull body gets panel lines.
     etchLineCount: LANDER_ETCH_LINE_COUNT,
-    outlineWidth: PIECE_OUTLINE_WIDTH,
     shadowOffset: PIECE_SHADOW_OFFSET,
   });
   const attachments: PaperShape[] = silhouette.attachments.map((points, index) =>
@@ -151,7 +145,6 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
       textureKey: `${options.textureKeyPrefix}-attachment-${index.toString()}`,
       fillTopColor: detailColor,
       fillBottomColor: darken(detailColor, PIECE_GRADIENT_DARKEN_FRACTION),
-      outlineWidth: PIECE_OUTLINE_WIDTH,
       shadowOffset: PIECE_SHADOW_OFFSET,
     }),
   );
@@ -172,19 +165,11 @@ export function createShipVisual(scene: Phaser.Scene, options: ShipVisualOptions
   glass.fillPath();
   glass.lineStyle(CANOPY_FRAME_WIDTH, trimColor, FULL_ALPHA);
   glass.strokePath();
-  glass.lineStyle(CANOPY_EDGE_WIDTH, OUTLINE_COLOR, FULL_ALPHA);
-  glass.strokePath();
   // Signature porthole + the smaller porthole row, all trim-rimmed.
   glass.fillStyle(SHIP_GLASS_COLOR, FULL_ALPHA);
   glass.fillCircle(silhouette.window.x, silhouette.window.y, silhouette.window.radius);
   glass.lineStyle(PORTHOLE_RIM_WIDTH, trimColor, FULL_ALPHA);
   glass.strokeCircle(silhouette.window.x, silhouette.window.y, silhouette.window.radius);
-  glass.lineStyle(CANOPY_EDGE_WIDTH, OUTLINE_COLOR, FULL_ALPHA);
-  glass.strokeCircle(
-    silhouette.window.x,
-    silhouette.window.y,
-    silhouette.window.radius + PORTHOLE_RIM_WIDTH / 2,
-  );
   for (const porthole of silhouette.portholes) {
     glass.fillStyle(SHIP_GLASS_COLOR, FULL_ALPHA);
     glass.fillCircle(porthole.x, porthole.y, porthole.radius);

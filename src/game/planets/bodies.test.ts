@@ -81,6 +81,22 @@ describe('BODIES', () => {
     }
   });
 
+  it("keeps the ground surface LIGHTER than both strata on every world (Milestone 16.7 — the reference packs' light-ground value structure)", () => {
+    const BYTE = 0xff;
+    const RED_SHIFT = 16;
+    const GREEN_SHIFT = 8;
+    const CHANNELS = 3;
+    const brightness = (color: number): number =>
+      (((color >> RED_SHIFT) & BYTE) + ((color >> GREEN_SHIFT) & BYTE) + (color & BYTE)) / CHANNELS;
+    for (const body of BODIES) {
+      const { fillTopColor, strataColors } = body.terrainPalette;
+      expect(brightness(fillTopColor), body.id).toBeGreaterThan(brightness(strataColors.upper));
+      expect(brightness(strataColors.upper), body.id).toBeGreaterThan(
+        brightness(strataColors.lower),
+      );
+    }
+  });
+
   it('gives every sky palette in-range colors and a darker sky top than bottom (night-sky depth cue)', () => {
     const MAX_COLOR = 0xffffff;
     const channelAverage = (color: number): number => {

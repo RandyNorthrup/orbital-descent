@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DECOR_LAVA_COLOR, MOON_CRATER_DARKEN_FRACTION, OUTLINE_COLOR } from '../constants';
+import { DECOR_LAVA_COLOR, MOON_CRATER_DARKEN_FRACTION } from '../constants';
 import type { CelestialBody } from '../planets/celestial-body';
 import type { LandformKind } from '../terrain/landforms';
 import { generateMoonCraters } from './moon-craters';
@@ -21,7 +21,6 @@ const PLANET_DISC_CRATER_COUNT = 4;
 const PLANET_DISC_CRATER_MIN_RADIUS_FRACTION = 0.12;
 const PLANET_DISC_CRATER_MAX_RADIUS_FRACTION = 0.26;
 const PLANET_DISC_CRATER_SEED = 6060;
-const PLANET_DISC_OUTLINE_WIDTH_PX = 2;
 /** Canvas margin so protruding features (ice spikes, needle spires, the
  * volcano's smoke curl) draw outside the disc rim without clipping. */
 const PLANET_DISC_FEATURE_PAD_PX = 10;
@@ -109,8 +108,6 @@ function paintSpikes(
   const { ctx, c, r, body } = args;
   const random = createSeededRandom(PLANET_DISC_CRATER_SEED + body.distance);
   ctx.fillStyle = hexToCss(lighten(body.terrainPalette.fillTopColor, 0.35));
-  ctx.strokeStyle = hexToCss(OUTLINE_COLOR);
-  ctx.lineWidth = 1;
   for (let i = 0; i < count; i += 1) {
     const angle = (i / count) * Math.PI * 2 + random() * 0.5;
     const tip = r * (1 + lengthFraction + random() * 0.25);
@@ -127,7 +124,6 @@ function paintSpikes(
     );
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
   }
 }
 
@@ -351,12 +347,6 @@ export function createPlanetDiscImage(
       painter({ ctx, c: center, r: radius, body });
     }
     ctx.restore();
-
-    ctx.strokeStyle = hexToCss(OUTLINE_COLOR);
-    ctx.lineWidth = PLANET_DISC_OUTLINE_WIDTH_PX * 2;
-    ctx.beginPath();
-    ctx.arc(center, center, radius, 0, Math.PI * 2);
-    ctx.stroke();
 
     if (UNCLIPPED_LANDFORMS.has(body.landform)) {
       FEATURE_PAINTERS[body.landform]({ ctx, c: center, r: radius, body });

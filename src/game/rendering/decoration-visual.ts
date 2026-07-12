@@ -19,7 +19,7 @@ import {
   DECOR_SHADE_DARKEN_FRACTION,
   DECOR_TRUNK_DARKEN_FRACTION,
   VOLCANO_SMOKE_PUFF_ALPHA,
-  DECORATION_OUTLINE_WIDTH,
+  DECORATION_BAKE_SUPERSAMPLE,
   DECORATION_SHADOW_ALPHA,
   DECORATION_SHADOW_OFFSET_PX,
   OUTLINE_COLOR,
@@ -127,15 +127,14 @@ interface DrawArgs {
   readonly baseY: number;
 }
 
-function outlined(ctx: Ctx, fill: number, path: () => void): void {
+/** D28 (True Paper): decoration pieces are cut paper — fill only, no
+ * ink stroke; the baked shadow pass carries the layer separation. */
+function cut(ctx: Ctx, fill: number, path: () => void): void {
   ctx.beginPath();
   path();
   ctx.closePath();
   ctx.fillStyle = hexToCss(fill);
   ctx.fill();
-  ctx.lineWidth = DECORATION_OUTLINE_WIDTH;
-  ctx.strokeStyle = hexToCss(OUTLINE_COLOR);
-  ctx.stroke();
 }
 
 function circle(ctx: Ctx, x: number, y: number, r: number): void {
@@ -155,7 +154,7 @@ const LIT_OFFSET_PX = 3;
 
 function drawTree(args: DrawArgs): void {
   const { ctx, colors, rng, baseX, baseY } = args;
-  outlined(ctx, colors.trunk, () => {
+  cut(ctx, colors.trunk, () => {
     ctx.moveTo(baseX - TREE_TRUNK.bottomHalfWidth, baseY);
     ctx.lineTo(baseX - TREE_TRUNK.topHalfWidth, baseY - TREE_TRUNK.height);
     ctx.lineTo(baseX + TREE_TRUNK.topHalfWidth, baseY - TREE_TRUNK.height);
@@ -166,7 +165,7 @@ function drawTree(args: DrawArgs): void {
     y: baseY + puff.dy + (rng() - 0.5) * PUFF_JITTER_PX * 2,
     r: puff.r,
   }));
-  outlined(ctx, colors.canopy, () => {
+  cut(ctx, colors.canopy, () => {
     for (const puff of puffs) {
       circle(ctx, puff.x, puff.y, puff.r);
     }
@@ -192,7 +191,7 @@ function drawBush(args: DrawArgs): void {
     y: baseY + lobe.dy,
     r: lobe.r,
   }));
-  outlined(ctx, colors.canopy, () => {
+  cut(ctx, colors.canopy, () => {
     for (const lobe of lobes) {
       circle(ctx, lobe.x, lobe.y, lobe.r);
     }
@@ -219,7 +218,7 @@ function drawReed(args: DrawArgs): void {
   const tallest = REED_BLADES[1];
   for (const blade of REED_BLADES) {
     const tipX = baseX + blade.dxTip + (rng() - 0.5) * REED_JITTER_PX;
-    outlined(ctx, colors.canopy, () => {
+    cut(ctx, colors.canopy, () => {
       ctx.moveTo(baseX + blade.dxBase - REED_HALF_WIDTH, baseY);
       ctx.quadraticCurveTo(
         baseX + blade.dxBase,
@@ -235,7 +234,7 @@ function drawReed(args: DrawArgs): void {
       );
     });
   }
-  outlined(ctx, colors.accent, () => {
+  cut(ctx, colors.accent, () => {
     ctx.ellipse(
       baseX + tallest.dxTip,
       baseY - tallest.height - REED_HEAD.ry,
@@ -254,13 +253,13 @@ const FLOWER_PETAL_COUNT = 5;
 function drawFlower(args: DrawArgs): void {
   const { ctx, colors, baseX, baseY } = args;
   const headY = baseY - FLOWER.stemHeight - FLOWER.petalRing;
-  outlined(ctx, colors.canopy, () => {
+  cut(ctx, colors.canopy, () => {
     ctx.moveTo(baseX - REED_HALF_WIDTH, baseY);
     ctx.lineTo(baseX - REED_HALF_WIDTH, baseY - FLOWER.stemHeight);
     ctx.lineTo(baseX + REED_HALF_WIDTH, baseY - FLOWER.stemHeight);
     ctx.lineTo(baseX + REED_HALF_WIDTH, baseY);
   });
-  outlined(ctx, colors.accent, () => {
+  cut(ctx, colors.accent, () => {
     for (let i = 0; i < FLOWER_PETAL_COUNT; i += 1) {
       const angle = (i / FLOWER_PETAL_COUNT) * Math.PI * 2 - Math.PI / 2;
       circle(
@@ -290,7 +289,7 @@ function drawGrassTuft(args: DrawArgs): void {
   const { ctx, colors, rng, baseX, baseY } = args;
   for (const blade of GRASS_BLADES) {
     const lean = (rng() - 0.5) * REED_JITTER_PX;
-    outlined(ctx, colors.canopyLit, () => {
+    cut(ctx, colors.canopyLit, () => {
       ctx.moveTo(baseX + blade.dx - GRASS_HALF_WIDTH, baseY);
       ctx.lineTo(baseX + blade.dx + lean, baseY - blade.height);
       ctx.lineTo(baseX + blade.dx + GRASS_HALF_WIDTH, baseY);
@@ -313,7 +312,7 @@ function drawRock(args: DrawArgs): void {
     x: baseX + point.dx + (rng() - 0.5) * ROCK_JITTER_PX,
     y: baseY + point.dy + (point.dy === 0 ? 0 : (rng() - 0.5) * ROCK_JITTER_PX),
   }));
-  outlined(ctx, colors.rock, () => {
+  cut(ctx, colors.rock, () => {
     const first = points[0];
     if (!first) {
       return;
@@ -346,7 +345,7 @@ function drawCrystal(args: DrawArgs): void {
   for (const shard of CRYSTAL_SHARDS) {
     const tipX = baseX + shard.tipDx + (rng() - 0.5) * ROCK_JITTER_PX;
     const tipY = baseY + shard.tipDy + (rng() - 0.5) * ROCK_JITTER_PX;
-    outlined(ctx, colors.crystal, () => {
+    cut(ctx, colors.crystal, () => {
       ctx.moveTo(baseX + shard.leftDx, baseY);
       ctx.lineTo(tipX, tipY);
       ctx.lineTo(baseX + shard.rightDx, baseY);
@@ -370,14 +369,14 @@ const SNAG_BRANCH_HALF_WIDTH = 2;
 
 function drawSnag(args: DrawArgs): void {
   const { ctx, colors, baseX, baseY } = args;
-  outlined(ctx, colors.trunk, () => {
+  cut(ctx, colors.trunk, () => {
     ctx.moveTo(baseX - SNAG_TRUNK.bottomHalfWidth, baseY);
     ctx.lineTo(baseX - SNAG_TRUNK.topHalfWidth, baseY - SNAG_TRUNK.height);
     ctx.lineTo(baseX + SNAG_TRUNK.topHalfWidth, baseY - SNAG_TRUNK.height);
     ctx.lineTo(baseX + SNAG_TRUNK.bottomHalfWidth, baseY);
   });
   for (const branch of SNAG_BRANCHES) {
-    outlined(ctx, colors.trunk, () => {
+    cut(ctx, colors.trunk, () => {
       ctx.moveTo(baseX, baseY - branch.fromHeight - SNAG_BRANCH_HALF_WIDTH);
       ctx.lineTo(baseX + branch.dx, baseY + branch.dy);
       ctx.lineTo(baseX, baseY - branch.fromHeight + SNAG_BRANCH_HALF_WIDTH);
@@ -391,7 +390,7 @@ function drawBoulder(args: DrawArgs): void {
   const { ctx, colors, rng, baseX, baseY } = args;
   const rx = BOULDER.rx + (rng() - 0.5) * ROCK_JITTER_PX;
   const ry = BOULDER.ry + (rng() - 0.5) * (ROCK_JITTER_PX / 2);
-  outlined(ctx, colors.ground, () => {
+  cut(ctx, colors.ground, () => {
     ctx.ellipse(baseX, baseY - ry, rx, ry, 0, 0, Math.PI * 2);
   });
   ctx.beginPath();
@@ -412,7 +411,7 @@ const SURFACE_CRATER = { outerRx: 26, outerRy: 6, innerRx: 18, innerRy: 3.5 } as
 
 function drawSurfaceCrater(args: DrawArgs): void {
   const { ctx, colors, baseX, baseY } = args;
-  outlined(ctx, colors.groundShade, () => {
+  cut(ctx, colors.groundShade, () => {
     ctx.ellipse(
       baseX,
       baseY - SURFACE_CRATER.outerRy,
@@ -453,7 +452,7 @@ function drawLavaVent(args: DrawArgs): void {
   const { ctx, colors, rng, baseX, baseY } = args;
   const rx = LAVA_VENT.moundRx + (rng() - 0.5) * ROCK_JITTER_PX;
   // Dark rocky mound with a notched throat.
-  outlined(ctx, colors.rock, () => {
+  cut(ctx, colors.rock, () => {
     ctx.moveTo(baseX - rx, baseY);
     ctx.lineTo(baseX - LAVA_VENT.ventHalfWidth, baseY - LAVA_VENT.moundRy * 2);
     ctx.lineTo(
@@ -509,7 +508,7 @@ function drawIceShard(args: DrawArgs): void {
   for (const shard of ICE_SHARDS) {
     const tipX = baseX + shard.tipDx + (rng() - 0.5) * ROCK_JITTER_PX;
     const tipY = baseY + shard.tipDy + (rng() - 0.5) * ROCK_JITTER_PX;
-    outlined(ctx, colors.ice, () => {
+    cut(ctx, colors.ice, () => {
       ctx.moveTo(baseX + shard.leftDx, baseY);
       ctx.lineTo(tipX, tipY);
       ctx.lineTo(baseX + shard.rightDx, baseY);
@@ -563,46 +562,55 @@ function bakeDecorationTexture(
   }
   const size = GLYPH_SIZES[kind];
   const colors = decorationColors(body);
-  bakeCanvasTexture(scene, key, size.w + GLYPH_PAD * 2, size.h + GLYPH_PAD * 2, (ctx) => {
-    const baseX = GLYPH_PAD + size.w / 2;
-    const baseY = GLYPH_PAD + size.h - DECORATION_SHADOW_OFFSET_PX;
-    // Shadow pass: the same glyph, offset, flattened dark — the paper
-    // cutout's hard drop shadow.
-    ctx.save();
-    ctx.translate(DECORATION_SHADOW_OFFSET_PX, DECORATION_SHADOW_OFFSET_PX);
-    ctx.globalAlpha = DECORATION_SHADOW_ALPHA;
-    DRAWERS[kind]({
-      ctx,
-      colors: {
-        canopy: OUTLINE_COLOR,
-        canopyLit: OUTLINE_COLOR,
-        trunk: OUTLINE_COLOR,
-        accent: OUTLINE_COLOR,
-        rock: OUTLINE_COLOR,
-        rockFacet: OUTLINE_COLOR,
-        crystal: OUTLINE_COLOR,
-        crystalFacet: OUTLINE_COLOR,
-        ground: OUTLINE_COLOR,
-        groundShade: OUTLINE_COLOR,
-        lava: OUTLINE_COLOR,
-        lavaCore: OUTLINE_COLOR,
-        ice: OUTLINE_COLOR,
-        iceFacet: OUTLINE_COLOR,
-      },
-      rng: createSeededRandom(variantSeed(kind, variant)),
-      baseX,
-      baseY,
-    });
-    ctx.restore();
-    // Main pass — same variant seed, so the silhouette matches its shadow.
-    DRAWERS[kind]({
-      ctx,
-      colors,
-      rng: createSeededRandom(variantSeed(kind, variant)),
-      baseX,
-      baseY,
-    });
-  });
+  // D28: baked at supersample resolution so the 1.6-3.2x plant scales
+  // stay crisp instead of blurring a small canvas up.
+  bakeCanvasTexture(
+    scene,
+    key,
+    (size.w + GLYPH_PAD * 2) * DECORATION_BAKE_SUPERSAMPLE,
+    (size.h + GLYPH_PAD * 2) * DECORATION_BAKE_SUPERSAMPLE,
+    (ctx) => {
+      ctx.scale(DECORATION_BAKE_SUPERSAMPLE, DECORATION_BAKE_SUPERSAMPLE);
+      const baseX = GLYPH_PAD + size.w / 2;
+      const baseY = GLYPH_PAD + size.h - DECORATION_SHADOW_OFFSET_PX;
+      // Shadow pass: the same glyph, offset, flattened dark — the paper
+      // cutout's hard drop shadow.
+      ctx.save();
+      ctx.translate(DECORATION_SHADOW_OFFSET_PX, DECORATION_SHADOW_OFFSET_PX);
+      ctx.globalAlpha = DECORATION_SHADOW_ALPHA;
+      DRAWERS[kind]({
+        ctx,
+        colors: {
+          canopy: OUTLINE_COLOR,
+          canopyLit: OUTLINE_COLOR,
+          trunk: OUTLINE_COLOR,
+          accent: OUTLINE_COLOR,
+          rock: OUTLINE_COLOR,
+          rockFacet: OUTLINE_COLOR,
+          crystal: OUTLINE_COLOR,
+          crystalFacet: OUTLINE_COLOR,
+          ground: OUTLINE_COLOR,
+          groundShade: OUTLINE_COLOR,
+          lava: OUTLINE_COLOR,
+          lavaCore: OUTLINE_COLOR,
+          ice: OUTLINE_COLOR,
+          iceFacet: OUTLINE_COLOR,
+        },
+        rng: createSeededRandom(variantSeed(kind, variant)),
+        baseX,
+        baseY,
+      });
+      ctx.restore();
+      // Main pass — same variant seed, so the silhouette matches its shadow.
+      DRAWERS[kind]({
+        ctx,
+        colors,
+        rng: createSeededRandom(variantSeed(kind, variant)),
+        baseX,
+        baseY,
+      });
+    },
+  );
   return key;
 }
 
@@ -638,9 +646,6 @@ function bakeVolcanoSmoke(scene: Phaser.Scene, body: CelestialBody): string {
       circle(ctx, baseX + puff.dx, baseY + puff.dy, puff.r);
       ctx.fillStyle = hexToCss(darken(smokeColor, DECOR_SHADE_DARKEN_FRACTION));
       ctx.fill();
-      ctx.lineWidth = DECORATION_OUTLINE_WIDTH;
-      ctx.strokeStyle = hexToCss(OUTLINE_COLOR);
-      ctx.stroke();
     }
   });
   return key;
@@ -666,7 +671,7 @@ export function buildDecorations(
     return scene.add
       .image(spec.x, y, key)
       .setOrigin(0.5, 1)
-      .setScale(spec.scale)
+      .setScale(spec.scale / DECORATION_BAKE_SUPERSAMPLE)
       .setDepth(TERRAIN_SHADOW_LAYER_DEPTH);
   });
   if (body.landform === 'volcano') {

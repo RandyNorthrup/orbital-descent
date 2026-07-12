@@ -160,10 +160,12 @@ export const PROJECTILE_GLOW_MAX_ALPHA = 0.6;
 
 /** Shared near-black outline/shadow color for every cutout shape. */
 export const OUTLINE_COLOR = 0x1a1410;
-export const OUTLINE_WIDTH = 3;
 
 /** Offset, in px, of the hard drop-shadow copy behind each shape. */
 export const SHADOW_OFFSET = 6;
+/** Milestone 16.7 (D28): paper shadows are translucent — the reference
+ * dioramas separate layers with soft dark shadows, never solid black. */
+export const PAPER_SHADOW_ALPHA = 0.35;
 
 /** Fine etched surface-texture strokes (rock striations / hull panel lines /
  * dune ripples / wave-lines / foliage clusters, depending on the shape's own
@@ -262,13 +264,18 @@ export const DUSK_STAR_COUNT_FRACTION = 0.35;
  * see `terrain/decorations.ts`); lush worlds read densest, moons
  * sparsest, matching each kind's fiction. */
 export const DECORATION_SEED = 7070;
-export const DECORATION_COUNT_LUSH = 34;
-export const DECORATION_COUNT_BARREN = 18;
-export const DECORATION_COUNT_MOON = 14;
+export const DECORATION_COUNT_LUSH = 44;
+export const DECORATION_COUNT_BARREN = 26;
+export const DECORATION_COUNT_MOON = 18;
 export const DECORATION_CLEARANCE_MARGIN_PX = 40;
 export const DECORATION_EDGE_MARGIN_PX = 24;
-export const DECORATION_MIN_SCALE = 0.7;
-export const DECORATION_MAX_SCALE = 1.3;
+/** D28 (True Paper): reference features are frame-dominating chunks, not
+ * trinkets — decorations plant at 1.6-3.2x their former art size. Glyphs
+ * bake at DECORATION_BAKE_SUPERSAMPLE resolution and the renderer divides
+ * the display scale back down, so the scale-up stays crisp. */
+export const DECORATION_MIN_SCALE = 1.6;
+export const DECORATION_MAX_SCALE = 3.2;
+export const DECORATION_BAKE_SUPERSAMPLE = 3;
 export const DECORATION_VARIANT_COUNT = 3;
 
 /** Paper-cutout treatment shared by every decoration glyph: piece-scale
@@ -330,7 +337,9 @@ export const TERRAIN_STRATA_OFFSETS_PX = [
   TERRAIN_STRATA_UPPER_OFFSET_PX,
   TERRAIN_STRATA_LOWER_OFFSET_PX,
 ] as const;
-export const TERRAIN_STRATA_OUTLINE_WIDTH = 2;
+/** D28: strata edges separate with a translucent shadow band of this
+ * thickness instead of an ink stroke. */
+export const TERRAIN_STRATA_SHADOW_PX = 5;
 
 /** Base structures & inhabitants (Milestone 16, D24). Friendly structures
  * are faction-colored (man-made cream paper + a shared warm trim), not
