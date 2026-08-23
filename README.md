@@ -348,3 +348,9 @@ CI/CD (Decision D9): GitHub stores the code, nothing more. Quality gates
   dropped CI).
 - **`pnpm test:e2e` fails with a missing browser**: run
   `pnpm exec playwright install chromium firefox webkit` once.
+
+## Support this project
+
+If this project saves you time, you can
+[buy me a coffee](https://www.paypal.com/donate/?hosted_button_id=Q9VC7B42R7K82)
+via PayPal. Thank you!
